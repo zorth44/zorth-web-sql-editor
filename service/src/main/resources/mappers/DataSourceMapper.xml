@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bocsoft.sqleditor.datasource.persistence.DataSourceMapper">
+  <resultMap id="record" type="com.bocsoft.sqleditor.datasource.persistence.DataSourceRecord">
+    <id property="id" column="id"/>
+    <result property="productId" column="product_id"/>
+    <result property="name" column="name"/>
+    <result property="engine" column="engine"/>
+    <result property="host" column="host"/>
+    <result property="port" column="port"/>
+    <result property="username" column="username"/>
+    <result property="passwordCiphertext" column="password_ciphertext"/>
+    <result property="passwordIv" column="password_iv"/>
+    <result property="keyVersion" column="key_version"/>
+    <result property="defaultDatabase" column="default_database"/>
+    <result property="sslMode" column="ssl_mode"/>
+    <result property="connectTimeoutSeconds" column="connect_timeout_seconds"/>
+    <result property="propertiesJson" column="properties_json"/>
+    <result property="description" column="description"/>
+    <result property="lastTestStatus" column="last_test_status"/>
+    <result property="lastTestAt" column="last_test_at"/>
+    <result property="lastTestMessage" column="last_test_message"/>
+    <result property="version" column="version"/>
+    <result property="createdBy" column="created_by"/>
+    <result property="createdByName" column="created_by_name"/>
+    <result property="createdAt" column="created_at"/>
+    <result property="updatedBy" column="updated_by"/>
+    <result property="updatedByName" column="updated_by_name"/>
+    <result property="updatedAt" column="updated_at"/>
+  </resultMap>
+  <sql id="columns">id, product_id, name, engine, host, port, username, password_ciphertext,
+    password_iv, key_version, default_database, ssl_mode, connect_timeout_seconds, properties_json,
+    description, last_test_status, last_test_at, last_test_message, version, created_by,
+    created_by_name, created_at, updated_by, updated_by_name, updated_at</sql>
+
+  <insert id="insert">
+    INSERT INTO sql_data_source (<include refid="columns"/>) VALUES
+    (#{id}, #{productId}, #{name}, #{engine}, #{host}, #{port}, #{username},
+     #{passwordCiphertext}, #{passwordIv}, #{keyVersion}, #{defaultDatabase}, #{sslMode},
+     #{connectTimeoutSeconds}, CAST(#{propertiesJson} AS JSON), #{description}, #{lastTestStatus},
+     #{lastTestAt}, #{lastTestMessage}, #{version}, #{createdBy}, #{createdByName}, #{createdAt},
+     #{updatedBy}, #{updatedByName}, #{updatedAt})
+  </insert>
+
+  <select id="findVisible" resultMap="record">
+    SELECT <include refid="columns"/> FROM sql_data_source
+    WHERE id = #{id} AND product_id = #{productId}
+  </select>
+
+  <select id="list" resultMap="record">
+    SELECT <include refid="columns"/> FROM sql_data_source
+    WHERE product_id = #{productId}
+    <if test="keyword != null and keyword != ''">
+      AND (name LIKE #{keyword} ESCAPE '\\' OR host LIKE #{keyword} ESCAPE '\\')
+    </if>
+    <if test="cursorUpdatedAt != null">
+      AND (updated_at &lt; #{cursorUpdatedAt} OR (updated_at = #{cursorUpdatedAt} AND id &lt; #{cursorId}))
+    </if>
+    ORDER BY updated_at DESC, id DESC
+    LIMIT #{limit}
+  </select>
+
+  <update id="updateCurrent">
+    UPDATE sql_data_source SET name=#{name}, engine=#{engine}, host=#{host}, port=#{port},
+      username=#{username}, password_ciphertext=#{passwordCiphertext}, password_iv=#{passwordIv},
+      key_version=#{keyVersion}, default_database=#{defaultDatabase}, ssl_mode=#{sslMode},
+      connect_timeout_seconds=#{connectTimeoutSeconds}, properties_json=CAST(#{propertiesJson} AS JSON),
+      description=#{description}, version=version+1, updated_by=#{updatedBy},
+      updated_by_name=#{updatedByName}, updated_at=#{updatedAt}
+    WHERE id=#{id} AND product_id=#{productId} AND version=#{version}
+  </update>
+
+  <delete id="deleteCurrent">
+    DELETE FROM sql_data_source WHERE id=#{id} AND product_id=#{productId} AND version=#{version}
+  </delete>
+
+  <update id="updateLastTest">
+    UPDATE sql_data_source SET last_test_status=#{status}, last_test_at=#{testedAt},
+      last_test_message=#{message} WHERE id=#{id} AND product_id=#{productId}
+  </update>
+
+  <select id="findCredentialsByKeyVersion" resultMap="record">
+    SELECT <include refid="columns"/> FROM sql_data_source
+    WHERE key_version=#{keyVersion}
+    <if test="afterId != null and afterId != ''">AND id &gt; #{afterId}</if>
+    ORDER BY id LIMIT #{limit}
+  </select>
+  <update id="rotateCredential">
+    UPDATE sql_data_source SET password_ciphertext=#{ciphertext}, password_iv=#{iv},
+      key_version=#{newVersion} WHERE id=#{id} AND key_version=#{oldVersion}
+  </update>
+  <select id="countByKeyVersion" resultType="long">
+    SELECT COUNT(*) FROM sql_data_source WHERE key_version=#{keyVersion}
+  </select>
+</mapper>

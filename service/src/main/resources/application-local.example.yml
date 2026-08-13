@@ -1,0 +1,19 @@
+# Copy outside source control and replace every placeholder.
+spring:
+  datasource:
+    url: jdbc:mysql://<metadata-host>:3306/<metadata-database>?serverTimezone=UTC
+    username: <metadata-username>
+    password: <metadata-password>
+sql-editor:
+  auth:
+    context-url: https://<authorization-host>/internal/api/v1/auth/context
+    internal-service-key: <internal-service-key>
+  credentials:
+    current-version: <key-version>
+    keys:
+      <key-version>: <base64-encoded-32-byte-key>
+  cursor:
+    signing-key: <independent-base64-signing-key>
+  network:
+    allowed-cidrs: [<approved-target-cidr>]
+    denied-cidrs: [127.0.0.0/8, 169.254.0.0/16, ::1/128, fe80::/10]

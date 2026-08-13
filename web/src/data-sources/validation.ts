@@ -5,10 +5,19 @@ export type FormField = keyof DataSourceFormModel
 export type FormErrors = Partial<Record<FormField, string>>
 
 const PROPERTY_VALUES: Record<string, readonly string[]> = {
-  serverTimezone: ['Asia/Shanghai', 'UTC'],
-  useUnicode: ['true'],
+  characterSetResults: ['utf8', 'UTF-8'],
   zeroDateTimeBehavior: ['EXCEPTION', 'CONVERT_TO_NULL', 'ROUND'],
-  allowPublicKeyRetrieval: ['true', 'false'],
+  tinyInt1isBit: ['true', 'false'],
+  sendFractionalSeconds: ['true', 'false'],
+}
+
+function isKnownTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value }).format()
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function validateDataSourceForm(
@@ -26,6 +35,7 @@ export function validateDataSourceForm(
   const usernameLength = form.username.trim().length
   if (usernameLength < 1 || usernameLength > 128) errors.username = '用户名长度必须为 1–128 个字符'
   if (mode === 'create' && !form.password) errors.password = '新增数据源必须输入密码'
+  else if (form.password.length > 1024) errors.password = '密码最多 1024 个字符'
   if (form.defaultDatabase.trim().length > 64) errors.defaultDatabase = '默认数据库最多 64 个字符'
   if (
     !Number.isInteger(Number(form.connectTimeoutSeconds)) ||
@@ -35,7 +45,11 @@ export function validateDataSourceForm(
     errors.connectTimeoutSeconds = '连接超时必须在 1–30 秒之间'
   if (form.description.length > 500) errors.description = '描述最多 500 个字符'
   for (const [key, value] of Object.entries(form.properties)) {
-    if (!PROPERTY_VALUES[key]?.includes(value || '')) {
+    const allowed =
+      key === 'serverTimezone'
+        ? Boolean(value) && isKnownTimeZone(value)
+        : PROPERTY_VALUES[key]?.includes(value || '')
+    if (!allowed) {
       errors.properties = `JDBC 参数 ${key} 的值不在白名单中`
       break
     }

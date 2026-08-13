@@ -174,9 +174,18 @@ export const handlers = [
     const body = raw as unknown as CreateDataSourceRequest
     const timestamp = new Date().toISOString()
     const detail: DataSourceDetail = {
-      ...body,
       id: crypto.randomUUID(),
+      name: body.name,
+      engine: body.engine,
+      host: body.host,
+      port: body.port,
+      username: body.username,
       passwordConfigured: true,
+      defaultDatabase: body.defaultDatabase,
+      sslMode: body.sslMode,
+      connectTimeoutSeconds: body.connectTimeoutSeconds,
+      properties: { ...body.properties },
+      description: body.description,
       lastTestStatus: null,
       lastTestAt: null,
       lastTestMessage: null,

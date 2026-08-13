@@ -54,7 +54,11 @@ export type ConnectionFailureCode =
   | 'CONNECTION_FAILED'
 export type JdbcProperties = Partial<
   Record<
-    'serverTimezone' | 'useUnicode' | 'zeroDateTimeBehavior' | 'allowPublicKeyRetrieval',
+    | 'serverTimezone'
+    | 'characterSetResults'
+    | 'zeroDateTimeBehavior'
+    | 'tinyInt1isBit'
+    | 'sendFractionalSeconds',
     string
   >
 >

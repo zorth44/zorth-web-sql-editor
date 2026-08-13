@@ -1,0 +1,24 @@
+# Test profile example. Values are placeholders and must be injected by the test harness.
+spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/sql_editor_test?serverTimezone=UTC
+    username: test_user
+    password: ${SQL_EDITOR_METADATA_PASSWORD}
+sql-editor:
+  auth:
+    context-url: http://127.0.0.1:18089/internal/api/v1/auth/context
+    internal-service-key: ${SQL_EDITOR_AUTH_INTERNAL_SERVICE_KEY}
+    cache-ttl-seconds: 0
+  credentials:
+    current-version: test-v1
+    keys:
+      test-v1: ${SQL_EDITOR_CREDENTIAL_CURRENT_KEY}
+  cursor:
+    signing-key: ${SQL_EDITOR_CURSOR_SIGNING_KEY}
+  network:
+    allowed-cidrs: 127.0.0.0/8
+    denied-cidrs: 192.0.2.0/24
+management:
+  endpoint:
+    health:
+      show-details: never

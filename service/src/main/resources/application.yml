@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: zorth-web-sql-service
+  datasource:
+    url: ${SQL_EDITOR_METADATA_URL:}
+    username: ${SQL_EDITOR_METADATA_USERNAME:}
+    password: ${SQL_EDITOR_METADATA_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${SQL_EDITOR_METADATA_POOL_SIZE:10}
+      connection-init-sql: SET time_zone = '+00:00'
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+    serialization:
+      write-dates-as-timestamps: false
+  flyway:
+    enabled: true
+    encoding: UTF-8
+  mvc:
+    throw-exception-if-no-handler-found: true
+
+mybatis:
+  mapper-locations: classpath:/mappers/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+sql-editor:
+  auth:
+    context-url: ${SQL_EDITOR_AUTH_CONTEXT_URL:}
+    internal-service-key: ${SQL_EDITOR_AUTH_INTERNAL_SERVICE_KEY:}
+    connect-timeout-ms: ${SQL_EDITOR_AUTH_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${SQL_EDITOR_AUTH_READ_TIMEOUT_MS:3000}
+    cache-ttl-seconds: ${SQL_EDITOR_AUTH_CACHE_TTL_SECONDS:60}
+    cache-maximum-size: ${SQL_EDITOR_AUTH_CACHE_MAXIMUM_SIZE:10000}
+  credentials:
+    current-version: ${SQL_EDITOR_CREDENTIAL_CURRENT_VERSION:v1}
+    keys:
+      v1: ${SQL_EDITOR_CREDENTIAL_CURRENT_KEY:}
+  cursor:
+    signing-key: ${SQL_EDITOR_CURSOR_SIGNING_KEY:}
+    maximum-token-length: ${SQL_EDITOR_CURSOR_MAXIMUM_TOKEN_LENGTH:2048}
+  network:
+    allowed-cidrs: ${SQL_EDITOR_NETWORK_ALLOWED_CIDRS:}
+    denied-cidrs: ${SQL_EDITOR_NETWORK_DENIED_CIDRS:127.0.0.0/8,169.254.0.0/16,::1/128,fe80::/10}
+  pools:
+    max-pools: ${SQL_EDITOR_TARGET_MAX_POOLS:10}
+    max-connections: ${SQL_EDITOR_TARGET_MAX_CONNECTIONS:50}
+    max-pool-size: ${SQL_EDITOR_TARGET_POOL_SIZE:5}
+    idle-pool-minutes: ${SQL_EDITOR_TARGET_IDLE_POOL_MINUTES:30}
+
+management:
+  server:
+    port: ${SQL_EDITOR_MANAGEMENT_PORT:9081}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+    env:
+      enabled: false
+    configprops:
+      enabled: false
+    heapdump:
+      enabled: false
+  health:
+    group:
+      liveness:
+        include: livenessState,ping
+      readiness:
+        include: readinessState,db,authOrigin
+
+springdoc:
+  show-actuator: false

@@ -97,6 +97,7 @@ function property(key: keyof DataSourceFormModel['properties'], value: string): 
             class="field"
             type="password"
             :value="modelValue.password"
+            maxlength="1024"
             autocomplete="new-password"
             :aria-invalid="Boolean(errors.password)"
             @input="update('password', ($event.target as HTMLInputElement).value)"
@@ -163,27 +164,29 @@ function property(key: keyof DataSourceFormModel['properties'], value: string): 
       <div class="mt-4 grid grid-cols-2 gap-5">
         <div>
           <label class="label" for="property-timezone">serverTimezone</label
-          ><select
+          ><input
             id="property-timezone"
             class="field"
+            list="property-timezone-suggestions"
             :value="modelValue.properties.serverTimezone || ''"
-            @change="property('serverTimezone', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">不设置</option>
-            <option value="Asia/Shanghai">Asia/Shanghai</option>
-            <option value="UTC">UTC</option>
-          </select>
+            placeholder="例如 Asia/Shanghai"
+            @input="property('serverTimezone', ($event.target as HTMLInputElement).value)"
+          /><datalist id="property-timezone-suggestions">
+            <option value="Asia/Shanghai"></option>
+            <option value="UTC"></option>
+          </datalist>
         </div>
         <div>
-          <label class="label" for="property-unicode">useUnicode</label
+          <label class="label" for="property-character-set">characterSetResults</label
           ><select
-            id="property-unicode"
+            id="property-character-set"
             class="field"
-            :value="modelValue.properties.useUnicode || ''"
-            @change="property('useUnicode', ($event.target as HTMLSelectElement).value)"
+            :value="modelValue.properties.characterSetResults || ''"
+            @change="property('characterSetResults', ($event.target as HTMLSelectElement).value)"
           >
             <option value="">不设置</option>
-            <option value="true">true</option>
+            <option value="utf8">utf8</option>
+            <option value="UTF-8">UTF-8</option>
           </select>
         </div>
         <div>
@@ -201,14 +204,25 @@ function property(key: keyof DataSourceFormModel['properties'], value: string): 
           </select>
         </div>
         <div>
-          <label class="label" for="property-key">allowPublicKeyRetrieval</label
+          <label class="label" for="property-tiny-int">tinyInt1isBit</label
           ><select
-            id="property-key"
+            id="property-tiny-int"
             class="field"
-            :value="modelValue.properties.allowPublicKeyRetrieval || ''"
-            @change="
-              property('allowPublicKeyRetrieval', ($event.target as HTMLSelectElement).value)
-            "
+            :value="modelValue.properties.tinyInt1isBit || ''"
+            @change="property('tinyInt1isBit', ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="">不设置</option>
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="property-fractional">sendFractionalSeconds</label
+          ><select
+            id="property-fractional"
+            class="field"
+            :value="modelValue.properties.sendFractionalSeconds || ''"
+            @change="property('sendFractionalSeconds', ($event.target as HTMLSelectElement).value)"
           >
             <option value="">不设置</option>
             <option value="true">true</option>

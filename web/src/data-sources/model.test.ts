@@ -55,6 +55,30 @@ describe('data-source request mappers', () => {
     })
     expect(validateDataSourceForm(validForm(), 'create')).toEqual({})
   })
+  it('accepts only the authoritative JDBC allow-list and valid IANA zones', () => {
+    const allowed = {
+      ...validForm(),
+      properties: {
+        serverTimezone: 'Europe/Paris',
+        characterSetResults: 'UTF-8',
+        zeroDateTimeBehavior: 'CONVERT_TO_NULL',
+        tinyInt1isBit: 'false',
+        sendFractionalSeconds: 'true',
+      },
+    }
+    expect(validateDataSourceForm(allowed, 'create')).toEqual({})
+    expect(JSON.stringify(mapCreateRequest(allowed))).not.toContain('useUnicode')
+    expect(JSON.stringify(mapCreateRequest(allowed))).not.toContain('allowPublicKeyRetrieval')
+    expect(
+      validateDataSourceForm(
+        { ...allowed, properties: { serverTimezone: 'not/a-real-time-zone' } },
+        'create',
+      ),
+    ).toHaveProperty('properties')
+    expect(
+      validateDataSourceForm({ ...allowed, password: 'x'.repeat(1025) }, 'create'),
+    ).toHaveProperty('password')
+  })
   it('maps known backend fields and summarizes unknown ones', () => {
     expect(
       mapFieldErrors([

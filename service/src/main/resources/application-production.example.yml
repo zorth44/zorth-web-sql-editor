@@ -1,0 +1,19 @@
+# Template only. Inject all values from the deployment Secret/configuration system.
+spring:
+  datasource:
+    url: ${SQL_EDITOR_METADATA_URL}
+    username: ${SQL_EDITOR_METADATA_USERNAME}
+    password: ${SQL_EDITOR_METADATA_PASSWORD}
+sql-editor:
+  auth:
+    context-url: ${SQL_EDITOR_AUTH_CONTEXT_URL}
+    internal-service-key: ${SQL_EDITOR_AUTH_INTERNAL_SERVICE_KEY}
+  credentials:
+    current-version: ${SQL_EDITOR_CREDENTIAL_CURRENT_VERSION}
+    keys:
+      ${SQL_EDITOR_CREDENTIAL_CURRENT_VERSION}: ${SQL_EDITOR_CREDENTIAL_CURRENT_KEY}
+  cursor:
+    signing-key: ${SQL_EDITOR_CURSOR_SIGNING_KEY}
+  network:
+    allowed-cidrs: ${SQL_EDITOR_NETWORK_ALLOWED_CIDRS}
+    denied-cidrs: ${SQL_EDITOR_NETWORK_DENIED_CIDRS}
