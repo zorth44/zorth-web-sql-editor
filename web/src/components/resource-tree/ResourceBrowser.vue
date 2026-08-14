@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ChevronRight, Menu, RefreshCw, Search } from 'lucide-vue-next'
 import { getTableDetail, listDatabases, listTables } from '@/api/metadata'
@@ -33,8 +33,8 @@ const groups: { type: ObjectGroup; label: string }[] = [
   { type: 'VIEW', label: '视图' },
 ]
 
-const navigatorSearch = ref('')
-const tableSearchByDb = ref<Record<string, string>>({})
+const databaseSearchBySource = ref<Record<string, string>>({})
+const tableSearchBySource = ref<Record<string, string>>({})
 const expandedSources = ref<Record<string, boolean>>({})
 const expandedDbs = ref<Record<string, boolean>>({})
 const expandedGroups = ref<Record<string, boolean>>({})
@@ -68,44 +68,34 @@ function tableKey(dataSourceId: string, database: string, table: string): string
 function groupKey(dataSourceId: string, database: string, group: ObjectGroup): string {
   return `${dataSourceId}:${database}:${group}`
 }
-function sourceMatches(source: DataSourceListItem, query: string): boolean {
-  if (!query) return true
-  return (
-    source.name.toLowerCase().includes(query) ||
-    sourceEndpoint(source).toLowerCase().includes(query)
-  )
+function databaseQuery(dataSourceId: string): string {
+  return databaseSearchBySource.value[dataSourceId] || ''
+}
+function setDatabaseQuery(dataSourceId: string, event: Event): void {
+  const value = (event.target as HTMLInputElement).value
+  databaseSearchBySource.value = { ...databaseSearchBySource.value, [dataSourceId]: value }
+}
+function tableQuery(dataSourceId: string): string {
+  return tableSearchBySource.value[dataSourceId] || ''
+}
+function setTableQuery(dataSourceId: string, event: Event): void {
+  const value = (event.target as HTMLInputElement).value
+  tableSearchBySource.value = { ...tableSearchBySource.value, [dataSourceId]: value }
 }
 function databasesOf(dataSourceId: string): DatabaseItem[] {
-  const query = navigatorSearch.value.trim().toLowerCase()
+  const query = databaseQuery(dataSourceId).trim().toLowerCase()
   const items = databasesBySource.value[dataSourceId] || []
-  const source = props.sources.find((item) => item.id === dataSourceId)
-  if (!query || (source && sourceMatches(source, query))) return items
+  if (!query) return items
   return items.filter((item) => item.name.toLowerCase().includes(query))
 }
-
-const visibleSources = computed(() => {
-  const query = navigatorSearch.value.trim().toLowerCase()
-  if (!query) return props.sources
-  return props.sources.filter(
-    (source) => sourceMatches(source, query) || databasesOf(source.id).length > 0,
-  )
-})
-
-function tableQuery(dataSourceId: string, database: string): string {
-  return tableSearchByDb.value[dbKey(dataSourceId, database)] || ''
-}
-function setTableQuery(dataSourceId: string, database: string, event: Event): void {
-  const value = (event.target as HTMLInputElement).value
-  tableSearchByDb.value = { ...tableSearchByDb.value, [dbKey(dataSourceId, database)]: value }
-}
 function tablesOf(dataSourceId: string, database: string, type: ObjectGroup): TableItem[] {
-  const q = tableQuery(dataSourceId, database).trim().toLowerCase()
+  const q = tableQuery(dataSourceId).trim().toLowerCase()
   return (tablesByDb.value[dbKey(dataSourceId, database)] || []).filter(
     (item) => item.type === type && (!q || item.name.toLowerCase().includes(q)),
   )
 }
 function isGroupOpen(dataSourceId: string, database: string, group: ObjectGroup): boolean {
-  if (tableQuery(dataSourceId, database).trim()) return true
+  if (tableQuery(dataSourceId).trim()) return true
   return Boolean(expandedGroups.value[groupKey(dataSourceId, database, group)])
 }
 function isActive(node: ActiveNode): boolean {
@@ -344,21 +334,11 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
 </script>
 <template>
   <section class="flex h-full min-h-0 flex-col bg-panel">
-    <div class="border-b border-line px-3 py-2.5">
-      <div class="flex items-center justify-between">
-        <strong class="text-sm">数据库导航</strong>
-        <button class="icon-btn" aria-label="刷新数据库" title="刷新" @click="emit('refresh')">
-          <RefreshCw :size="14" />
-        </button>
-      </div>
-      <label class="relative mt-2 block">
-        <Search class="absolute left-2.5 top-2 text-muted" :size="14" />
-        <input
-          v-model="navigatorSearch"
-          class="field py-1.5 pl-8 text-xs"
-          placeholder="搜索数据源 / 数据库"
-        />
-      </label>
+    <div class="flex items-center justify-between border-b border-line px-3 py-2.5">
+      <strong class="text-sm">数据库导航</strong>
+      <button class="icon-btn" aria-label="刷新数据库" title="刷新" @click="emit('refresh')">
+        <RefreshCw :size="14" />
+      </button>
     </div>
     <div class="min-h-0 flex-1 overflow-auto py-1 text-[12px] leading-none">
       <div v-if="!sources.length" class="px-3 py-6 text-center text-xs text-muted">
@@ -367,10 +347,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
           >去数据源管理</RouterLink
         >
       </div>
-      <p v-else-if="!visibleSources.length" class="px-3 py-6 text-center text-xs text-muted">
-        没有匹配的数据源
-      </p>
-      <div v-for="source in visibleSources" :key="source.id">
+      <div v-for="source in sources" :key="source.id">
         <div
           class="tree-row"
           :class="{ 'tree-row-active': isActive({ kind: 'source', dataSourceId: source.id }) }"
@@ -409,6 +386,31 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
           </button>
         </div>
         <div v-if="expandedSources[source.id]">
+          <div
+            class="tree-filter tree-row-depth-1"
+            role="search"
+            :aria-label="'筛选 ' + source.name + ' 的数据库和表'"
+          >
+            <Search class="shrink-0" :size="12" aria-hidden="true" />
+            <input
+              class="tree-filter-input"
+              placeholder="筛选库名"
+              aria-label="筛选数据库"
+              title="筛选数据库"
+              :data-testid="`navigator-db-filter-${source.id}`"
+              :value="databaseQuery(source.id)"
+              @input="setDatabaseQuery(source.id, $event)"
+            />
+            <input
+              class="tree-filter-input"
+              placeholder="筛选表名"
+              aria-label="筛选表"
+              title="筛选表 / 视图"
+              :data-testid="`navigator-table-filter-${source.id}`"
+              :value="tableQuery(source.id)"
+              @input="setTableQuery(source.id, $event)"
+            />
+          </div>
           <p v-if="loadingDatabases[source.id]" class="px-3 py-1.5 text-xs text-muted">
             正在加载数据库…
           </p>
@@ -470,18 +472,6 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
                 {{ tableError[dbKey(source.id, item.name)] }}
               </p>
               <template v-else>
-                <label
-                  v-if="tablesByDb[dbKey(source.id, item.name)]?.length"
-                  class="relative mx-2 my-1 ml-7 block"
-                >
-                  <Search class="absolute left-2 top-1.5 text-muted" :size="12" />
-                  <input
-                    class="field py-1 pl-7 text-[11px]"
-                    placeholder="过滤表 / 视图"
-                    :value="tableQuery(source.id, item.name)"
-                    @input="setTableQuery(source.id, item.name, $event)"
-                  />
-                </label>
                 <div v-for="group in groups" :key="group.type">
                   <div
                     class="tree-row tree-row-depth-2 group"

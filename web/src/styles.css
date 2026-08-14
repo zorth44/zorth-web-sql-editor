@@ -178,6 +178,12 @@ textarea {
 .tree-empty {
   @apply py-1 pr-2 text-[11px] text-muted;
 }
+.tree-filter {
+  @apply flex items-center gap-1 py-1 pr-2 text-muted;
+}
+.tree-filter-input {
+  @apply min-w-0 flex-1 rounded border border-line bg-subtle px-1.5 py-0.5 text-[11px] leading-normal text-ink placeholder:text-placeholder focus:border-brand focus:bg-panel;
+}
 .sql-split.splitpanes {
   background: transparent;
 }

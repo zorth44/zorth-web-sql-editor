@@ -29,9 +29,13 @@ The SQL workspace sidebar SHALL list visible data sources as tree roots. Expandi
 - **WHEN** a user changes the toolbar data source or database selector
 - **THEN** the workspace SHALL apply the same connection binding as tree selection and SHALL expand and highlight the matching tree nodes without collapsing other expanded data sources
 
-#### Scenario: Search the navigator
-- **WHEN** a user types in the sidebar search field
-- **THEN** the tree SHALL filter data source names and hosts, and SHALL filter databases under already-expanded sources
+#### Scenario: Filter databases and tables under an expanded source
+- **WHEN** a user expands a data source
+- **THEN** the tree SHALL show two filters under that source, labeled as database-name and table-name filters, and SHALL NOT show a global data-source search
+- **WHEN** the user types a database name in that source's database filter
+- **THEN** only matching databases of that source SHALL remain visible
+- **WHEN** the user types a table name in that source's table filter
+- **THEN** tables and views under already-expanded databases of that source SHALL be filtered
 
 #### Scenario: No visible data sources
 - **WHEN** the current user has no visible data sources

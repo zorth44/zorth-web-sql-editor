@@ -97,22 +97,33 @@ describe('resource navigator', () => {
     wrapper.unmount()
   })
 
-  it('filters sources by name or host and expanded databases', async () => {
-    const wrapper = await renderBrowser({ dataSourceId: 'ds-orders-a' })
-    await wrapper.get('input[placeholder="搜索数据源 / 数据库"]').setValue('mysql-b')
-    await flushPromises()
-    expect(wrapper.find('[data-testid="navigator-source-ds-orders-a"]').exists()).toBe(false)
+  it('filters databases and tables under an expanded source', async () => {
+    const wrapper = await renderBrowser({ dataSourceId: 'ds-orders-a', database: 'orders' })
+    expect(wrapper.find('input[placeholder="搜索数据源 / 数据库"]').exists()).toBe(false)
+    expect(wrapper.find('input[placeholder="过滤表 / 视图"]').exists()).toBe(false)
+    expect(
+      wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').attributes('placeholder'),
+    ).toBe('筛选库名')
+    expect(
+      wrapper.get('[data-testid="navigator-table-filter-ds-orders-a"]').attributes('placeholder'),
+    ).toBe('筛选表名')
+    expect(wrapper.find('[data-testid="navigator-db-filter-ds-orders-b"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="navigator-source-ds-orders-b"]').exists()).toBe(true)
 
-    await wrapper.get('input[placeholder="搜索数据源 / 数据库"]').setValue('analytics')
+    await wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').setValue('analytics')
     await flushPromises()
-    expect(wrapper.find('[data-testid="navigator-source-ds-orders-a"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="navigator-database-ds-orders-a-analytics"]').exists()).toBe(
       true,
     )
     expect(wrapper.find('[data-testid="navigator-database-ds-orders-a-orders"]').exists()).toBe(
       false,
     )
+
+    await wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').setValue('')
+    await wrapper.get('[data-testid="navigator-table-filter-ds-orders-a"]').setValue('order_item')
+    await flushPromises()
+    expect(wrapper.text()).toContain('order_item')
+    expect(wrapper.text()).not.toContain('order_view')
     wrapper.unmount()
   })
 
