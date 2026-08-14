@@ -6,11 +6,14 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel('密码').fill('ldap-e2e-secret')
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/\/sql-editor/)
-  await expect(page.getByRole('tab', { selected: true })).toContainText('订单测试库')
+  await expect(page.getByTestId('welcome-start')).toBeVisible()
   await expect(page.getByTestId('navigator-source-ds-orders-a')).toBeVisible()
   await expect(page.getByTestId('navigator-source-ds-orders-b')).toBeVisible()
   await expect(page.getByTestId('navigator-database-ds-orders-b-orders')).toHaveCount(0)
+  await page.getByLabel('展开 订单测试库 mysql-a.internal:3306').click()
   await page.getByRole('button', { name: 'orders', exact: true }).click()
+  await page.getByRole('button', { name: '打开 SQL 编辑器' }).click()
+  await expect(page.getByRole('tab', { selected: true })).toContainText('订单测试库')
 }
 
 async function setSql(page: Page, sql: string): Promise<void> {
@@ -22,6 +25,23 @@ async function setSql(page: Page, sql: string): Promise<void> {
 }
 
 test.describe('phase-two SQL editor', () => {
+  test('shows a welcome page until a SQL tab is opened and after the last tab is closed', async ({
+    page,
+  }) => {
+    await page.goto('/login')
+    await page.getByLabel('用户名').fill('normal')
+    await page.getByLabel('密码').fill('ldap-e2e-secret')
+    await page.getByRole('button', { name: '登录' }).click()
+    await expect(page).toHaveURL(/\/sql-editor/)
+    await expect(page.getByTestId('welcome-start')).toBeVisible()
+    await expect(page.getByRole('tablist', { name: '编辑器页签' })).toHaveCount(0)
+    await page.getByRole('button', { name: '打开 SQL 编辑器' }).click()
+    await expect(page.getByRole('tab', { selected: true })).toContainText('Query 1')
+    await page.locator('.tab-close').click()
+    await expect(page.getByTestId('welcome-start')).toBeVisible()
+    await expect(page.getByRole('tablist', { name: '编辑器页签' })).toHaveCount(0)
+  })
+
   test('metadata, SELECT result, CSV export, history reopen, DDL, error, and cancel', async ({
     page,
   }) => {

@@ -22,8 +22,12 @@ The SQL workspace sidebar SHALL list visible data sources as tree roots. Expandi
 - **THEN** both sources' loaded databases SHALL remain visible and query keys SHALL stay scoped by data source id
 
 #### Scenario: Bind the editor from the tree
-- **WHEN** a user selects a database or table in the tree
+- **WHEN** a user selects a database or table in the tree while a SQL tab is active
 - **THEN** the workspace SHALL bind the active tab to that data source and database, SHALL show that source name and database on the tab, and SHALL update URL parameters to match
+
+#### Scenario: Select a connection on the welcome page
+- **WHEN** a user selects a database in the tree while no editor tab is open
+- **THEN** the workspace SHALL update URL parameters and tree highlight and SHALL NOT create a SQL tab
 
 #### Scenario: Identify the active tab
 - **WHEN** more than one SQL tab is open
@@ -44,6 +48,14 @@ The SQL workspace sidebar SHALL list visible data sources as tree roots. Expandi
 #### Scenario: No visible data sources
 - **WHEN** the current user has no visible data sources
 - **THEN** the sidebar SHALL show an empty state that points to data-source management and SHALL NOT tell the user to pick a data source from the toolbar
+
+#### Scenario: Open the workspace with no tabs
+- **WHEN** the user enters `/sql-editor` with no recoverable draft
+- **THEN** the main pane SHALL show a welcome page instead of an empty editor, and SHALL NOT auto-create a query tab or preselect a data source
+
+#### Scenario: Return to the welcome page
+- **WHEN** the user closes the last editor tab
+- **THEN** the main pane SHALL show the welcome page again and SHALL NOT immediately create a replacement tab
 
 ### Requirement: Lazy metadata resource browser
 The workspace SHALL browse data sources, databases, tables/views, columns, primary keys, and indexes through the metadata APIs with search and layer-specific refresh. Metadata caches SHALL be keyed by data source id so identically named databases on different sources stay isolated.

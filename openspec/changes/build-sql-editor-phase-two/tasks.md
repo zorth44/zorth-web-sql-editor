@@ -37,6 +37,7 @@
 - [x] 6.3 Implement execution/cancel lifecycle, typed result/message/error presentation, copy/filter/detail interactions, and DDL metadata invalidation
 - [x] 6.4 Implement CSV replay download/cancel confirmation and current-user history filtering/pagination/detail reopen flows
 - [x] 6.5 Extend MSW production-contract mocks for all phase-two endpoints and failure states
+- [x] 6.6 Show a welcome page when no editor tab is open; do not auto-create Query 1 or preselect a data source
 
 ## 7. Verification and delivery
 

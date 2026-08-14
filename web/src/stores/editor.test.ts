@@ -46,6 +46,13 @@ describe('editor tabs', () => {
     expect(idle.database).toBe('analytics')
     expect(next.database).toBe('orders')
   })
+  it('leaves the workspace empty after the last tab is closed', () => {
+    const store = useEditorStore()
+    const tab = store.createTab('ds-1', 'orders')
+    store.closeTab(tab.id)
+    expect(store.tabs).toEqual([])
+    expect(store.active).toBeNull()
+  })
   it('opens one object tab per table and does not treat it as an idle SQL tab', () => {
     const store = useEditorStore()
     const sql = store.createTab('ds-1', 'orders', 'select 1')

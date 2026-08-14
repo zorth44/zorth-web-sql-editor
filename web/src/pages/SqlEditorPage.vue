@@ -22,6 +22,7 @@ import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
 import HistoryPanel from '@/components/history/HistoryPanel.vue'
 import ResultGrid from '@/components/result-grid/ResultGrid.vue'
 import TableViewer from '@/components/table-viewer/TableViewer.vue'
+import WelcomeStart from '@/components/welcome/WelcomeStart.vue'
 import SqlMonacoEditor from '@/components/editor/SqlMonacoEditor.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { DEFAULT_ROW_LIMIT } from '@/components/result-grid/limits'
@@ -113,7 +114,9 @@ function toggleSide(next: 'database' | 'history') {
 function selectConnection(sourceId: string, database: string) {
   selectedSource.value = sourceId
   selectedDatabase.value = database
-  if (editor.active?.kind !== 'table') editor.activateConnection(sourceId, database)
+  if (editor.active && editor.active.kind !== 'table') {
+    editor.activateConnection(sourceId, database)
+  }
   void syncUrl()
 }
 function openTable(payload: {
@@ -260,7 +263,6 @@ function requestClose(id: string) {
 function closeTab(id: string) {
   pendingCloseId.value = null
   editor.closeTab(id)
-  if (!editor.tabs.length) newBoundTab()
 }
 function openHistory(detail: HistoryDetail) {
   if (detail.connectionAvailable) {
@@ -337,19 +339,22 @@ onMounted(async () => {
     sources.value = (await listDataSources({ keyword: '', pageSize: 100 })).items
     applyFittedSidebar(sources.value)
     const requested = typeof route.query.dataSourceId === 'string' ? route.query.dataSourceId : null
-    const sourceId = sources.value.some((item) => item.id === requested)
-      ? requested
-      : sources.value[0]?.id || null
-    const source = sources.value.find((item) => item.id === sourceId)
     const requestedDb = typeof route.query.database === 'string' ? route.query.database : null
-    const database = requestedDb ?? source?.defaultDatabase ?? null
-    selectedSource.value = sourceId
-    selectedDatabase.value = database
-    if (!editor.tabs.length) editor.createTab(sourceId, database)
-    else if (requested || requestedDb) editor.activateConnection(sourceId, database)
-    else {
-      selectedSource.value = editor.active?.dataSourceId ?? sourceId
-      selectedDatabase.value = editor.active?.database ?? database
+    const sourceId = sources.value.some((item) => item.id === requested) ? requested : null
+    const source = sources.value.find((item) => item.id === sourceId)
+    const database = sourceId ? (requestedDb ?? source?.defaultDatabase ?? null) : null
+    if (editor.tabs.length) {
+      if (requested || requestedDb) {
+        selectedSource.value = sourceId
+        selectedDatabase.value = database
+        editor.activateConnection(sourceId, database)
+      } else {
+        selectedSource.value = editor.active?.dataSourceId ?? sourceId
+        selectedDatabase.value = editor.active?.database ?? database
+      }
+    } else {
+      selectedSource.value = sourceId
+      selectedDatabase.value = database
     }
     if (typeof route.params.historyId === 'string')
       openHistory(await getHistory(route.params.historyId))
@@ -420,120 +425,120 @@ onBeforeUnmount(() => {
         </Pane>
         <Pane>
           <section class="flex h-full min-w-0 flex-col bg-panel">
-            <div class="tab-bar" role="tablist" aria-label="编辑器页签">
-              <button
-                v-for="tab in editor.tabs"
-                :key="tab.id"
-                class="editor-tab"
-                :class="{ 'editor-tab-active': tab.id === editor.activeId }"
-                role="tab"
-                :aria-selected="tab.id === editor.activeId"
-                :aria-label="`${tab.title}，${tabConnectionLabel(tab)}`"
-                @click="editor.setActive(tab.id)"
-              >
-                <Table2 v-if="tab.kind === 'table'" class="editor-tab-icon" :size="14" />
-                <FileCode v-else class="editor-tab-icon" :size="14" />
-                <span class="editor-tab-copy">
-                  <span class="editor-tab-title">{{ tab.title }}</span>
-                  <span class="editor-tab-connection">{{ tabConnectionLabel(tab) }}</span>
-                </span>
-                <span v-if="tab.running" class="editor-tab-running" title="正在执行" />
-                <X class="tab-close" :size="12" @click.stop="requestClose(tab.id)" />
-              </button>
-              <button class="tab-add" title="新建页签" aria-label="新建页签" @click="newBoundTab">
-                <Plus :size="15" />
-              </button>
-            </div>
-            <div v-if="active?.kind !== 'table'" class="editor-toolbar">
-              <button
-                class="btn min-h-8 px-2.5 py-1 text-xs"
-                title="格式化 SQL"
-                :disabled="!active"
-                @click="formatSql"
-              >
-                <WandSparkles :size="14" />格式化
-                <kbd class="shortcut">{{ formatShortcut }}</kbd>
-              </button>
-              <button
-                v-if="!active?.running"
-                class="btn-primary min-h-8 px-3 py-1 text-xs"
-                :disabled="!canExecute"
-                :title="`运行当前语句或选区（${runShortcut}）`"
-                @click="runCurrent"
-              >
-                <Play :size="14" />运行
-                <kbd class="shortcut shortcut-on-primary">{{ runShortcut }}</kbd>
-              </button>
-              <button v-else class="btn min-h-8 px-3 py-1 text-xs text-danger" @click="stop">
-                <Square :size="14" />停止
-              </button>
-            </div>
-            <TableViewer
-              v-if="
-                active?.kind === 'table' && active.dataSourceId && active.database && active.table
-              "
-              :key="active.id"
-              :data-source-id="active.dataSourceId"
-              :database="active.database"
-              :table="active.table"
-              :table-type="active.tableType"
-              :table-comment="active.tableComment"
-              :pane="active.viewerPane"
-              :result="active.result"
-              :error="active.error"
-              :running="active.running"
-              :can-export="canExport"
-              :exporting="exporting"
-              :row-limit="rowLimit"
-              :reload-token="resourceNonce"
-              @update:pane="editor.setViewerPane(active.id, $event)"
-              @refresh="loadTableData(active.id, true)"
-              @export="requestExport"
-              @cancel-export="exportAbort?.abort()"
-              @update:row-limit="rowLimit = $event"
-            />
-            <Splitpanes v-else horizontal class="sql-split min-h-0 flex-1">
-              <Pane :size="62" min-size="28">
-                <SqlMonacoEditor
-                  v-if="active"
-                  :key="active.id"
-                  ref="monacoRef"
-                  :model-value="active.sql"
-                  :suggestions="suggestions"
-                  @update:model-value="editor.updateSql(active!.id, $event)"
-                  @run="run"
-                  @run-all="run"
-                  @notice="notice"
-                />
-                <div v-else class="grid h-full place-items-center text-sm text-muted">
-                  新建 SQL 页签开始编辑
-                </div>
-              </Pane>
-              <Pane :size="38" min-size="18">
-                <ResultGrid
-                  :result="active?.result || null"
-                  :error="active?.error || null"
-                  :running="Boolean(active?.running)"
-                  :can-export="canExport"
-                  :exporting="exporting"
-                  :row-limit="rowLimit"
-                  @update:row-limit="rowLimit = $event"
-                  @export="requestExport"
-                  @cancel-export="exportAbort?.abort()"
+            <WelcomeStart v-if="!editor.tabs.length" @open-sql="newBoundTab" />
+            <template v-else>
+              <div class="tab-bar" role="tablist" aria-label="编辑器页签">
+                <button
+                  v-for="tab in editor.tabs"
+                  :key="tab.id"
+                  class="editor-tab"
+                  :class="{ 'editor-tab-active': tab.id === editor.activeId }"
+                  role="tab"
+                  :aria-selected="tab.id === editor.activeId"
+                  :aria-label="`${tab.title}，${tabConnectionLabel(tab)}`"
+                  @click="editor.setActive(tab.id)"
                 >
-                  <template #status>
-                    <span class="truncate">
-                      {{ currentSource?.name || '未选择数据源' }}
-                      <template v-if="selectedDatabase"> / {{ selectedDatabase }}</template>
-                      <span class="result-footer-sep">|</span>
-                      {{ active?.title || '无页签' }}
-                      <span class="result-footer-sep">|</span>
-                      MySQL · 每次运行一条语句
-                    </span>
-                  </template>
-                </ResultGrid>
-              </Pane>
-            </Splitpanes>
+                  <Table2 v-if="tab.kind === 'table'" class="editor-tab-icon" :size="14" />
+                  <FileCode v-else class="editor-tab-icon" :size="14" />
+                  <span class="editor-tab-copy">
+                    <span class="editor-tab-title">{{ tab.title }}</span>
+                    <span class="editor-tab-connection">{{ tabConnectionLabel(tab) }}</span>
+                  </span>
+                  <span v-if="tab.running" class="editor-tab-running" title="正在执行" />
+                  <X class="tab-close" :size="12" @click.stop="requestClose(tab.id)" />
+                </button>
+                <button class="tab-add" title="新建页签" aria-label="新建页签" @click="newBoundTab">
+                  <Plus :size="15" />
+                </button>
+              </div>
+              <div v-if="active?.kind !== 'table'" class="editor-toolbar">
+                <button
+                  class="btn min-h-8 px-2.5 py-1 text-xs"
+                  title="格式化 SQL"
+                  :disabled="!active"
+                  @click="formatSql"
+                >
+                  <WandSparkles :size="14" />格式化
+                  <kbd class="shortcut">{{ formatShortcut }}</kbd>
+                </button>
+                <button
+                  v-if="!active?.running"
+                  class="btn-primary min-h-8 px-3 py-1 text-xs"
+                  :disabled="!canExecute"
+                  :title="`运行当前语句或选区（${runShortcut}）`"
+                  @click="runCurrent"
+                >
+                  <Play :size="14" />运行
+                  <kbd class="shortcut shortcut-on-primary">{{ runShortcut }}</kbd>
+                </button>
+                <button v-else class="btn min-h-8 px-3 py-1 text-xs text-danger" @click="stop">
+                  <Square :size="14" />停止
+                </button>
+              </div>
+              <TableViewer
+                v-if="
+                  active?.kind === 'table' && active.dataSourceId && active.database && active.table
+                "
+                :key="active.id"
+                :data-source-id="active.dataSourceId"
+                :database="active.database"
+                :table="active.table"
+                :table-type="active.tableType"
+                :table-comment="active.tableComment"
+                :pane="active.viewerPane"
+                :result="active.result"
+                :error="active.error"
+                :running="active.running"
+                :can-export="canExport"
+                :exporting="exporting"
+                :row-limit="rowLimit"
+                :reload-token="resourceNonce"
+                @update:pane="editor.setViewerPane(active.id, $event)"
+                @refresh="loadTableData(active.id, true)"
+                @export="requestExport"
+                @cancel-export="exportAbort?.abort()"
+                @update:row-limit="rowLimit = $event"
+              />
+              <Splitpanes v-else horizontal class="sql-split min-h-0 flex-1">
+                <Pane :size="62" min-size="28">
+                  <SqlMonacoEditor
+                    v-if="active"
+                    :key="active.id"
+                    ref="monacoRef"
+                    :model-value="active.sql"
+                    :suggestions="suggestions"
+                    @update:model-value="editor.updateSql(active!.id, $event)"
+                    @run="run"
+                    @run-all="run"
+                    @notice="notice"
+                  />
+                </Pane>
+                <Pane :size="38" min-size="18">
+                  <ResultGrid
+                    :result="active?.result || null"
+                    :error="active?.error || null"
+                    :running="Boolean(active?.running)"
+                    :can-export="canExport"
+                    :exporting="exporting"
+                    :row-limit="rowLimit"
+                    @update:row-limit="rowLimit = $event"
+                    @export="requestExport"
+                    @cancel-export="exportAbort?.abort()"
+                  >
+                    <template #status>
+                      <span class="truncate">
+                        {{ currentSource?.name || '未选择数据源' }}
+                        <template v-if="selectedDatabase"> / {{ selectedDatabase }}</template>
+                        <span class="result-footer-sep">|</span>
+                        {{ active?.title || '无页签' }}
+                        <span class="result-footer-sep">|</span>
+                        MySQL · 每次运行一条语句
+                      </span>
+                    </template>
+                  </ResultGrid>
+                </Pane>
+              </Splitpanes>
+            </template>
           </section>
         </Pane>
       </Splitpanes>

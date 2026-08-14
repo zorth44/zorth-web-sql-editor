@@ -31,11 +31,19 @@ The workspace SHALL browse databases, tables/views, columns, primary keys, and i
 - **THEN** the frontend SHALL support quoted-name insertion, name copy, `SELECT * ... LIMIT 100` generation, and structure viewing without executing automatically
 
 ### Requirement: Recoverable SQL tabs
-The workspace SHALL start with a query tab, support multiple connection-bound tabs, confirm destructive close, and persist only bounded SQL draft state in Session Storage.
+The workspace SHALL open on a welcome page when no editor tab is open, support multiple connection-bound tabs, confirm destructive close, and persist only bounded SQL draft state in Session Storage.
 
 #### Scenario: Start the editor
 - **WHEN** no recoverable draft exists
-- **THEN** the workspace SHALL create `Query 1` with the current connection and empty SQL
+- **THEN** the workspace SHALL show a welcome page with an action to open a SQL editor and SHALL NOT auto-select a data source or create `Query 1`
+
+#### Scenario: Close the last tab
+- **WHEN** a user closes the last editor tab
+- **THEN** the workspace SHALL return to the welcome page and SHALL NOT immediately create a replacement tab
+
+#### Scenario: Open SQL from the welcome page
+- **WHEN** a user chooses to open a SQL editor from the welcome page
+- **THEN** the workspace SHALL create a query tab bound to the currently selected connection, which MAY be unbound until a data source and database are chosen in the resource tree
 
 #### Scenario: Reload drafts
 - **WHEN** the page reloads with valid bounded draft state
