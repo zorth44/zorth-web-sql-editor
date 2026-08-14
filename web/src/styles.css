@@ -76,8 +76,8 @@ textarea {
   }
 }
 .sql-workspace {
-  height: calc(100vh - 48px);
-  min-height: 560px;
+  height: 100%;
+  min-height: 0;
 }
 .activity-rail {
   @apply flex w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-slate-50 py-2;
