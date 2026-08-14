@@ -6,7 +6,7 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel('密码').fill('ldap-e2e-secret')
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/\/sql-editor/)
-  await expect(page.getByLabel('数据源')).toHaveValue('ds-orders-a')
+  await expect(page.getByRole('tab', { selected: true })).toContainText('订单测试库')
   await expect(page.getByTestId('navigator-source-ds-orders-a')).toBeVisible()
   await expect(page.getByTestId('navigator-source-ds-orders-b')).toBeVisible()
   await expect(page.getByTestId('navigator-database-ds-orders-b-orders')).toHaveCount(0)

@@ -125,22 +125,61 @@ textarea {
   @apply flex w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-subtle py-2;
 }
 .editor-toolbar {
-  @apply flex h-11 shrink-0 items-center gap-2 border-b border-line bg-panel px-3;
+  @apply flex h-10 shrink-0 items-center gap-2 border-b border-line bg-panel px-3;
 }
 .tab-bar {
-  @apply flex h-10 shrink-0 items-end gap-px overflow-x-auto border-b border-line bg-subtle px-2;
+  @apply flex h-11 shrink-0 items-stretch gap-0.5 overflow-x-auto border-b border-line bg-canvas px-2;
 }
 .editor-tab {
-  @apply flex h-9 max-w-[180px] items-center gap-2 rounded-t-md border border-transparent px-2.5 text-left text-xs text-muted hover:bg-panel;
+  @apply relative flex max-w-[240px] items-center gap-2 border-0 bg-transparent px-2.5 text-left text-xs text-muted hover:bg-wash hover:text-ink;
+}
+.editor-tab:focus {
+  outline: none;
+}
+.editor-tab:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-brand) 45%, transparent);
+}
+.editor-tab-icon {
+  @apply shrink-0 text-muted;
+}
+.editor-tab-copy {
+  @apply flex min-w-0 flex-1 flex-col items-start leading-tight;
+}
+.editor-tab-title {
+  @apply max-w-[180px] truncate;
+}
+.editor-tab-connection {
+  @apply max-w-[180px] truncate text-[11px] text-muted;
+}
+.editor-tab-running {
+  @apply h-1.5 w-1.5 shrink-0 rounded-full bg-brand;
 }
 .editor-tab-active {
-  @apply border-line border-b-panel bg-panel text-ink;
+  @apply bg-panel text-ink;
+}
+.editor-tab-active .editor-tab-title {
+  font-weight: 600;
+}
+.editor-tab-active .editor-tab-icon,
+.editor-tab-active .editor-tab-connection {
+  color: var(--color-brand);
+}
+.editor-tab-active::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  bottom: -1px;
+  left: 6px;
+  height: 3px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-brand);
 }
 .tab-close {
   @apply rounded p-0.5 text-muted hover:bg-wash hover:text-ink;
 }
 .tab-add {
-  @apply mb-0.5 grid h-7 w-7 place-items-center rounded text-muted hover:bg-panel hover:text-ink;
+  @apply my-auto grid h-7 w-7 shrink-0 place-items-center rounded text-muted hover:bg-panel hover:text-ink;
 }
 .status-bar {
   @apply flex h-7 shrink-0 items-center border-t border-line bg-subtle px-3 text-[11px] text-muted;

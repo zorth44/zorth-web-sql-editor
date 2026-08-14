@@ -7,7 +7,7 @@ Define the SQL workspace resource navigator and lazy metadata browsing behavior 
 ## Requirements
 
 ### Requirement: Data-source-rooted resource navigator
-The SQL workspace sidebar SHALL list visible data sources as tree roots. Expanding a data source SHALL lazily load its databases; expanding a database SHALL lazily load tables and views. The editor toolbar data-source and database controls SHALL stay visible and SHALL stay in sync with the current tab binding.
+The SQL workspace sidebar SHALL list visible data sources as tree roots. Expanding a data source SHALL lazily load its databases; expanding a database SHALL lazily load tables and views. Each editor tab SHALL display its bound data source and database. The workspace SHALL NOT place data-source or database selectors above the tab bar; connection changes SHALL come from the resource tree. The active tab SHALL remain visually distinct from inactive tabs without relying on focus styling.
 
 #### Scenario: Browse from a data source
 - **WHEN** the resource tree is shown and the user has visible data sources
@@ -23,11 +23,15 @@ The SQL workspace sidebar SHALL list visible data sources as tree roots. Expandi
 
 #### Scenario: Bind the editor from the tree
 - **WHEN** a user selects a database or table in the tree
-- **THEN** the workspace SHALL bind the active tab to that data source and database and SHALL update the toolbar selectors and URL parameters to match
+- **THEN** the workspace SHALL bind the active tab to that data source and database, SHALL show that source name and database on the tab, and SHALL update URL parameters to match
 
-#### Scenario: Switch connection from the toolbar
-- **WHEN** a user changes the toolbar data source or database selector
-- **THEN** the workspace SHALL apply the same connection binding as tree selection and SHALL expand and highlight the matching tree nodes without collapsing other expanded data sources
+#### Scenario: Identify the active tab
+- **WHEN** more than one SQL tab is open
+- **THEN** the active tab SHALL use a contrasting background and a persistent brand indicator along its bottom edge, and inactive tabs SHALL remain visually receded
+
+#### Scenario: Switch tabs
+- **WHEN** a user activates another tab
+- **THEN** the workspace SHALL restore that tab's bound data source and database in the URL, tree highlight, and status bar without changing other tabs' bindings
 
 #### Scenario: Filter databases and tables under an expanded source
 - **WHEN** a user expands a data source
