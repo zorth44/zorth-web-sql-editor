@@ -171,7 +171,7 @@ function formatTime(value: string | null): string {
         >
         <div v-else class="overflow-x-auto">
           <table class="w-full border-collapse text-left text-sm">
-            <thead class="bg-slate-50 text-xs uppercase tracking-wide text-muted">
+            <thead class="bg-subtle text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th class="px-5 py-3">名称</th>
                 <th class="px-5 py-3">连接</th>
@@ -186,7 +186,7 @@ function formatTime(value: string | null): string {
                 v-for="item in listQuery.data.value.items"
                 :key="item.id"
                 :data-testid="`data-source-${item.id}`"
-                class="hover:bg-slate-50/60"
+                class="hover:bg-wash"
               >
                 <td class="px-5 py-4">
                   <strong class="block">{{ item.name }}</strong
@@ -277,7 +277,7 @@ function formatTime(value: string | null): string {
         ><input id="confirm-name" v-model="confirmName" class="field" autocomplete="off" />
         <p
           v-if="deleteMessage"
-          class="mt-3 rounded-lg bg-red-50 p-3 text-sm text-danger"
+          class="mt-3 rounded-lg bg-danger-soft p-3 text-sm text-danger"
           role="alert"
         >
           {{ deleteMessage }}

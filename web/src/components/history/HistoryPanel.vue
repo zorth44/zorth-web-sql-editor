@@ -63,7 +63,7 @@ watch([keyword, status, statementType, () => props.dataSourceId], () => {
 onMounted(() => load())
 </script>
 <template>
-  <section class="flex h-full min-h-0 flex-col bg-white">
+  <section class="flex h-full min-h-0 flex-col bg-panel">
     <div class="space-y-2 border-b border-line px-3 py-2.5">
       <strong class="text-sm">执行历史</strong>
       <input v-model="keyword" class="field py-1.5 text-xs" placeholder="搜索 SQL" />
@@ -95,7 +95,7 @@ onMounted(() => load())
       <button
         v-for="item in items"
         :key="item.id"
-        class="block w-full border-b border-line px-3 py-2.5 text-left hover:bg-slate-50"
+        class="block w-full border-b border-line px-3 py-2.5 text-left hover:bg-wash"
         :aria-label="`${item.statementSummary} ${item.status}`"
         @click="open(item.id)"
       >
@@ -107,7 +107,7 @@ onMounted(() => load())
               :class="{
                 'bg-success': item.status === 'SUCCESS',
                 'bg-danger': item.status === 'FAILED',
-                'bg-slate-400': item.status === 'CANCELLED',
+                'bg-muted': item.status === 'CANCELLED',
                 'bg-amber-500': item.status === 'TIMEOUT',
               }"
             />

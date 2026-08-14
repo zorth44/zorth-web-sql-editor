@@ -44,7 +44,7 @@ function property(key: keyof DataSourceFormModel['properties'], value: string): 
         </div>
         <div>
           <label class="label" for="ds-engine">数据库类型</label
-          ><input id="ds-engine" class="field bg-slate-50" value="MySQL" readonly />
+          ><input id="ds-engine" class="field bg-subtle" value="MySQL" readonly />
         </div>
       </div>
     </section>

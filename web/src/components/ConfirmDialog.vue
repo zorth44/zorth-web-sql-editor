@@ -49,12 +49,12 @@ function keydown(event: KeyboardEvent): void {
   <Teleport to="body"
     ><div
       v-if="open"
-      class="fixed inset-0 z-40 grid place-items-center bg-slate-950/45 p-6"
+      class="fixed inset-0 z-40 grid place-items-center bg-overlay p-6"
       @keydown="keydown"
     >
       <section
         ref="panel"
-        class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl"
+        class="w-full max-w-md rounded-xl bg-panel p-6 shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"

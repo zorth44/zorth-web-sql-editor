@@ -2,6 +2,7 @@
 import { LogOut, Database, Code2 } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
 const router = useRouter()
@@ -14,9 +15,9 @@ async function logout(): Promise<void> {
 </script>
 <template>
   <div class="flex h-screen flex-col overflow-hidden">
-    <header class="flex h-12 shrink-0 items-center border-b border-line bg-white px-4">
+    <header class="flex h-12 shrink-0 items-center border-b border-line bg-panel px-4">
       <RouterLink to="/sql-editor" class="flex items-center gap-2 font-semibold text-ink">
-        <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand text-white">
+        <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand-fill text-white">
           <Database :size="18" />
         </span>
         Zorth SQL Editor
@@ -24,15 +25,15 @@ async function logout(): Promise<void> {
       <nav class="ml-8 flex items-center gap-1" aria-label="主导航">
         <RouterLink
           to="/sql-editor"
-          class="rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          active-class="!bg-teal-50 !text-brand"
+          class="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted hover:bg-wash"
+          active-class="!bg-brand-soft !text-brand"
         >
           <Code2 :size="15" class="mr-1 inline" />SQL 编辑器
         </RouterLink>
         <RouterLink
           to="/data-sources"
-          class="rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          active-class="!bg-teal-50 !text-brand"
+          class="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted hover:bg-wash"
+          active-class="!bg-brand-soft !text-brand"
         >
           数据源管理
         </RouterLink>
@@ -47,6 +48,7 @@ async function logout(): Promise<void> {
           <p class="text-sm font-medium">{{ auth.session?.user.displayName }}</p>
           <p class="text-[11px] text-muted">{{ auth.session?.user.username }}</p>
         </div>
+        <ThemeToggle />
         <button class="btn min-h-8 px-3 py-1.5 text-xs" type="button" @click="logout">
           <LogOut :size="14" />退出
         </button>

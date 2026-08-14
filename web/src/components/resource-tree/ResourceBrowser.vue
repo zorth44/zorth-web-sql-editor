@@ -179,7 +179,7 @@ onMounted(() => document.addEventListener('click', closeMenu))
 onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
 </script>
 <template>
-  <section class="flex h-full min-h-0 flex-col bg-white">
+  <section class="flex h-full min-h-0 flex-col bg-panel">
     <div class="border-b border-line px-3 py-2.5">
       <div class="flex items-center justify-between">
         <strong class="text-sm">数据库</strong>
@@ -296,7 +296,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
                   >
                     <span class="grid w-4 place-items-center">
                       <KeyRound v-if="column.primaryKey" :size="11" class="text-amber-500" />
-                      <Columns3 v-else :size="11" class="text-slate-400" />
+                      <Columns3 v-else :size="11" class="text-muted" />
                     </span>
                     <span class="min-w-0 flex-1 truncate text-left">{{ column.name }}</span>
                     <span class="max-w-[72px] truncate pr-2 text-[10px] text-muted">{{
@@ -312,7 +312,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
     </div>
     <aside
       v-if="drawer"
-      class="flex max-h-[46%] min-h-[180px] flex-col border-t border-line bg-slate-50"
+      class="flex max-h-[46%] min-h-[180px] flex-col border-t border-line bg-subtle"
     >
       <div class="flex items-center gap-2 border-b border-line px-3 py-2">
         <Table2 :size="14" class="text-sky-600" />
@@ -354,7 +354,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
     <Teleport to="body">
       <div
         v-if="menu"
-        class="fixed z-50 min-w-44 overflow-hidden rounded-lg border border-line bg-white py-1 text-sm shadow-lg"
+        class="fixed z-50 min-w-44 overflow-hidden rounded-lg border border-line bg-panel py-1 text-sm shadow-lg"
         :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
         @click.stop
       >

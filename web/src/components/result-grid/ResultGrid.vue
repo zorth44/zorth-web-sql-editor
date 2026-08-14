@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <section class="flex h-full min-h-0 flex-col bg-white">
+  <section class="flex h-full min-h-0 flex-col bg-panel">
     <div class="flex h-9 shrink-0 items-center gap-2 border-b border-line px-3">
       <strong class="text-sm">结果 / 消息</strong>
       <span v-if="running" class="text-xs text-brand">正在执行…</span>
@@ -149,7 +149,11 @@ onBeforeUnmount(() => {
       <span class="h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
       正在执行 SQL
     </div>
-    <div v-else-if="error" class="m-3 rounded-lg bg-red-50 p-4 text-sm text-danger" role="alert">
+    <div
+      v-else-if="error"
+      class="m-3 rounded-lg bg-danger-soft p-4 text-sm text-danger"
+      role="alert"
+    >
       <p class="font-medium">执行失败</p>
       <pre class="mt-2 whitespace-pre-wrap font-mono text-xs">{{ error }}</pre>
     </div>
@@ -159,15 +163,13 @@ onBeforeUnmount(() => {
     </div>
     <div
       v-else-if="result.kind !== 'RESULT_SET'"
-      class="m-3 rounded-lg border border-line bg-slate-50 p-4"
+      class="m-3 rounded-lg border border-line bg-subtle p-4"
     >
       <p class="font-medium">{{ result.message || '执行成功' }}</p>
       <p class="mt-1 text-sm text-muted">{{ summary }}</p>
     </div>
     <div v-else ref="scrollEl" class="min-h-0 flex-1 overflow-auto" @scroll.passive="onScroll">
-      <div
-        class="sticky top-0 z-10 flex min-w-max bg-slate-50 text-xs font-semibold text-slate-600"
-      >
+      <div class="sticky top-0 z-10 flex min-w-max bg-subtle text-xs font-semibold text-muted">
         <div class="w-12 shrink-0 border-b border-r border-line px-2 py-2 text-right">#</div>
         <div
           v-for="column in result.columns"
@@ -187,7 +189,7 @@ onBeforeUnmount(() => {
             v-for="item in visible"
             :key="item.index"
             class="flex h-8"
-            :class="selected?.row === item.index ? 'bg-teal-50' : 'hover:bg-slate-50'"
+            :class="selected?.row === item.index ? 'bg-brand-soft' : 'hover:bg-wash'"
           >
             <div
               class="w-12 shrink-0 border-b border-r border-line px-2 text-right text-[11px] text-muted"
@@ -200,7 +202,7 @@ onBeforeUnmount(() => {
               class="w-48 shrink-0 truncate border-b border-r border-line px-3 text-left font-mono text-xs"
               :class="{
                 'italic text-muted': cell === null,
-                'bg-teal-100': selected?.row === item.index && selected?.col === col,
+                'bg-brand-muted': selected?.row === item.index && selected?.col === col,
               }"
               :title="cell === '' ? '空字符串' : display(cell)"
               @click="selected = { row: item.index, col }"
@@ -217,11 +219,11 @@ onBeforeUnmount(() => {
     </div>
     <div
       v-if="detail"
-      class="fixed inset-0 z-40 grid place-items-center bg-slate-950/40 p-6"
+      class="fixed inset-0 z-40 grid place-items-center bg-overlay p-6"
       @click.self="detail = null"
     >
       <section
-        class="max-h-[70vh] w-full max-w-2xl overflow-auto rounded-xl bg-white p-5 shadow-2xl"
+        class="max-h-[70vh] w-full max-w-2xl overflow-auto rounded-xl bg-panel p-5 shadow-2xl"
       >
         <div class="mb-3 flex items-center justify-between">
           <strong>{{ detail.title }}</strong>

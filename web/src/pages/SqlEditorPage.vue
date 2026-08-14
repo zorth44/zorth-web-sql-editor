@@ -353,7 +353,7 @@ onBeforeUnmount(() => {
         />
       </Pane>
       <Pane>
-        <section class="flex h-full min-w-0 flex-col bg-white">
+        <section class="flex h-full min-w-0 flex-col bg-panel">
           <div class="editor-toolbar">
             <select
               :value="selectedSource || ''"

@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import '@/components/editor/monaco-env'
 import * as monaco from 'monaco-editor/editor'
+import { useThemeStore } from '@/stores/theme'
 import 'monaco-editor/features/register.all'
 import 'monaco-editor/languages/definitions/mysql/register'
 import { format } from 'sql-formatter'
@@ -14,9 +15,14 @@ const emit = defineEmits<{
   'run-all': [statement: string]
   notice: [message: string]
 }>()
+const theme = useThemeStore()
 const root = ref<HTMLElement | null>(null)
 let editor: monaco.editor.IStandaloneCodeEditor | undefined
 let completion: monaco.IDisposable | undefined
+
+function monacoTheme(): string {
+  return theme.scheme === 'dark' ? 'vs-dark' : 'vs'
+}
 
 function currentStatement(): string {
   if (!editor) return ''
@@ -90,7 +96,7 @@ onMounted(() => {
   editor = monaco.editor.create(root.value, {
     value: props.modelValue,
     language: 'mysql',
-    theme: 'vs',
+    theme: monacoTheme(),
     automaticLayout: true,
     minimap: { enabled: false },
     fontSize: 13,
@@ -149,6 +155,10 @@ watch(
   },
 )
 watch(() => props.suggestions, installCompletion, { deep: true })
+watch(
+  () => theme.scheme,
+  () => monaco.editor.setTheme(monacoTheme()),
+)
 onBeforeUnmount(() => {
   completion?.dispose()
   editor?.dispose()

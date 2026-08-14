@@ -4,13 +4,29 @@
 
 :root {
   --color-brand: #0f766e;
+  --color-brand-fill: #0f766e;
+  --color-brand-fill-hover: #115e59;
+  --color-brand-soft: #f0fdfa;
+  --color-brand-muted: #ccfbf1;
   --color-ink: #172033;
   --color-muted: #64748b;
   --color-canvas: #f4f7f9;
   --color-panel: #ffffff;
+  --color-subtle: #f8fafc;
+  --color-hover: #f1f5f9;
   --color-line: #dce3e8;
   --color-danger: #c2413a;
+  --color-danger-fill: #b91c1c;
+  --color-danger-soft: #fef2f2;
   --color-success: #13795b;
+  --color-success-soft: #ecfdf5;
+  --color-warning: #b45309;
+  --color-warning-soft: #fffbeb;
+  --color-warning-line: #fde68a;
+  --color-placeholder: #94a3b8;
+  --color-overlay: rgb(2 6 23 / 0.45);
+  --shadow-panel: 0 10px 30px rgb(15 23 42 / 0.08);
+  color-scheme: light;
   color: var(--color-ink);
   background: var(--color-canvas);
   font-family:
@@ -24,6 +40,32 @@
     sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+}
+html.dark {
+  --color-brand: #5eead4;
+  --color-brand-fill: #0f766e;
+  --color-brand-fill-hover: #0d9488;
+  --color-brand-soft: rgb(45 212 191 / 0.14);
+  --color-brand-muted: rgb(45 212 191 / 0.28);
+  --color-ink: #e8eef4;
+  --color-muted: #94a3b8;
+  --color-canvas: #0f1419;
+  --color-panel: #171d24;
+  --color-subtle: #1c242d;
+  --color-hover: #24303b;
+  --color-line: #2a3540;
+  --color-danger: #f87171;
+  --color-danger-fill: #b91c1c;
+  --color-danger-soft: rgb(248 113 113 / 0.12);
+  --color-success: #34d399;
+  --color-success-soft: rgb(52 211 153 / 0.12);
+  --color-warning: #fbbf24;
+  --color-warning-soft: rgb(251 191 36 / 0.12);
+  --color-warning-line: rgb(251 191 36 / 0.35);
+  --color-placeholder: #64748b;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-panel: 0 10px 30px rgb(0 0 0 / 0.35);
+  color-scheme: dark;
 }
 * {
   box-sizing: border-box;
@@ -40,21 +82,21 @@ textarea {
   font: inherit;
 }
 :focus-visible {
-  outline: 3px solid rgb(15 118 110 / 0.35);
+  outline: 3px solid color-mix(in srgb, var(--color-brand) 35%, transparent);
   outline-offset: 2px;
 }
 @layer components {
   .btn {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-line bg-panel px-4 py-2 text-sm font-medium transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-line bg-panel px-4 py-2 text-sm font-medium transition hover:bg-wash disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn border-brand bg-brand text-white hover:bg-teal-800;
+    @apply btn border-brand-fill bg-brand-fill text-white hover:bg-brand-fill-hover;
   }
   .btn-danger {
-    @apply btn border-danger bg-danger text-white hover:bg-red-800;
+    @apply btn border-danger-fill bg-danger-fill text-white hover:bg-red-800;
   }
   .field {
-    @apply w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm shadow-sm placeholder:text-slate-400 focus:border-brand;
+    @apply w-full rounded-lg border border-line bg-panel px-3 py-2.5 text-sm shadow-sm placeholder:text-placeholder focus:border-brand;
   }
   .label {
     @apply mb-1.5 block text-sm font-medium text-ink;
@@ -63,16 +105,16 @@ textarea {
     @apply rounded-xl border border-line bg-panel shadow-panel;
   }
   .icon-btn {
-    @apply inline-grid h-7 w-7 shrink-0 place-items-center rounded text-xs text-muted hover:bg-slate-200 hover:text-ink;
+    @apply inline-grid h-7 w-7 shrink-0 place-items-center rounded text-xs text-muted hover:bg-wash hover:text-ink;
   }
   .activity-btn {
-    @apply grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-white hover:text-ink;
+    @apply grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-panel hover:text-ink;
   }
   .activity-btn-active {
-    @apply bg-white text-brand shadow-sm ring-1 ring-line;
+    @apply bg-panel text-brand shadow-sm ring-1 ring-line;
   }
   .menu-item {
-    @apply block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50;
+    @apply block w-full px-3 py-1.5 text-left text-sm hover:bg-wash;
   }
 }
 .sql-workspace {
@@ -80,40 +122,40 @@ textarea {
   min-height: 0;
 }
 .activity-rail {
-  @apply flex w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-slate-50 py-2;
+  @apply flex w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-subtle py-2;
 }
 .editor-toolbar {
-  @apply flex h-11 shrink-0 items-center gap-2 border-b border-line bg-white px-3;
+  @apply flex h-11 shrink-0 items-center gap-2 border-b border-line bg-panel px-3;
 }
 .tab-bar {
-  @apply flex h-10 shrink-0 items-end gap-px overflow-x-auto border-b border-line bg-slate-50 px-2;
+  @apply flex h-10 shrink-0 items-end gap-px overflow-x-auto border-b border-line bg-subtle px-2;
 }
 .editor-tab {
-  @apply flex h-9 max-w-[180px] items-center gap-2 rounded-t-md border border-transparent px-2.5 text-left text-xs text-muted hover:bg-white;
+  @apply flex h-9 max-w-[180px] items-center gap-2 rounded-t-md border border-transparent px-2.5 text-left text-xs text-muted hover:bg-panel;
 }
 .editor-tab-active {
-  @apply border-line border-b-white bg-white text-ink;
+  @apply border-line border-b-panel bg-panel text-ink;
 }
 .tab-close {
-  @apply rounded p-0.5 text-muted hover:bg-slate-200 hover:text-ink;
+  @apply rounded p-0.5 text-muted hover:bg-wash hover:text-ink;
 }
 .tab-add {
-  @apply mb-0.5 grid h-7 w-7 place-items-center rounded text-muted hover:bg-white hover:text-ink;
+  @apply mb-0.5 grid h-7 w-7 place-items-center rounded text-muted hover:bg-panel hover:text-ink;
 }
 .status-bar {
-  @apply flex h-7 shrink-0 items-center border-t border-line bg-slate-50 px-3 text-[11px] text-muted;
+  @apply flex h-7 shrink-0 items-center border-t border-line bg-subtle px-3 text-[11px] text-muted;
 }
 .shortcut {
-  @apply ml-1 rounded border border-line bg-slate-50 px-1 font-mono text-[10px] font-normal text-muted;
+  @apply ml-1 rounded border border-line bg-subtle px-1 font-mono text-[10px] font-normal text-muted;
 }
 .shortcut-on-primary {
   @apply border-white/30 bg-white/10 text-white;
 }
 .tree-row {
-  @apply flex h-7 items-center pr-1 hover:bg-slate-50;
+  @apply flex h-7 items-center pr-1 hover:bg-wash;
 }
 .tree-row-active {
-  @apply bg-teal-50 text-brand;
+  @apply bg-brand-soft text-brand;
 }
 .tree-chevron {
   @apply grid h-7 w-6 shrink-0 place-items-center text-muted;
@@ -142,5 +184,5 @@ textarea {
   height: 5px;
 }
 .sql-workspace .splitpanes__splitter:hover {
-  background: var(--color-brand);
+  background: var(--color-brand-fill);
 }

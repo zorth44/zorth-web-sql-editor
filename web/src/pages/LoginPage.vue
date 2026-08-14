@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { KeyRound } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import { appEnv } from '@/env'
 import { safeRelativeRedirect } from '@/auth/redirect'
 import { safeErrorMessage } from '@/api/api-error'
@@ -49,10 +50,10 @@ function cancelSelection(): void {
 }
 </script>
 <template>
-  <main class="grid min-h-screen grid-cols-[1.05fr_0.95fr] bg-white">
+  <main class="grid min-h-screen grid-cols-[1.05fr_0.95fr] bg-panel">
     <section class="flex flex-col justify-between bg-slate-950 p-14 text-white">
       <div class="flex items-center gap-3 text-xl font-semibold">
-        <span class="grid h-10 w-10 place-items-center rounded-xl bg-brand"
+        <span class="grid h-10 w-10 place-items-center rounded-xl bg-brand-fill"
           ><KeyRound :size="22" /></span
         >Zorth SQL Editor
       </div>
@@ -69,7 +70,10 @@ function cancelSelection(): void {
       </div>
       <p class="text-sm text-slate-500">面向桌面的企业数据工作台</p>
     </section>
-    <section class="grid place-items-center p-12">
+    <section class="relative grid place-items-center p-12">
+      <div class="absolute right-6 top-6">
+        <ThemeToggle />
+      </div>
       <div class="w-full max-w-md">
         <template v-if="hasAccounts"
           ><h1 class="text-3xl font-semibold">选择登录账号</h1>
@@ -130,7 +134,11 @@ function cancelSelection(): void {
           <label class="mt-5 flex cursor-pointer items-center gap-2 text-sm"
             ><input v-model="remember" type="checkbox" />在此设备上记住我</label
           >
-          <p v-if="error" class="mt-5 rounded-lg bg-red-50 p-3 text-sm text-danger" role="alert">
+          <p
+            v-if="error"
+            class="mt-5 rounded-lg bg-danger-soft p-3 text-sm text-danger"
+            role="alert"
+          >
             {{ error }}
           </p>
           <button class="btn-primary mt-7 w-full" type="submit" :disabled="pending">

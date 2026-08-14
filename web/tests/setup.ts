@@ -9,5 +9,7 @@ afterEach(() => {
   resetMockData()
   localStorage.clear()
   sessionStorage.clear()
+  document.documentElement.classList.remove('dark')
+  document.documentElement.style.colorScheme = ''
 })
 afterAll(() => server.close())

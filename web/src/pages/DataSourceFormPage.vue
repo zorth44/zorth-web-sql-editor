@@ -180,18 +180,18 @@ onBeforeUnmount(scrubPassword)
       />
       <div
         v-if="summaryErrors.length"
-        class="mt-6 rounded-lg bg-red-50 p-4 text-sm text-danger"
+        class="mt-6 rounded-lg bg-danger-soft p-4 text-sm text-danger"
         role="alert"
       >
         <p v-for="message in summaryErrors" :key="message">{{ message }}</p>
       </div>
       <div
         v-if="conflict"
-        class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"
+        class="mt-6 rounded-lg border border-warning-line bg-warning-soft p-4 text-sm"
         role="alert"
       >
         <strong>此数据源已被其他用户更新</strong>
-        <p class="mt-1 text-slate-700">
+        <p class="mt-1 text-ink">
           {{ conflict.currentUpdatedByName }} 于
           {{ new Date(conflict.currentUpdatedAt).toLocaleString('zh-CN') }} 更新，当前版本
           {{ conflict.currentVersion }}。请重新加载后再编辑。
@@ -200,7 +200,7 @@ onBeforeUnmount(scrubPassword)
       </div>
       <div
         v-if="testMutation.isPending.value"
-        class="mt-6 rounded-lg bg-slate-50 p-4 text-sm text-muted"
+        class="mt-6 rounded-lg bg-subtle p-4 text-sm text-muted"
         role="status"
       >
         正在测试连接，最多等待 {{ form.connectTimeoutSeconds }} 秒…
@@ -209,7 +209,9 @@ onBeforeUnmount(scrubPassword)
         v-else-if="testResult"
         class="mt-6 rounded-lg p-4 text-sm"
         :class="
-          testResult.status === 'SUCCESS' ? 'bg-emerald-50 text-success' : 'bg-red-50 text-danger'
+          testResult.status === 'SUCCESS'
+            ? 'bg-success-soft text-success'
+            : 'bg-danger-soft text-danger'
         "
         role="status"
       >

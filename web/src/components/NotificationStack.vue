@@ -7,12 +7,12 @@ const notices = useNotificationsStore()
     <button
       v-for="item in notices.items"
       :key="item.id"
-      class="rounded-lg border bg-white p-4 text-left shadow-panel"
+      class="rounded-lg border bg-panel p-4 text-left shadow-panel"
       :class="
         item.kind === 'error'
-          ? 'border-red-200 text-danger'
+          ? 'border-danger text-danger'
           : item.kind === 'success'
-            ? 'border-emerald-200 text-success'
+            ? 'border-success text-success'
             : 'border-line'
       "
       type="button"
