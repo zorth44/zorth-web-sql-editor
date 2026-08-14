@@ -181,9 +181,6 @@ textarea {
 .tab-add {
   @apply my-auto grid h-7 w-7 shrink-0 place-items-center rounded text-muted hover:bg-panel hover:text-ink;
 }
-.status-bar {
-  @apply flex h-7 shrink-0 items-center border-t border-line bg-subtle px-3 text-[11px] text-muted;
-}
 .shortcut {
   @apply ml-1 rounded border border-line bg-subtle px-1 font-mono text-[10px] font-normal text-muted;
 }
@@ -420,6 +417,7 @@ html.dark .result-type {
 .result-footer {
   display: flex;
   height: 32px;
+  min-width: 0;
   flex-shrink: 0;
   align-items: center;
   gap: 8px;
@@ -429,9 +427,29 @@ html.dark .result-type {
   font-size: 11px;
   color: var(--color-muted);
 }
+.result-footer-meta {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+.result-footer-meta > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-footer-sep {
+  margin: 0 6px;
+  color: var(--color-line);
+}
+.result-footer-spacer {
+  min-width: 8px;
+  flex: 1 1 0;
+}
 .result-limit {
   width: 56px;
   height: 22px;
+  flex-shrink: 0;
   border: 1px solid var(--color-line);
   border-radius: 4px;
   background: var(--color-panel);
@@ -446,6 +464,7 @@ html.dark .result-type {
 .result-quick-filter {
   width: 160px;
   height: 22px;
+  flex-shrink: 0;
   border: 1px solid var(--color-line);
   border-radius: 4px;
   background: var(--color-panel);
@@ -460,6 +479,7 @@ html.dark .result-type {
 .result-export {
   display: inline-flex;
   height: 22px;
+  flex-shrink: 0;
   align-items: center;
   gap: 4px;
   border: 1px solid var(--color-line);

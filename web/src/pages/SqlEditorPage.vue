@@ -391,16 +391,20 @@ onBeforeUnmount(() => {
                 @update:row-limit="rowLimit = $event"
                 @export="requestExport"
                 @cancel-export="exportAbort?.abort()"
-              />
+              >
+                <template #status>
+                  <span class="truncate">
+                    {{ currentSource?.name || '未选择数据源' }}
+                    <template v-if="selectedDatabase"> / {{ selectedDatabase }}</template>
+                    <span class="result-footer-sep">|</span>
+                    {{ active?.title || '无页签' }}
+                    <span class="result-footer-sep">|</span>
+                    MySQL · 每次运行一条语句
+                  </span>
+                </template>
+              </ResultGrid>
             </Pane>
           </Splitpanes>
-          <div class="status-bar">
-            <span>{{ currentSource?.name || '未选择数据源' }}</span>
-            <span v-if="selectedDatabase">/ {{ selectedDatabase }}</span>
-            <span class="mx-2 text-line">|</span>
-            <span>{{ active?.title || '无页签' }}</span>
-            <span class="ml-auto text-[11px] text-muted">MySQL · 每次运行一条语句</span>
-          </div>
         </section>
       </Pane>
     </Splitpanes>

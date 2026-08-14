@@ -21,9 +21,10 @@ const result: SqlExecutionResult = {
   durationMs: 4,
 }
 
-function render(extra: Record<string, unknown> = {}) {
+function render(extra: Record<string, unknown> = {}, slots: Record<string, string> = {}) {
   return mount(ResultGrid, {
     props: { error: null, result, canExport: true, ...extra },
+    slots,
     attachTo: document.body,
   })
 }
@@ -39,12 +40,13 @@ describe('result values', () => {
   })
 
   it('shows type glyphs and a CloudBeaver-style footer', () => {
-    const wrapper = render()
+    const wrapper = render({}, { status: '订单测试库 / orders | Query 1' })
     expect(wrapper.get('[data-testid="result-header-0"]').text()).toContain('123')
     expect(wrapper.get('[data-testid="result-header-1"]').text()).toContain('A-Z')
     expect(wrapper.get('[data-testid="result-header-2"]').text()).toContain('BIN')
     expect(wrapper.get('[data-testid="result-limit"]').element).toHaveValue('1000')
     expect(wrapper.get('[data-testid="result-export"]').text()).toContain('导出')
+    expect(wrapper.get('[data-testid="result-footer-status"]').text()).toContain('订单测试库')
     wrapper.unmount()
   })
 

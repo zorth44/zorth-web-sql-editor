@@ -522,11 +522,14 @@ onBeforeUnmount(() => {
         @keydown.enter="commitLimit"
         @blur="commitLimit"
       />
-      <span v-if="running" class="text-brand">正在执行…</span>
-      <span v-else-if="error" class="text-danger">执行失败</span>
-      <span v-else-if="result || error" class="truncate">{{ summary }}</span>
-      <span v-if="copied" class="text-success">{{ copied }}</span>
-      <span class="ml-auto" />
+      <span v-if="running" class="shrink-0 text-brand">正在执行…</span>
+      <span v-else-if="error" class="shrink-0 text-danger">执行失败</span>
+      <span v-else-if="result || error" class="shrink-0">{{ summary }}</span>
+      <span v-if="copied" class="shrink-0 text-success">{{ copied }}</span>
+      <div v-if="$slots.status" class="result-footer-meta" data-testid="result-footer-status">
+        <slot name="status" />
+      </div>
+      <span class="result-footer-spacer" />
       <template v-if="result?.kind === 'RESULT_SET'">
         <input
           v-model="filter"
