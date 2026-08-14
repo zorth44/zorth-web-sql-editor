@@ -1,16 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import {
-  ChevronRight,
-  Columns3,
-  Copy,
-  Database,
-  Eye,
-  KeyRound,
-  RefreshCw,
-  Search,
-  Table2,
-} from 'lucide-vue-next'
+import { ChevronRight, Menu, RefreshCw, Search } from 'lucide-vue-next'
 import { getTableDetail, listTables } from '@/api/metadata'
 import { quoteIdentifier, selectPreview } from '@/sql-editor/sql'
 import { safeErrorMessage } from '@/api/api-error'
@@ -31,16 +21,28 @@ const emit = defineEmits<{
   refresh: []
 }>()
 
+type ObjectGroup = 'TABLE' | 'VIEW'
+type ActiveNode =
+  | { kind: 'database'; database: string }
+  | { kind: 'group'; database: string; group: ObjectGroup }
+  | { kind: 'table'; database: string; table: string }
+
+const groups: { type: ObjectGroup; label: string }[] = [
+  { type: 'TABLE', label: '表' },
+  { type: 'VIEW', label: '视图' },
+]
+
 const databaseSearch = ref('')
 const tableSearch = ref('')
 const expandedDbs = ref<Record<string, boolean>>({})
-const expandedTables = ref<Record<string, boolean>>({})
+const expandedGroups = ref<Record<string, boolean>>({})
 const tablesByDb = ref<Record<string, TableItem[]>>({})
 const loadingTables = ref<Record<string, boolean>>({})
 const tableError = ref<Record<string, string>>({})
 const details = ref<Record<string, TableDetail>>({})
 const drawer = ref<TableDetail | null>(null)
 const menu = ref<{ x: number; y: number; database: string; table: TableItem } | null>(null)
+const activeNode = ref<ActiveNode | null>(null)
 
 const visibleDatabases = computed(() =>
   props.databases.filter((item) =>
@@ -51,10 +53,33 @@ const visibleDatabases = computed(() =>
 function tableKey(database: string, table: string): string {
   return `${database}.${table}`
 }
-function tablesOf(database: string, type: TableItem['type']): TableItem[] {
+function groupKey(database: string, group: ObjectGroup): string {
+  return `${database}:${group}`
+}
+function tablesOf(database: string, type: ObjectGroup): TableItem[] {
   const q = tableSearch.value.trim().toLowerCase()
   return (tablesByDb.value[database] || []).filter(
     (item) => item.type === type && (!q || item.name.toLowerCase().includes(q)),
+  )
+}
+function isGroupOpen(database: string, group: ObjectGroup): boolean {
+  if (tableSearch.value.trim()) return true
+  return Boolean(expandedGroups.value[groupKey(database, group)])
+}
+function isActive(node: ActiveNode): boolean {
+  const current = activeNode.value
+  if (!current || current.kind !== node.kind) return false
+  if (current.kind === 'database' && node.kind === 'database') {
+    return current.database === node.database
+  }
+  if (current.kind === 'group' && node.kind === 'group') {
+    return current.database === node.database && current.group === node.group
+  }
+  return (
+    current.kind === 'table' &&
+    node.kind === 'table' &&
+    current.database === node.database &&
+    current.table === node.table
   )
 }
 function publishSuggestions(): void {
@@ -96,6 +121,9 @@ async function ensureDetail(database: string, table: string): Promise<TableDetai
 }
 async function expandDatabase(name: string): Promise<void> {
   expandedDbs.value = { ...expandedDbs.value, [name]: true }
+  if (expandedGroups.value[groupKey(name, 'TABLE')] === undefined) {
+    expandedGroups.value = { ...expandedGroups.value, [groupKey(name, 'TABLE')]: true }
+  }
   await loadTables(name)
 }
 function toggleDatabase(name: string): void {
@@ -106,19 +134,22 @@ function toggleDatabase(name: string): void {
   void expandDatabase(name)
 }
 function selectDatabase(name: string): void {
+  activeNode.value = { kind: 'database', database: name }
   void expandDatabase(name)
   emit('select-database', name)
 }
-async function toggleTable(database: string, table: string): Promise<void> {
-  const key = tableKey(database, table)
-  if (expandedTables.value[key]) {
-    expandedTables.value = { ...expandedTables.value, [key]: false }
-    return
-  }
-  expandedTables.value = { ...expandedTables.value, [key]: true }
-  await ensureDetail(database, table)
+function toggleGroup(database: string, group: ObjectGroup): void {
+  const key = groupKey(database, group)
+  expandedGroups.value = { ...expandedGroups.value, [key]: !expandedGroups.value[key] }
+}
+function selectGroup(database: string, group: ObjectGroup): void {
+  activeNode.value = { kind: 'group', database, group }
+  if (!isGroupOpen(database, group)) toggleGroup(database, group)
+  emit('select-database', database)
 }
 async function openStructure(database: string, table: string): Promise<void> {
+  activeNode.value = { kind: 'table', database, table }
+  emit('select-database', database)
   drawer.value = await ensureDetail(database, table)
   menu.value = null
 }
@@ -135,6 +166,12 @@ function openMenu(event: MouseEvent, database: string, table: TableItem): void {
   event.preventDefault()
   menu.value = { x: event.clientX, y: event.clientY, database, table }
 }
+function openRowMenu(event: MouseEvent, database: string, table: TableItem): void {
+  event.preventDefault()
+  event.stopPropagation()
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  menu.value = { x: rect.left, y: rect.bottom, database, table }
+}
 function closeMenu(): void {
   menu.value = null
 }
@@ -142,11 +179,12 @@ watch(
   () => props.dataSourceId,
   () => {
     expandedDbs.value = {}
-    expandedTables.value = {}
+    expandedGroups.value = {}
     tablesByDb.value = {}
     details.value = {}
     drawer.value = null
     menu.value = null
+    activeNode.value = null
   },
 )
 watch(
@@ -155,7 +193,6 @@ watch(
     if (!props.reloadToken) return
     tablesByDb.value = {}
     details.value = {}
-    expandedTables.value = {}
     const open = Object.entries(expandedDbs.value)
       .filter(([, openDb]) => openDb)
       .map(([name]) => name)
@@ -169,6 +206,7 @@ watch(
   () => [props.database, props.databases] as const,
   async ([database]) => {
     if (database && props.databases.some((item) => item.name === database)) {
+      if (!activeNode.value) activeNode.value = { kind: 'database', database }
       await expandDatabase(database)
     }
     publishSuggestions()
@@ -196,7 +234,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
         />
       </label>
     </div>
-    <div class="min-h-0 flex-1 overflow-auto py-1 text-[13px]">
+    <div class="min-h-0 flex-1 overflow-auto py-1 text-[12px] leading-none">
       <p v-if="!dataSourceId" class="px-3 py-6 text-center text-xs text-muted">请先选择数据源</p>
       <p v-else-if="loadingDatabases" class="px-3 py-6 text-center text-xs text-muted">
         正在加载数据库…
@@ -205,27 +243,38 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
         没有匹配的数据库
       </p>
       <div v-for="item in visibleDatabases" :key="item.name">
-        <div class="tree-row" :class="{ 'tree-row-active': database === item.name }">
+        <div
+          class="tree-row"
+          :class="{ 'tree-row-active': isActive({ kind: 'database', database: item.name }) }"
+        >
           <button
             class="tree-chevron"
             :aria-label="(expandedDbs[item.name] ? '折叠 ' : '展开 ') + item.name"
             :aria-expanded="Boolean(expandedDbs[item.name])"
             @click="toggleDatabase(item.name)"
           >
-            <ChevronRight :size="14" :class="expandedDbs[item.name] ? 'rotate-90' : ''" />
+            <ChevronRight :size="12" :class="expandedDbs[item.name] ? 'rotate-90' : ''" />
           </button>
           <button class="tree-label" @click="selectDatabase(item.name)">
-            <Database :size="14" class="shrink-0 text-brand" />
+            <svg class="tree-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <ellipse cx="8" cy="4.2" rx="5.6" ry="2.1" fill="#3b82f6" />
+              <path
+                fill="#3b82f6"
+                d="M2.4 4.2v7.4c0 1.16 2.5 2.1 5.6 2.1s5.6-.94 5.6-2.1V4.2c0 1.16-2.5 2.1-5.6 2.1S2.4 5.36 2.4 4.2Z"
+              />
+              <ellipse cx="8" cy="4.2" rx="5.6" ry="2.1" fill="#60a5fa" />
+              <circle cx="11.4" cy="11.2" r="2.05" fill="#22c55e" />
+            </svg>
             <span class="truncate">{{ item.name }}</span>
           </button>
         </div>
-        <div v-if="expandedDbs[item.name]" class="ml-3 border-l border-line/80">
+        <div v-if="expandedDbs[item.name]">
           <p v-if="loadingTables[item.name]" class="px-3 py-1.5 text-xs text-muted">加载表…</p>
           <p v-else-if="tableError[item.name]" class="px-3 py-1.5 text-xs text-danger">
             {{ tableError[item.name] }}
           </p>
           <template v-else>
-            <label v-if="tablesByDb[item.name]?.length" class="relative mx-2 my-1.5 block">
+            <label v-if="tablesByDb[item.name]?.length" class="relative mx-2 my-1 block">
               <Search class="absolute left-2 top-1.5 text-muted" :size="12" />
               <input
                 v-model="tableSearch"
@@ -233,78 +282,112 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
                 placeholder="过滤表 / 视图"
               />
             </label>
-            <div v-for="group in ['TABLE', 'VIEW'] as const" :key="group">
-              <p class="tree-group">{{ group === 'TABLE' ? '表' : '视图' }}</p>
-              <p v-if="!tablesOf(item.name, group).length" class="px-3 py-1 text-[11px] text-muted">
-                无{{ group === 'TABLE' ? '表' : '视图' }}
-              </p>
-              <div v-for="table in tablesOf(item.name, group)" :key="table.name">
-                <div class="tree-row group" @contextmenu="openMenu($event, item.name, table)">
-                  <button
-                    class="tree-chevron"
-                    :aria-label="
-                      (expandedTables[tableKey(item.name, table.name)] ? '折叠 ' : '展开 ') +
-                      table.name
-                    "
-                    @click="toggleTable(item.name, table.name)"
-                  >
-                    <ChevronRight
-                      :size="14"
-                      :class="expandedTables[tableKey(item.name, table.name)] ? 'rotate-90' : ''"
+            <div v-for="group in groups" :key="group.type">
+              <div
+                class="tree-row tree-row-depth-1 group"
+                :class="{
+                  'tree-row-active': isActive({
+                    kind: 'group',
+                    database: item.name,
+                    group: group.type,
+                  }),
+                }"
+              >
+                <button
+                  class="tree-chevron"
+                  :aria-label="
+                    (isGroupOpen(item.name, group.type) ? '折叠 ' : '展开 ') + group.label
+                  "
+                  :aria-expanded="isGroupOpen(item.name, group.type)"
+                  @click="toggleGroup(item.name, group.type)"
+                >
+                  <ChevronRight
+                    :size="12"
+                    :class="isGroupOpen(item.name, group.type) ? 'rotate-90' : ''"
+                  />
+                </button>
+                <button class="tree-label" @click="selectGroup(item.name, group.type)">
+                  <svg class="tree-icon" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      fill="#f59e0b"
+                      d="M1.2 4.15c0-.64.52-1.15 1.15-1.15h3.05l.95 1.2h7.3c.63 0 1.15.51 1.15 1.15v6.65c0 .64-.52 1.15-1.15 1.15H2.35c-.63 0-1.15-.51-1.15-1.15V4.15Z"
                     />
-                  </button>
+                    <path
+                      v-if="group.type === 'TABLE'"
+                      fill="#fff"
+                      d="M6.1 7.15h5.6v4.2H6.1zm1.15 0v4.2h.7V7.15zm0 1.2h4.45v.7H7.25z"
+                    />
+                    <path
+                      v-else
+                      fill="#fff"
+                      fill-rule="evenodd"
+                      d="M8.9 8.05c-1.35 0-2.5.7-3.15 1.75.65 1.05 1.8 1.75 3.15 1.75s2.5-.7 3.15-1.75c-.65-1.05-1.8-1.75-3.15-1.75Zm0 2.85a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Z"
+                    />
+                  </svg>
+                  <span class="truncate">{{ group.label }}</span>
+                </button>
+              </div>
+              <template v-if="isGroupOpen(item.name, group.type)">
+                <p
+                  v-if="!tablesOf(item.name, group.type).length"
+                  class="tree-empty tree-row-depth-2"
+                >
+                  无{{ group.label }}
+                </p>
+                <div
+                  v-for="table in tablesOf(item.name, group.type)"
+                  :key="table.name"
+                  class="tree-row tree-row-depth-2 group"
+                  :class="{
+                    'tree-row-active': isActive({
+                      kind: 'table',
+                      database: item.name,
+                      table: table.name,
+                    }),
+                  }"
+                  @contextmenu="openMenu($event, item.name, table)"
+                >
+                  <span class="tree-chevron" aria-hidden="true" />
                   <button
                     class="tree-label"
                     :title="table.comment || table.name"
                     @click="openStructure(item.name, table.name)"
                     @dblclick.stop="emit('insert', quoteIdentifier(table.name), item.name)"
                   >
-                    <Table2 v-if="group === 'TABLE'" :size="13" class="shrink-0 text-sky-600" />
-                    <Eye v-else :size="13" class="shrink-0 text-violet-600" />
+                    <svg
+                      v-if="group.type === 'TABLE'"
+                      class="tree-icon"
+                      viewBox="0 0 16 16"
+                      aria-hidden="true"
+                    >
+                      <rect x="1.4" y="2.4" width="13.2" height="11.2" rx="1.2" fill="#3b82f6" />
+                      <path fill="#dbeafe" d="M1.4 5.15h13.2v1.05H1.4zM6.35 2.4h1.05v11.2H6.35z" />
+                    </svg>
+                    <svg v-else class="tree-icon" viewBox="0 0 16 16" aria-hidden="true">
+                      <rect x="1.4" y="2.4" width="13.2" height="11.2" rx="1.2" fill="#6366f1" />
+                      <path
+                        fill="#eef2ff"
+                        fill-rule="evenodd"
+                        d="M8 6.05c-1.7 0-3.15.9-3.95 2.25C4.85 9.65 6.3 10.55 8 10.55s3.15-.9 3.95-2.25C11.15 6.95 9.7 6.05 8 6.05Zm0 3.5a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Z"
+                      />
+                    </svg>
                     <span class="truncate">{{ table.name }}</span>
                   </button>
-                  <div class="mr-1 flex shrink-0 opacity-0 group-hover:opacity-100">
-                    <button class="icon-btn" title="复制名称" @click="copyName(table.name)">
-                      <Copy :size="12" />
-                    </button>
-                    <button
-                      class="icon-btn"
-                      title="生成 SELECT"
-                      @click="generateSelect(item.name, table.name)"
-                    >
-                      SQL
-                    </button>
-                    <button
-                      class="icon-btn"
-                      title="查看结构"
-                      @click="openStructure(item.name, table.name)"
-                    >
-                      <Eye :size="12" />
-                    </button>
-                  </div>
-                </div>
-                <div
-                  v-if="expandedTables[tableKey(item.name, table.name)]"
-                  class="ml-5 border-l border-line/80 py-0.5"
-                >
                   <button
-                    v-for="column in details[tableKey(item.name, table.name)]?.columns || []"
-                    :key="column.name"
-                    class="tree-row pl-1"
-                    :title="column.comment || column.typeName"
-                    @dblclick="emit('insert', quoteIdentifier(column.name), item.name)"
+                    class="icon-btn mr-0.5 shrink-0"
+                    :class="
+                      isActive({ kind: 'table', database: item.name, table: table.name })
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100'
+                    "
+                    title="更多操作"
+                    :aria-label="'打开 ' + table.name + ' 菜单'"
+                    @click="openRowMenu($event, item.name, table)"
                   >
-                    <span class="grid w-4 place-items-center">
-                      <KeyRound v-if="column.primaryKey" :size="11" class="text-amber-500" />
-                      <Columns3 v-else :size="11" class="text-muted" />
-                    </span>
-                    <span class="min-w-0 flex-1 truncate text-left">{{ column.name }}</span>
-                    <span class="max-w-[72px] truncate pr-2 text-[10px] text-muted">{{
-                      column.typeName
-                    }}</span>
+                    <Menu :size="12" />
                   </button>
                 </div>
-              </div>
+              </template>
             </div>
           </template>
         </div>
@@ -315,14 +398,17 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
       class="flex max-h-[46%] min-h-[180px] flex-col border-t border-line bg-subtle"
     >
       <div class="flex items-center gap-2 border-b border-line px-3 py-2">
-        <Table2 :size="14" class="text-sky-600" />
+        <svg class="tree-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="1.4" y="2.4" width="13.2" height="11.2" rx="1.2" fill="#3b82f6" />
+          <path fill="#dbeafe" d="M1.4 5.15h13.2v1.05H1.4zM6.35 2.4h1.05v11.2H6.35z" />
+        </svg>
         <div class="min-w-0 flex-1">
           <strong class="block truncate text-sm">{{ drawer.table }}</strong>
           <span class="text-[11px] text-muted">{{ drawer.database }}</span>
         </div>
         <button class="icon-btn" aria-label="关闭结构" @click="drawer = null">×</button>
       </div>
-      <div class="min-h-0 flex-1 overflow-auto px-3 py-2 text-xs">
+      <div class="min-h-0 flex-1 overflow-auto px-3 py-2 text-xs leading-normal">
         <p class="mb-1 font-semibold text-muted">字段</p>
         <div
           v-for="column in drawer.columns"
@@ -331,7 +417,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
         >
           <span>
             <b>{{ column.name }}</b>
-            <KeyRound v-if="column.primaryKey" :size="11" class="ml-1 inline text-amber-500" />
+            <span v-if="column.primaryKey" class="ml-1 text-amber-500">PK</span>
             <span class="ml-1 text-muted">{{ column.typeName }}</span>
           </span>
           <span class="text-muted">{{ column.nullable ? 'NULL' : 'NOT NULL' }}</span>

@@ -24,7 +24,7 @@ test.describe('phase-two SQL editor', () => {
   }) => {
     await login(page)
     await expect(page.getByText('order_item', { exact: true })).toBeVisible()
-    await page.getByTitle('查看结构').first().click()
+    await page.getByRole('button', { name: 'order_item', exact: true }).click()
     await expect(page.getByText('amount', { exact: true })).toBeVisible()
 
     await setSql(page, 'select * from order_item')

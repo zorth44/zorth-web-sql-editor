@@ -152,19 +152,28 @@ textarea {
   @apply border-white/30 bg-white/10 text-white;
 }
 .tree-row {
-  @apply flex h-7 items-center pr-1 hover:bg-wash;
+  @apply flex h-6 items-center pr-1 text-ink hover:bg-wash;
 }
 .tree-row-active {
-  @apply bg-brand-soft text-brand;
+  @apply bg-black/[0.06] hover:bg-black/[0.08] dark:bg-white/[0.08] dark:hover:bg-white/[0.1];
+}
+.tree-row-depth-1 {
+  padding-left: 14px;
+}
+.tree-row-depth-2 {
+  padding-left: 28px;
 }
 .tree-chevron {
-  @apply grid h-7 w-6 shrink-0 place-items-center text-muted;
+    @apply grid h-6 w-5 shrink-0 place-items-center text-muted;
 }
 .tree-label {
   @apply flex min-w-0 flex-1 items-center gap-1.5 truncate px-0.5 text-left;
 }
-.tree-group {
-  @apply px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted;
+.tree-icon {
+  @apply h-3.5 w-3.5 shrink-0;
+}
+.tree-empty {
+  @apply py-1 pr-2 text-[11px] text-muted;
 }
 .sql-split.splitpanes {
   background: transparent;
