@@ -26,5 +26,6 @@ describe('result values', () => {
     expect(wrapper.text()).toContain('9007199254740993')
     expect(wrapper.text()).toContain('BINARY · 12 bytes')
     expect(wrapper.text()).toContain('NULL')
+    expect(wrapper.get('[title="空字符串"]').text()).toBe('')
   })
 })

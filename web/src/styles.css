@@ -66,12 +66,70 @@ textarea {
     @apply inline-grid h-7 w-7 shrink-0 place-items-center rounded text-xs text-muted hover:bg-slate-200 hover:text-ink;
   }
   .activity-btn {
-    @apply mb-2 grid h-9 w-9 place-items-center rounded hover:bg-slate-800 hover:text-white;
+    @apply grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-white hover:text-ink;
+  }
+  .activity-btn-active {
+    @apply bg-white text-brand shadow-sm ring-1 ring-line;
+  }
+  .menu-item {
+    @apply block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50;
   }
 }
 .sql-workspace {
   height: calc(100vh - 48px);
   min-height: 560px;
+}
+.activity-rail {
+  @apply flex w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-slate-50 py-2;
+}
+.editor-toolbar {
+  @apply flex h-11 shrink-0 items-center gap-2 border-b border-line bg-white px-3;
+}
+.tab-bar {
+  @apply flex h-10 shrink-0 items-end gap-px overflow-x-auto border-b border-line bg-slate-50 px-2;
+}
+.editor-tab {
+  @apply flex h-9 max-w-[180px] items-center gap-2 rounded-t-md border border-transparent px-2.5 text-left text-xs text-muted hover:bg-white;
+}
+.editor-tab-active {
+  @apply border-line border-b-white bg-white text-ink;
+}
+.tab-close {
+  @apply rounded p-0.5 text-muted hover:bg-slate-200 hover:text-ink;
+}
+.tab-add {
+  @apply mb-0.5 grid h-7 w-7 place-items-center rounded text-muted hover:bg-white hover:text-ink;
+}
+.status-bar {
+  @apply flex h-7 shrink-0 items-center border-t border-line bg-slate-50 px-3 text-[11px] text-muted;
+}
+.shortcut {
+  @apply ml-1 rounded border border-line bg-slate-50 px-1 font-mono text-[10px] font-normal text-muted;
+}
+.shortcut-on-primary {
+  @apply border-white/30 bg-white/10 text-white;
+}
+.tree-row {
+  @apply flex h-7 items-center pr-1 hover:bg-slate-50;
+}
+.tree-row-active {
+  @apply bg-teal-50 text-brand;
+}
+.tree-chevron {
+  @apply grid h-7 w-6 shrink-0 place-items-center text-muted;
+}
+.tree-label {
+  @apply flex min-w-0 flex-1 items-center gap-1.5 truncate px-0.5 text-left;
+}
+.tree-group {
+  @apply px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted;
+}
+.sql-split.splitpanes {
+  background: transparent;
+}
+.sql-workspace .splitpanes__pane {
+  background: transparent;
+  overflow: hidden;
 }
 .sql-workspace .splitpanes__splitter {
   background: var(--color-line);
@@ -79,11 +137,10 @@ textarea {
 }
 .sql-workspace .splitpanes--vertical > .splitpanes__splitter {
   width: 5px;
-  border-left: 2px solid white;
-  border-right: 2px solid white;
 }
 .sql-workspace .splitpanes--horizontal > .splitpanes__splitter {
   height: 5px;
-  border-top: 2px solid white;
-  border-bottom: 2px solid white;
+}
+.sql-workspace .splitpanes__splitter:hover {
+  background: var(--color-brand);
 }

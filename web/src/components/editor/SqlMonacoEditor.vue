@@ -49,6 +49,42 @@ function installCompletion(): void {
     },
   })
 }
+function getRunnableStatement(): string {
+  return currentStatement()
+}
+function formatSql(): void {
+  if (!editor) return
+  try {
+    editor.setValue(format(editor.getValue(), { language: 'mysql' }))
+  } catch {
+    emit('notice', '当前 SQL 无法格式化')
+  }
+}
+function insertAtCursor(sql: string): void {
+  if (!editor) return
+  const model = editor.getModel()
+  const position = editor.getPosition()
+  if (!model || !position) return
+  const offset = model.getOffsetAt(position)
+  const needsNewline = offset > 0 && model.getValue().charAt(offset - 1) !== '\n'
+  editor.executeEdits('zorth-insert', [
+    {
+      range: {
+        startLineNumber: position.lineNumber,
+        startColumn: position.column,
+        endLineNumber: position.lineNumber,
+        endColumn: position.column,
+      },
+      text: `${needsNewline ? '\n' : ''}${sql}${sql.endsWith('\n') ? '' : '\n'}`,
+      forceMoveMarkers: true,
+    },
+  ])
+  editor.focus()
+}
+function focus(): void {
+  editor?.focus()
+}
+
 onMounted(() => {
   if (!root.value) return
   editor = monaco.editor.create(root.value, {
@@ -57,11 +93,23 @@ onMounted(() => {
     theme: 'vs',
     automaticLayout: true,
     minimap: { enabled: false },
-    fontSize: 14,
-    lineHeight: 22,
-    padding: { top: 12 },
+    fontSize: 13,
+    lineHeight: 21,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    tabSize: 2,
+    padding: { top: 10, bottom: 8 },
     wordWrap: 'off',
     scrollBeyondLastLine: false,
+    renderLineHighlight: 'line',
+    matchBrackets: 'always',
+    folding: true,
+    smoothScrolling: true,
+    cursorBlinking: 'smooth',
+    overviewRulerLanes: 0,
+    hideCursorInOverviewRuler: true,
+    scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+    quickSuggestions: { other: true, comments: false, strings: false },
+    suggestOnTriggerCharacters: true,
   })
   editor.onDidChangeModelContent(() => emit('update:modelValue', editor?.getValue() || ''))
   editor.addAction({
@@ -84,14 +132,7 @@ onMounted(() => {
     id: 'zorth-format',
     label: '格式化 SQL',
     keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
-    run: () => {
-      if (!editor) return
-      try {
-        editor.setValue(format(editor.getValue(), { language: 'mysql' }))
-      } catch {
-        emit('notice', '当前 SQL 无法格式化')
-      }
-    },
+    run: formatSql,
   })
   editor.addAction({
     id: 'zorth-save',
@@ -112,5 +153,8 @@ onBeforeUnmount(() => {
   completion?.dispose()
   editor?.dispose()
 })
+defineExpose({ getRunnableStatement, formatSql, insertAtCursor, focus })
 </script>
-<template><div ref="root" class="h-full min-h-[220px] w-full" aria-label="SQL 编辑器" /></template>
+<template>
+  <div ref="root" class="h-full min-h-[180px] w-full" aria-label="SQL 编辑器" />
+</template>

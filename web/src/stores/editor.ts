@@ -22,32 +22,63 @@ interface Draft {
   database: string | null
   sql: string
 }
+interface DraftBundle {
+  activeId: string
+  tabs: Draft[]
+}
 
-function restore(): Draft[] {
+export function isIdleTab(tab: Pick<EditorTab, 'sql' | 'result' | 'error' | 'running'>): boolean {
+  return !tab.sql.trim() && !tab.result && !tab.error && !tab.running
+}
+
+function isDraft(item: unknown): item is Draft {
+  return Boolean(
+    item &&
+      typeof item === 'object' &&
+      typeof (item as Draft).id === 'string' &&
+      typeof (item as Draft).title === 'string' &&
+      typeof (item as Draft).sql === 'string' &&
+      (item as Draft).sql.length <= MAX_BYTES,
+  )
+}
+
+function restore(): DraftBundle {
   try {
     const value = sessionStorage.getItem(STORAGE_KEY)
-    if (!value || value.length > MAX_BYTES) return []
+    if (!value || value.length > MAX_BYTES) return { activeId: '', tabs: [] }
     const parsed: unknown = JSON.parse(value)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((item): item is Draft =>
-      Boolean(
-        item &&
-          typeof item === 'object' &&
-          typeof item.id === 'string' &&
-          typeof item.title === 'string' &&
-          typeof item.sql === 'string' &&
-          item.sql.length <= MAX_BYTES,
-      ),
-    )
+    if (Array.isArray(parsed)) {
+      const tabs = parsed.filter(isDraft)
+      return { activeId: tabs[0]?.id || '', tabs }
+    }
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as DraftBundle).tabs)) {
+      const tabs = (parsed as DraftBundle).tabs.filter(isDraft)
+      const activeId =
+        typeof (parsed as DraftBundle).activeId === 'string' &&
+        tabs.some((tab) => tab.id === (parsed as DraftBundle).activeId)
+          ? (parsed as DraftBundle).activeId
+          : tabs[0]?.id || ''
+      return { activeId, tabs }
+    }
+    return { activeId: '', tabs: [] }
   } catch {
-    return []
+    return { activeId: '', tabs: [] }
   }
+}
+
+function nextQueryTitle(tabs: { title: string }[]): string {
+  let max = 0
+  for (const tab of tabs) {
+    const match = /^Query (\d+)$/.exec(tab.title)
+    if (match) max = Math.max(max, Number(match[1]))
+  }
+  return `Query ${max + 1}`
 }
 
 export const useEditorStore = defineStore('editor', () => {
   const restored = restore()
   const tabs = ref<EditorTab[]>(
-    restored.map((item) => ({
+    restored.tabs.map((item) => ({
       ...item,
       running: false,
       executionId: null,
@@ -55,20 +86,23 @@ export const useEditorStore = defineStore('editor', () => {
       error: null,
     })),
   )
-  const activeId = ref(tabs.value[0]?.id || '')
+  const activeId = ref(restored.activeId || tabs.value[0]?.id || '')
   const aborters = new Map<string, AbortController>()
   const active = computed(() => tabs.value.find((tab) => tab.id === activeId.value) || null)
   const runningCount = computed(() => tabs.value.filter((tab) => tab.running).length)
 
   function persist(): void {
-    const drafts = tabs.value.map(({ id, title, dataSourceId, database, sql }) => ({
-      id,
-      title,
-      dataSourceId,
-      database,
-      sql,
-    }))
-    const value = JSON.stringify(drafts)
+    const bundle: DraftBundle = {
+      activeId: activeId.value,
+      tabs: tabs.value.map(({ id, title, dataSourceId, database, sql }) => ({
+        id,
+        title,
+        dataSourceId,
+        database,
+        sql,
+      })),
+    }
+    const value = JSON.stringify(bundle)
     if (value.length <= MAX_BYTES) sessionStorage.setItem(STORAGE_KEY, value)
   }
   function createTab(
@@ -79,7 +113,7 @@ export const useEditorStore = defineStore('editor', () => {
   ): EditorTab {
     const tab: EditorTab = {
       id: crypto.randomUUID(),
-      title: title || `Query ${tabs.value.length + 1}`,
+      title: title || nextQueryTitle(tabs.value),
       dataSourceId,
       database,
       sql,
@@ -96,8 +130,37 @@ export const useEditorStore = defineStore('editor', () => {
   function ensureTab(dataSourceId: string | null, database: string | null): EditorTab {
     return active.value || createTab(dataSourceId, database)
   }
+  function bindTab(id: string, dataSourceId: string | null, database: string | null): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab || tab.running) return
+    tab.dataSourceId = dataSourceId
+    tab.database = database
+    persist()
+  }
+  function activateConnection(dataSourceId: string | null, database: string | null): EditorTab {
+    const current = active.value
+    if (current && current.dataSourceId === dataSourceId && current.database === database) {
+      return current
+    }
+    if (current && isIdleTab(current)) {
+      bindTab(current.id, dataSourceId, database)
+      return current
+    }
+    const matching = tabs.value.find(
+      (tab) => tab.dataSourceId === dataSourceId && tab.database === database && isIdleTab(tab),
+    )
+    if (matching) {
+      activeId.value = matching.id
+      persist()
+      return matching
+    }
+    return createTab(dataSourceId, database)
+  }
   function setActive(id: string): void {
-    if (tabs.value.some((tab) => tab.id === id)) activeId.value = id
+    if (tabs.value.some((tab) => tab.id === id)) {
+      activeId.value = id
+      persist()
+    }
   }
   function updateSql(id: string, sql: string): void {
     const tab = tabs.value.find((item) => item.id === id)
@@ -152,6 +215,8 @@ export const useEditorStore = defineStore('editor', () => {
     runningCount,
     createTab,
     ensureTab,
+    bindTab,
+    activateConnection,
     setActive,
     updateSql,
     closeTab,

@@ -32,15 +32,15 @@ test.describe('phase-two SQL editor', () => {
     await expect(page.getByText('9007199254740993')).toBeVisible()
     await expect(page.getByText('BINARY · 12 bytes')).toBeVisible()
 
-    page.once('dialog', (dialog) => dialog.accept())
     const download = page.waitForEvent('download')
     await page.getByRole('button', { name: '导出' }).click()
+    await page.getByRole('button', { name: '继续导出' }).click()
     expect((await download).suggestedFilename()).toContain('mock-orders')
 
     await page.getByTitle('执行历史').click()
     await expect(page.getByText('select * from order_item', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: /select \* from order_item SUCCESS/ }).click()
-    await expect(page.getByText(/History/)).toBeVisible()
+    await expect(page.getByRole('button', { name: /History / })).toBeVisible()
 
     await setSql(page, 'create table demo(id int)')
     await page.getByRole('button', { name: '运行' }).click()

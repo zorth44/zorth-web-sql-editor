@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 const props = withDefaults(
-  defineProps<{ open: boolean; title: string; busy?: boolean; confirmDisabled?: boolean }>(),
-  { busy: false, confirmDisabled: false },
+  defineProps<{
+    open: boolean
+    title: string
+    busy?: boolean
+    confirmDisabled?: boolean
+    tone?: 'danger' | 'primary'
+    confirmLabel?: string
+  }>(),
+  { busy: false, confirmDisabled: false, tone: 'danger', confirmLabel: '确认' },
 )
 const emit = defineEmits<{ close: []; confirm: [] }>()
 const panel = ref<HTMLElement | null>(null)
@@ -57,12 +64,12 @@ function keydown(event: KeyboardEvent): void {
         <div class="mt-6 flex justify-end gap-3">
           <button class="btn" type="button" :disabled="busy" @click="$emit('close')">取消</button
           ><button
-            class="btn-danger"
+            :class="tone === 'primary' ? 'btn-primary' : 'btn-danger'"
             type="button"
             :disabled="busy || confirmDisabled"
             @click="$emit('confirm')"
           >
-            {{ busy ? '处理中…' : '确认' }}
+            {{ busy ? '处理中…' : confirmLabel }}
           </button>
         </div>
       </section>
