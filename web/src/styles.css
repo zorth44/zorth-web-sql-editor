@@ -227,6 +227,9 @@ textarea {
   background: transparent;
   overflow: hidden;
 }
+.sql-workspace .splitpanes--ready .splitpanes__pane {
+  transition: none;
+}
 .sql-workspace .splitpanes__splitter {
   background: var(--color-line);
   position: relative;

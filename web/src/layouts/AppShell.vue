@@ -35,7 +35,7 @@ async function logout(): Promise<void> {
           class="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted hover:bg-wash"
           active-class="!bg-brand-soft !text-brand"
         >
-          数据源管理
+          <Database :size="15" class="mr-1 inline" />数据源管理
         </RouterLink>
       </nav>
       <div class="ml-auto flex items-center gap-4">
