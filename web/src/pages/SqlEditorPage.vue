@@ -3,17 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
-import {
-  Database,
-  Download,
-  FileCode,
-  History,
-  Play,
-  Plus,
-  Square,
-  WandSparkles,
-  X,
-} from 'lucide-vue-next'
+import { Database, FileCode, History, Play, Plus, Square, WandSparkles, X } from 'lucide-vue-next'
 import { listDataSources } from '@/api/data-sources'
 import { cancelExecution, executeSql, exportExecution } from '@/api/executions'
 import { getHistory } from '@/api/history'
@@ -23,6 +13,7 @@ import HistoryPanel from '@/components/history/HistoryPanel.vue'
 import ResultGrid from '@/components/result-grid/ResultGrid.vue'
 import SqlMonacoEditor from '@/components/editor/SqlMonacoEditor.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { DEFAULT_ROW_LIMIT } from '@/components/result-grid/limits'
 import { likelyNeedsDatabase } from '@/sql-editor/sql'
 import { useEditorStore } from '@/stores/editor'
 import { useAuthStore } from '@/stores/auth'
@@ -50,6 +41,7 @@ const sideCollapsed = ref(false)
 const resourceNonce = ref(0)
 const exporting = ref(false)
 const exportOpen = ref(false)
+const rowLimit = ref(DEFAULT_ROW_LIMIT)
 const pendingCloseId = ref<string | null>(null)
 const metadataSuggestions = ref<string[]>([])
 let exportAbort: AbortController | undefined
@@ -139,7 +131,7 @@ async function run(statement: string) {
         dataSourceId: tab.dataSourceId,
         database: tab.database,
         statement: sql,
-        rowLimit: 1000,
+        rowLimit: rowLimit.value,
       },
       controller.signal,
     )
@@ -370,21 +362,6 @@ onBeforeUnmount(() => {
             <button v-else class="btn min-h-8 px-3 py-1 text-xs text-danger" @click="stop">
               <Square :size="14" />停止
             </button>
-            <button
-              v-if="active?.result?.kind === 'RESULT_SET' && !exporting"
-              class="btn min-h-8 px-2.5 py-1 text-xs"
-              :disabled="!canExport"
-              @click="requestExport"
-            >
-              <Download :size="14" />导出
-            </button>
-            <button
-              v-else-if="exporting"
-              class="btn min-h-8 px-2.5 py-1 text-xs text-danger"
-              @click="exportAbort?.abort()"
-            >
-              取消导出
-            </button>
           </div>
           <Splitpanes horizontal class="sql-split min-h-0 flex-1">
             <Pane :size="62" min-size="28">
@@ -408,6 +385,12 @@ onBeforeUnmount(() => {
                 :result="active?.result || null"
                 :error="active?.error || null"
                 :running="Boolean(active?.running)"
+                :can-export="canExport"
+                :exporting="exporting"
+                :row-limit="rowLimit"
+                @update:row-limit="rowLimit = $event"
+                @export="requestExport"
+                @cancel-export="exportAbort?.abort()"
               />
             </Pane>
           </Splitpanes>

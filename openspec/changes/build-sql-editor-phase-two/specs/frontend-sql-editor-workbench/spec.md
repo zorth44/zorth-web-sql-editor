@@ -92,7 +92,7 @@ The frontend SHALL distinguish result sets, update counts, and DDL messages and 
 
 #### Scenario: Render a query result
 - **WHEN** RESULT_SET data arrives
-- **THEN** the frontend SHALL render fixed headers and virtualized/scrollable rows plus row count, duration, and truncation, with keyboard-accessible cell/row/result copy
+- **THEN** the frontend SHALL render a spreadsheet-style grid with typed column headers, a row-number column, sticky headers, virtualized/scrollable rows, selected-row and focused-cell chrome, a value panel for cell contents, client-side sort/filter/pin, row count, duration, truncation, a next-run row limit, and keyboard-accessible cell/row/result copy plus CSV export from the result footer
 
 #### Scenario: Render special cell values
 - **WHEN** a cell is NULL, empty string, long text, BIGINT/DECIMAL string, or binary descriptor

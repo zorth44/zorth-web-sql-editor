@@ -45,51 +45,51 @@
 
 ## 2. 技术选型
 
-| 类别 | 选型 | 说明 | 阶段 |
-| --- | --- | --- | --- |
-| 框架 | Vue 3 + TypeScript | Composition API + `<script setup>`；对照 Bytebase 的信息架构与交互，不依赖其 React 实现 | 1 |
-| 构建 | Vite | 开发和构建速度快 | 1 |
-| 包管理 | pnpm | 固定版本并提交 `pnpm-lock.yaml` | 1 |
-| 路由 | Vue Router 4 | 登录、数据源和编辑器路由 | 1，编辑器路由在阶段 2 |
-| 请求缓存 | TanStack Vue Query | 服务端状态、分页、重试和缓存失效 | 1 |
-| 本地状态 | Pinia | 编辑器页签、布局尺寸、当前连接等临时状态 | 1 |
-| SQL 编辑器 | Monaco Editor | MySQL 高亮、快捷键、查找、格式化和补全；封装为 Vue 组件 | 2 |
-| 可调整布局 | splitpanes | 左侧资源树、编辑区和结果区可拖动 | 2 |
-| 大表格 | TanStack Vue Table + Vue Virtual | 结果列和行虚拟滚动 | 2 |
-| 样式 | Tailwind CSS + CSS Variables | 参考 Bytebase 信息架构，同时保留品牌主题变量 | 1 |
-| 图标 | lucide-vue-next | 使用一致的线性图标，不复制 Bytebase 品牌资源 | 1 |
-| 单元测试 | Vitest + Vue Test Utils | 状态、组件和请求层测试 | 1 |
-| E2E | Playwright | 按阶段验收核心用户流程 | 1 |
-| API Mock | MSW | 后端未就绪时按冻结契约模拟 Session 和数据源 API，仅用于开发与测试 | 1 |
-| 代码质量 | ESLint + Prettier + eslint-plugin-vue | 格式化和 Vue SFC 静态检查 | 1 |
+| 类别       | 选型                                  | 说明                                                                                    | 阶段                  |
+| ---------- | ------------------------------------- | --------------------------------------------------------------------------------------- | --------------------- |
+| 框架       | Vue 3 + TypeScript                    | Composition API + `<script setup>`；对照 Bytebase 的信息架构与交互，不依赖其 React 实现 | 1                     |
+| 构建       | Vite                                  | 开发和构建速度快                                                                        | 1                     |
+| 包管理     | pnpm                                  | 固定版本并提交 `pnpm-lock.yaml`                                                         | 1                     |
+| 路由       | Vue Router 4                          | 登录、数据源和编辑器路由                                                                | 1，编辑器路由在阶段 2 |
+| 请求缓存   | TanStack Vue Query                    | 服务端状态、分页、重试和缓存失效                                                        | 1                     |
+| 本地状态   | Pinia                                 | 编辑器页签、布局尺寸、当前连接等临时状态                                                | 1                     |
+| SQL 编辑器 | Monaco Editor                         | MySQL 高亮、快捷键、查找、格式化和补全；封装为 Vue 组件                                 | 2                     |
+| 可调整布局 | splitpanes                            | 左侧资源树、编辑区和结果区可拖动                                                        | 2                     |
+| 大表格     | TanStack Vue Table + Vue Virtual      | 结果列和行虚拟滚动                                                                      | 2                     |
+| 样式       | Tailwind CSS + CSS Variables          | 参考 Bytebase 信息架构，同时保留品牌主题变量                                            | 1                     |
+| 图标       | lucide-vue-next                       | 使用一致的线性图标，不复制 Bytebase 品牌资源                                            | 1                     |
+| 单元测试   | Vitest + Vue Test Utils               | 状态、组件和请求层测试                                                                  | 1                     |
+| E2E        | Playwright                            | 按阶段验收核心用户流程                                                                  | 1                     |
+| API Mock   | MSW                                   | 后端未就绪时按冻结契约模拟 Session 和数据源 API，仅用于开发与测试                       | 1                     |
+| 代码质量   | ESLint + Prettier + eslint-plugin-vue | 格式化和 Vue SFC 静态检查                                                               | 1                     |
 
 不得直接复制 Bytebase 商标、Logo、专有插画和文案。页面布局和交互可参考其开源实现；如果后续复制了受 MIT 许可覆盖的实质性源码，必须保留对应版权声明。
 
 环境变量：
 
-| 变量 | 说明 |
-| --- | --- |
-| `VITE_SQL_API_BASE` | SQL 服务地址，例如 `/api`（经同源网关） |
-| `VITE_AUTH_API_BASE` | 授权服务登录/退出地址；若网关已反代到同源路径，可与上一行相同 |
-| `VITE_AUTH_PRODUCT_TYPE` | 授权服务 LDAP 产品类型，默认 `chinaBank`；可选 `synthetical`、`chinaBank`、`oversea` |
-| `VITE_AUTH_BRIDGE_ALLOWED_ORIGINS` | 允许向 `/auth/bridge` 发送 Token 的老系统 Origin，多个值用逗号分隔 |
-| `VITE_LEGACY_PORTAL_URL` | 用户尚未绑定本地账号时跳回老系统完成绑定的地址 |
-| `VITE_ENABLE_API_MOCK` | 仅开发和测试可设为 `true`；生产构建必须为 `false` |
+| 变量                               | 说明                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------ |
+| `VITE_SQL_API_BASE`                | SQL 服务地址，例如 `/api`（经同源网关）                                              |
+| `VITE_AUTH_API_BASE`               | 授权服务登录/退出地址；若网关已反代到同源路径，可与上一行相同                        |
+| `VITE_AUTH_PRODUCT_TYPE`           | 授权服务 LDAP 产品类型，默认 `chinaBank`；可选 `synthetical`、`chinaBank`、`oversea` |
+| `VITE_AUTH_BRIDGE_ALLOWED_ORIGINS` | 允许向 `/auth/bridge` 发送 Token 的老系统 Origin，多个值用逗号分隔                   |
+| `VITE_LEGACY_PORTAL_URL`           | 用户尚未绑定本地账号时跳回老系统完成绑定的地址                                       |
+| `VITE_ENABLE_API_MOCK`             | 仅开发和测试可设为 `true`；生产构建必须为 `false`                                    |
 
 推荐由网关把前端、SQL 服务、授权服务登录接口做成同源。若做不到，前端允许配置两个 baseURL，并按授权服务 CORS 要求带 `Authorization`。
 
 ## 3. 页面与路由
 
-| 路由 | 页面 | 登录要求 | 阶段 |
-| --- | --- | --- | --- |
-| `/login` | 登录页 | 否 | 1 |
-| `/auth/bridge` | 老系统 Token 桥接页 | 否 | 1 |
-| `/data-sources` | 数据源管理 | 是 | 1 |
-| `/data-sources/new` | 新增数据源 | 是 | 1 |
-| `/data-sources/:id/edit` | 编辑数据源 | 是 | 1 |
-| `/sql-editor` | SQL 编辑器工作台 | 是 | 2 |
-| `/sql-editor/history/:historyId` | 打开指定历史 | 是 | 2 |
-| `*` | 404 | 否 | 1 |
+| 路由                             | 页面                | 登录要求 | 阶段 |
+| -------------------------------- | ------------------- | -------- | ---- |
+| `/login`                         | 登录页              | 否       | 1    |
+| `/auth/bridge`                   | 老系统 Token 桥接页 | 否       | 1    |
+| `/data-sources`                  | 数据源管理          | 是       | 1    |
+| `/data-sources/new`              | 新增数据源          | 是       | 1    |
+| `/data-sources/:id/edit`         | 编辑数据源          | 是       | 1    |
+| `/sql-editor`                    | SQL 编辑器工作台    | 是       | 2    |
+| `/sql-editor/history/:historyId` | 打开指定历史        | 是       | 2    |
+| `*`                              | 404                 | 否       | 1    |
 
 第一阶段访问 `/sql-editor` 时跳到 `/data-sources`，或显示“SQL 编辑器将在下一阶段开放”。
 
@@ -169,10 +169,10 @@ X-Request-Id: <uuid>
 ├──────┬───────────────────┬──────────────────────────────────────────┤
 │功能栏│ 数据库资源 / 历史 │ SQL 页签（标题 + 所属数据源 / 数据库）   │
 │      │                   ├──────────────────────────────────────────┤
-│编辑器│ 搜索框            │ 运行 / 格式化 / 导出                     │
+│编辑器│ 搜索框            │ 运行 / 格式化                            │
 │历史  │ 数据库树          │ Monaco Editor                            │
 │      │ 表 / 视图         ├──────────────────────────────────────────┤
-│      │ 字段 / 索引       │ 结果 / 消息                              │
+│      │ 字段 / 索引       │ 结果网格 / 值面板 / 行数上限 / 导出      │
 └──────┴───────────────────┴──────────────────────────────────────────┘
 ```
 
@@ -216,19 +216,19 @@ X-Request-Id: <uuid>
 
 字段：
 
-| 字段 | 必填 | 规则 |
-| --- | --- | --- |
-| 数据源名称 | 是 | 1–100 字符；允许重名，数据源仅以 ID 唯一标识 |
-| 数据库类型 | 是 | 固定 MySQL |
-| Host | 是 | 域名、IPv4 或 IPv6，不带协议；IPv6 原样提交，由后端生成 JDBC URL 时加方括号 |
-| Port | 是 | 默认 3306，1–65535 |
-| 用户名 | 是 | 1–128 字符 |
-| 密码 | 新增必填 | 编辑时留空表示保持原密码 |
-| 默认数据库 | 否 | 第一阶段只提供手工输入；第二阶段接入数据库元数据后再升级为可选择 |
-| JDBC 参数 | 否 | 只展示后端白名单键；不允许完整 JDBC URL，也不允许填写 SSL、user、password |
-| SSL 模式 | 是 | `DISABLED`、`PREFERRED`、`REQUIRED`。第一阶段不校验证书和主机名 |
-| 连接超时 | 是 | 默认 10 秒，1–30 秒。测试连接等待时间与此相同，硬上限 30 秒 |
-| 描述 | 否 | 最大 500 字符 |
+| 字段       | 必填     | 规则                                                                        |
+| ---------- | -------- | --------------------------------------------------------------------------- |
+| 数据源名称 | 是       | 1–100 字符；允许重名，数据源仅以 ID 唯一标识                                |
+| 数据库类型 | 是       | 固定 MySQL                                                                  |
+| Host       | 是       | 域名、IPv4 或 IPv6，不带协议；IPv6 原样提交，由后端生成 JDBC URL 时加方括号 |
+| Port       | 是       | 默认 3306，1–65535                                                          |
+| 用户名     | 是       | 1–128 字符                                                                  |
+| 密码       | 新增必填 | 编辑时留空表示保持原密码                                                    |
+| 默认数据库 | 否       | 第一阶段只提供手工输入；第二阶段接入数据库元数据后再升级为可选择            |
+| JDBC 参数  | 否       | 只展示后端白名单键；不允许完整 JDBC URL，也不允许填写 SSL、user、password   |
+| SSL 模式   | 是       | `DISABLED`、`PREFERRED`、`REQUIRED`。第一阶段不校验证书和主机名             |
+| 连接超时   | 是       | 默认 10 秒，1–30 秒。测试连接等待时间与此相同，硬上限 30 秒                 |
+| 描述       | 否       | 最大 500 字符                                                               |
 
 保存前允许点击“测试连接”。测试请求带上当前表单的 `connectTimeoutSeconds`，不要另用 10 秒超时。新增和编辑保存成功后返回列表并刷新缓存。
 
@@ -334,14 +334,19 @@ URL 仅包含非敏感 ID 和数据库名。打开 URL 时后端重新鉴权，�
 
 ### 7.6 查询结果
 
-结果表格支持：
+结果表格视觉与列操作参考 CloudBeaver 的结果网格，不复制其品牌资源。表格支持：
 
-- 表头固定、横向滚动、行列虚拟化。
-- 单元格复制、整行复制、复制当前结果。
+- 电子表格式细网格、固定表头、行号列、横向滚动和行虚拟化。
+- 表头显示数据类型标记：数值 `123`、文本 `A-Z`，以及日期、二进制等简写。
+- 选中行使用浅底，当前单元格使用深色内边框；当前单元格右侧提供操作菜单。
+- 单元格菜单与右键菜单：在值面板中显示、复制单元格/整行、排序、筛选、固定列、取消所有固定。
+- 列宽可拖动；固定列停留在行号右侧。
+- 排序和筛选只作用于已返回结果，不重新查询数据库。
+- 单元格复制、整行复制、复制当前结果；`⌘/Ctrl + C` 复制当前单元格。
 - NULL 使用斜体 `NULL`，空字符串显示为空并提供 tooltip 区分。
-- 超长文本折叠预览，点击打开详情。
+- 超长文本折叠预览；双击或“在值面板中显示”在右侧值面板打开全文。
 - `BLOB/BINARY` 显示类型和字节数，不预览原始二进制。后端单元格形如 `{ "binary": true, "size": 1234, "base64": null }`。
-- 列过滤只在已返回结果中进行，不重新查询数据库。
+- 底栏提供下次运行生效的返回行数上限、返回行数/截断/耗时，以及查询结果的 CSV 导出。
 - 显示返回行数、影响行数、执行耗时、是否截断。
 
 `jdbcType` 和 `typeName` 都是字符串：`jdbcType` 用 JDBC `Types` 名称（如 `BIGINT`），`typeName` 用数据库原生名。不要把它们当成数字。
@@ -353,7 +358,12 @@ type SqlExecutionResult =
   | {
       kind: "RESULT_SET";
       executionId: string;
-      columns: Array<{ name: string; label: string; jdbcType: string; typeName: string }>;
+      columns: Array<{
+        name: string;
+        label: string;
+        jdbcType: string;
+        typeName: string;
+      }>;
       rows: Array<Array<unknown>>;
       rowCount: number;
       truncated: boolean;
@@ -372,7 +382,7 @@ JavaScript 无法无损表示超过 53 位有效范围的整数。后端必须�
 
 ## 8. CSV 导出（第二阶段）
 
-- 仅查询结果显示导出按钮；DML/DDL 不显示。
+- 仅查询结果显示导出按钮，放在结果网格底栏；DML/DDL 不显示。
 - 点击导出把当前成功查询的 `executionId` 传给 `POST /api/v1/sql/exports`，后端从该用户历史中读取原 SQL 并重新执行，然后流式返回 CSV；前端不再次提交可替换的 SQL 文本。
 - 前端提示“导出会重新执行当前 SQL，数据可能与屏幕结果不同”。这一行为与最新 Bytebase 一致。
 - 文件名：`<dataSource>-<database>-<yyyyMMdd-HHmmss>.csv`。
