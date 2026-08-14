@@ -163,8 +163,11 @@ textarea {
 .tree-row-depth-2 {
   padding-left: 28px;
 }
+.tree-row-depth-3 {
+  padding-left: 42px;
+}
 .tree-chevron {
-    @apply grid h-6 w-5 shrink-0 place-items-center text-muted;
+  @apply grid h-6 w-5 shrink-0 place-items-center text-muted;
 }
 .tree-label {
   @apply flex min-w-0 flex-1 items-center gap-1.5 truncate px-0.5 text-left;

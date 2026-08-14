@@ -50,7 +50,6 @@ const selectedDatabase = ref<string | null>(null)
 const side = ref<'database' | 'history'>('database')
 const sideCollapsed = ref(false)
 const resourceNonce = ref(0)
-const loadingDatabases = ref(false)
 const exporting = ref(false)
 const exportOpen = ref(false)
 const pendingCloseId = ref<string | null>(null)
@@ -81,14 +80,11 @@ async function loadDatabases(): Promise<void> {
     databases.value = []
     return
   }
-  loadingDatabases.value = true
   try {
     databases.value = (await listDatabases(selectedSource.value)).items
   } catch (e) {
     databases.value = []
     notice(safeErrorMessage(e, '数据库加载失败'))
-  } finally {
-    loadingDatabases.value = false
   }
 }
 function applyConnection(sourceId: string | null, database: string | null): void {
@@ -120,8 +116,11 @@ function toggleSide(next: 'database' | 'history') {
   side.value = next
   sideCollapsed.value = false
 }
-async function insertSql(sql: string, database: string) {
-  applyConnection(selectedSource.value, database)
+function selectConnection(sourceId: string, database: string) {
+  applyConnection(sourceId, database)
+}
+async function insertSql(sql: string, dataSourceId: string, database: string) {
+  applyConnection(dataSourceId, database)
   await nextTick()
   const tab = editor.active
   if (!tab) return
@@ -334,12 +333,11 @@ onBeforeUnmount(() => {
       <Pane v-if="!sideCollapsed" :size="22" min-size="16" max-size="38">
         <ResourceBrowser
           v-if="side === 'database'"
+          :sources="sources"
           :data-source-id="selectedSource"
           :database="selectedDatabase"
-          :databases="databases"
-          :loading-databases="loadingDatabases"
           :reload-token="resourceNonce"
-          @select-database="selectDatabase"
+          @select-connection="selectConnection"
           @insert="insertSql"
           @notice="notice"
           @suggestions="metadataSuggestions = $event"
