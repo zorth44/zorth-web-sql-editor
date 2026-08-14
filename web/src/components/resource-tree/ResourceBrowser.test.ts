@@ -148,4 +148,21 @@ describe('resource navigator', () => {
     )
     wrapper.unmount()
   })
+
+  it('opens a table object from double-click without a structure drawer', async () => {
+    const wrapper = await renderBrowser({ dataSourceId: 'ds-orders-a', database: 'orders' })
+    const table = wrapper.get('[data-testid="navigator-table-ds-orders-a-orders-order_item"]')
+    await table.trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('select-connection')?.at(-1)).toEqual(['ds-orders-a', 'orders'])
+    expect(wrapper.text()).not.toContain('auto_increment')
+    await table.trigger('dblclick')
+    expect(wrapper.emitted('open-table')?.at(-1)?.[0]).toMatchObject({
+      dataSourceId: 'ds-orders-a',
+      database: 'orders',
+      pane: 'data',
+      table: { name: 'order_item', type: 'TABLE' },
+    })
+    wrapper.unmount()
+  })
 })

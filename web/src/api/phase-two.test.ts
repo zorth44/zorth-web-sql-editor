@@ -12,6 +12,9 @@ describe('phase-two API contracts', () => {
     expect(
       (await getTableDetail('ds-orders-a', 'orders', 'order_item')).primaryKey?.columns,
     ).toEqual(['id'])
+    expect((await getTableDetail('ds-orders-a', 'orders', 'order_item')).ddl).toContain(
+      'CREATE TABLE `order_item`',
+    )
   })
   it('executes, exports, and reopens current-user history', async () => {
     const executionId = crypto.randomUUID()

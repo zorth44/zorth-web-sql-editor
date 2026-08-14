@@ -336,6 +336,11 @@ export const handlers = [
       ],
       primaryKey: { name: 'PRIMARY', columns: ['id'] },
       indexes: [{ name: 'PRIMARY', unique: true, type: 'OTHER', columns: ['id'] }],
+      ddl: `CREATE TABLE \`${table}\` (
+  \`id\` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  \`amount\` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT '金额',
+  PRIMARY KEY (\`id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单明细'`,
     })
   }),
   http.post(sql('/api/v1/sql/executions'), async ({ request }) => {

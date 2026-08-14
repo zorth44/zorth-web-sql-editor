@@ -57,5 +57,9 @@ The workspace SHALL browse data sources, databases, tables/views, columns, prima
 - **THEN** already-loaded metadata for other expanded sources SHALL remain visible, newly requested metadata SHALL use the active source, and query keys SHALL remain source-scoped
 
 #### Scenario: Use a table action
-- **WHEN** a user double-clicks or invokes a table context action
-- **THEN** the frontend SHALL support quoted-name insertion, name copy, `SELECT * ... LIMIT 100` generation, and structure viewing without executing automatically
+- **WHEN** a user double-clicks a table or view
+- **THEN** the workspace SHALL open or focus an object tab for that table, default to the Data pane, load preview rows, and SHALL NOT show a Diagram pane
+- **WHEN** the user selects the Properties pane
+- **THEN** the frontend SHALL show table info, columns, keys, indexes, and DDL
+- **WHEN** a user invokes a table context action
+- **THEN** the frontend SHALL support quoted-name insertion, name copy, `SELECT * ... LIMIT 100` generation into a SQL tab, and opening structure in the Properties pane

@@ -181,6 +181,83 @@ textarea {
 .tab-add {
   @apply my-auto grid h-7 w-7 shrink-0 place-items-center rounded text-muted hover:bg-panel hover:text-ink;
 }
+.table-viewer {
+  @apply flex min-h-0 flex-1 flex-col;
+}
+.object-tab-bar {
+  @apply flex h-9 shrink-0 items-center gap-1 border-b border-line bg-panel px-3;
+}
+.object-tab {
+  @apply relative h-9 px-3 text-sm text-muted hover:text-ink;
+}
+.object-tab-active {
+  @apply font-medium text-brand;
+}
+.object-tab-active::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-brand);
+}
+.table-properties {
+  @apply flex min-h-0 flex-1;
+}
+.properties-nav {
+  @apply flex w-40 shrink-0 flex-col gap-0.5 overflow-auto border-r border-line bg-subtle py-2;
+}
+.properties-nav-item {
+  @apply mx-1 rounded px-3 py-1.5 text-left text-sm text-ink hover:bg-wash;
+}
+.properties-nav-item-active {
+  @apply bg-brand-soft font-medium text-brand;
+}
+.properties-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+.properties-table th,
+.properties-table td {
+  border: 1px solid var(--color-line);
+  padding: 7px 10px;
+  vertical-align: top;
+}
+.properties-table th {
+  background: var(--color-subtle);
+  font-weight: 600;
+  color: var(--color-muted);
+}
+.properties-table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-brand) 6%, transparent);
+}
+.properties-ddl-pane {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+.properties-ddl-toolbar {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--color-line);
+  padding: 6px 10px;
+}
+.properties-ddl {
+  margin: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 12px 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  background: var(--color-subtle);
+}
 .shortcut {
   @apply ml-1 rounded border border-line bg-subtle px-1 font-mono text-[10px] font-normal text-muted;
 }

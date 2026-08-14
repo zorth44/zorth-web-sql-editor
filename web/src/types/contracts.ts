@@ -177,6 +177,7 @@ export interface TableDetail {
   columns: ColumnItem[]
   primaryKey: PrimaryKeyItem | null
   indexes: IndexItem[]
+  ddl: string | null
 }
 
 export interface SqlColumn {

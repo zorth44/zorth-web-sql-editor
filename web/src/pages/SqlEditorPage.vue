@@ -3,7 +3,17 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
-import { Database, FileCode, History, Play, Plus, Square, WandSparkles, X } from 'lucide-vue-next'
+import {
+  Database,
+  FileCode,
+  History,
+  Play,
+  Plus,
+  Square,
+  Table2,
+  WandSparkles,
+  X,
+} from 'lucide-vue-next'
 import { listDataSources } from '@/api/data-sources'
 import { cancelExecution, executeSql, exportExecution } from '@/api/executions'
 import { getHistory } from '@/api/history'
@@ -11,10 +21,11 @@ import { safeErrorMessage } from '@/api/api-error'
 import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
 import HistoryPanel from '@/components/history/HistoryPanel.vue'
 import ResultGrid from '@/components/result-grid/ResultGrid.vue'
+import TableViewer from '@/components/table-viewer/TableViewer.vue'
 import SqlMonacoEditor from '@/components/editor/SqlMonacoEditor.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { DEFAULT_ROW_LIMIT } from '@/components/result-grid/limits'
-import { likelyNeedsDatabase } from '@/sql-editor/sql'
+import { likelyNeedsDatabase, selectTableData } from '@/sql-editor/sql'
 import {
   SIDEBAR_DEFAULT_PX,
   SIDEBAR_MAX_PX,
@@ -26,7 +37,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { queryClient, queryKeys } from '@/query/client'
-import type { DataSourceListItem, HistoryDetail } from '@/types/contracts'
+import type { DataSourceListItem, HistoryDetail, TableItem } from '@/types/contracts'
 
 const route = useRoute()
 const router = useRouter()
@@ -100,7 +111,27 @@ function toggleSide(next: 'database' | 'history') {
   sideCollapsed.value = false
 }
 function selectConnection(sourceId: string, database: string) {
-  applyConnection(sourceId, database)
+  selectedSource.value = sourceId
+  selectedDatabase.value = database
+  if (editor.active?.kind !== 'table') editor.activateConnection(sourceId, database)
+  void syncUrl()
+}
+function openTable(payload: {
+  dataSourceId: string
+  database: string
+  table: TableItem
+  pane: 'data' | 'properties'
+}) {
+  selectedSource.value = payload.dataSourceId
+  selectedDatabase.value = payload.database
+  const tab = editor.openTableTab(
+    payload.dataSourceId,
+    payload.database,
+    payload.table,
+    payload.pane,
+  )
+  void syncUrl()
+  if (tab.viewerPane === 'data') void loadTableData(tab.id)
 }
 async function insertSql(sql: string, dataSourceId: string, database: string) {
   applyConnection(dataSourceId, database)
@@ -116,26 +147,25 @@ function runCurrent() {
 function formatSql() {
   monacoRef.value?.formatSql()
 }
-async function run(statement: string) {
-  const tab = active.value
-  if (!tab || !canExecute.value) return
+async function loadTableData(id: string, force = false) {
+  const tab = editor.tabs.find((item) => item.id === id)
+  if (!tab || tab.kind !== 'table' || tab.running) return
+  if (!force && (tab.result || tab.error)) return
+  if (!tab.dataSourceId || !tab.database || !tab.table) return
+  if (!canExecute.value) {
+    editor.finish(id, undefined, '没有 SQL 执行权限')
+    return
+  }
+  await executeOnTab(id, selectTableData(tab.database, tab.table))
+}
+async function executeOnTab(tabId: string, statement: string) {
+  const tab = editor.tabs.find((item) => item.id === tabId)
+  if (!tab || !tab.dataSourceId) return
   const sql = statement.trim()
-  if (!sql) {
-    notice('请输入要执行的 SQL，或将光标放在目标语句上')
-    return
-  }
-  if (!tab.dataSourceId) {
-    notice('请在左侧导航选择数据源')
-    return
-  }
-  if (!tab.database && likelyNeedsDatabase(sql)) {
-    notice('请在左侧导航选择数据库')
-    return
-  }
   const executionId = crypto.randomUUID()
   let controller: AbortController
   try {
-    controller = editor.start(tab.id, executionId)
+    controller = editor.start(tabId, executionId)
   } catch (e) {
     notice(e instanceof Error ? e.message : '无法执行')
     return
@@ -151,7 +181,7 @@ async function run(statement: string) {
       },
       controller.signal,
     )
-    editor.finish(tab.id, result)
+    editor.finish(tabId, result)
     if (result.kind === 'DDL') {
       resourceNonce.value++
       await queryClient.invalidateQueries({ queryKey: queryKeys.metadata(tab.dataSourceId) })
@@ -159,10 +189,28 @@ async function run(statement: string) {
     await queryClient.invalidateQueries({ queryKey: ['sql-history'] })
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
-      editor.finish(tab.id, undefined, '执行已取消')
-    } else editor.finish(tab.id, undefined, safeErrorMessage(e, 'SQL 执行失败'))
+      editor.finish(tabId, undefined, '执行已取消')
+    } else editor.finish(tabId, undefined, safeErrorMessage(e, 'SQL 执行失败'))
     await queryClient.invalidateQueries({ queryKey: ['sql-history'] })
   }
+}
+async function run(statement: string) {
+  const tab = active.value
+  if (!tab || tab.kind !== 'sql' || !canExecute.value) return
+  const sql = statement.trim()
+  if (!sql) {
+    notice('请输入要执行的 SQL，或将光标放在目标语句上')
+    return
+  }
+  if (!tab.dataSourceId) {
+    notice('请在左侧导航选择数据源')
+    return
+  }
+  if (!tab.database && likelyNeedsDatabase(sql)) {
+    notice('请在左侧导航选择数据库')
+    return
+  }
+  await executeOnTab(tab.id, sql)
 }
 async function stop() {
   const tab = active.value
@@ -275,6 +323,13 @@ watch(
     void syncUrl()
   },
 )
+watch(
+  () => [editor.activeId, editor.active?.kind, editor.active?.viewerPane] as const,
+  () => {
+    const tab = editor.active
+    if (tab?.kind === 'table' && tab.viewerPane === 'data') void loadTableData(tab.id)
+  },
+)
 
 onMounted(async () => {
   syncSplitWidth()
@@ -351,6 +406,7 @@ onBeforeUnmount(() => {
             :reload-token="resourceNonce"
             @select-connection="selectConnection"
             @insert="insertSql"
+            @open-table="openTable"
             @notice="notice"
             @suggestions="metadataSuggestions = $event"
             @refresh="resourceNonce++"
@@ -364,7 +420,7 @@ onBeforeUnmount(() => {
         </Pane>
         <Pane>
           <section class="flex h-full min-w-0 flex-col bg-panel">
-            <div class="tab-bar" role="tablist" aria-label="SQL 页签">
+            <div class="tab-bar" role="tablist" aria-label="编辑器页签">
               <button
                 v-for="tab in editor.tabs"
                 :key="tab.id"
@@ -375,7 +431,8 @@ onBeforeUnmount(() => {
                 :aria-label="`${tab.title}，${tabConnectionLabel(tab)}`"
                 @click="editor.setActive(tab.id)"
               >
-                <FileCode class="editor-tab-icon" :size="14" />
+                <Table2 v-if="tab.kind === 'table'" class="editor-tab-icon" :size="14" />
+                <FileCode v-else class="editor-tab-icon" :size="14" />
                 <span class="editor-tab-copy">
                   <span class="editor-tab-title">{{ tab.title }}</span>
                   <span class="editor-tab-connection">{{ tabConnectionLabel(tab) }}</span>
@@ -387,7 +444,7 @@ onBeforeUnmount(() => {
                 <Plus :size="15" />
               </button>
             </div>
-            <div class="editor-toolbar">
+            <div v-if="active?.kind !== 'table'" class="editor-toolbar">
               <button
                 class="btn min-h-8 px-2.5 py-1 text-xs"
                 title="格式化 SQL"
@@ -411,7 +468,31 @@ onBeforeUnmount(() => {
                 <Square :size="14" />停止
               </button>
             </div>
-            <Splitpanes horizontal class="sql-split min-h-0 flex-1">
+            <TableViewer
+              v-if="
+                active?.kind === 'table' && active.dataSourceId && active.database && active.table
+              "
+              :key="active.id"
+              :data-source-id="active.dataSourceId"
+              :database="active.database"
+              :table="active.table"
+              :table-type="active.tableType"
+              :table-comment="active.tableComment"
+              :pane="active.viewerPane"
+              :result="active.result"
+              :error="active.error"
+              :running="active.running"
+              :can-export="canExport"
+              :exporting="exporting"
+              :row-limit="rowLimit"
+              :reload-token="resourceNonce"
+              @update:pane="editor.setViewerPane(active.id, $event)"
+              @refresh="loadTableData(active.id, true)"
+              @export="requestExport"
+              @cancel-export="exportAbort?.abort()"
+              @update:row-limit="rowLimit = $event"
+            />
+            <Splitpanes v-else horizontal class="sql-split min-h-0 flex-1">
               <Pane :size="62" min-size="28">
                 <SqlMonacoEditor
                   v-if="active"
@@ -457,10 +538,14 @@ onBeforeUnmount(() => {
         </Pane>
       </Splitpanes>
     </div>
-    <ConfirmDialog>
-      :open="Boolean(pendingCloseId)" title="关闭页签" confirm-label="关闭" @close="pendingCloseId =
-      null" @confirm="pendingCloseId && closeTab(pendingCloseId)" > 关闭后将丢弃此页签中的
-      SQL，确定继续吗？
+    <ConfirmDialog
+      :open="Boolean(pendingCloseId)"
+      title="关闭页签"
+      confirm-label="关闭"
+      @close="pendingCloseId = null"
+      @confirm="pendingCloseId && closeTab(pendingCloseId)"
+    >
+      关闭后将丢弃此页签中的 SQL，确定继续吗？
     </ConfirmDialog>
     <ConfirmDialog
       :open="exportOpen"

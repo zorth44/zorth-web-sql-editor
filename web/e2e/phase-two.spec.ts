@@ -33,8 +33,19 @@ test.describe('phase-two SQL editor', () => {
     await expect(page.getByTestId('navigator-database-ds-orders-a-orders')).toBeVisible()
     await page.getByRole('button', { name: 'orders', exact: true }).click()
     await expect(page.getByText('order_item', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'order_item', exact: true }).click()
+    await page.getByTestId('navigator-table-ds-orders-a-orders-order_item').dblclick()
+    await expect(page.getByTestId('table-viewer')).toBeVisible()
+    await expect(page.getByTestId('table-viewer-tab-data')).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByText('9007199254740993')).toBeVisible()
+    await expect(page.getByText('Diagram')).toHaveCount(0)
+    await page.getByTestId('table-viewer-tab-properties').click()
+    await page.getByTestId('table-properties-nav-columns').click()
     await expect(page.getByText('amount', { exact: true })).toBeVisible()
+    await page.getByTestId('table-properties-nav-ddl').click()
+    await expect(page.getByTestId('table-properties-ddl')).toContainText(
+      'CREATE TABLE `order_item`',
+    )
+    await page.getByRole('tab', { name: /Query 1/ }).click()
 
     await setSql(page, 'select * from order_item')
     await page.getByRole('button', { name: '运行' }).click()
@@ -49,7 +60,7 @@ test.describe('phase-two SQL editor', () => {
     await page.getByTitle('执行历史').click()
     await expect(page.getByText('select * from order_item', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: /select \* from order_item SUCCESS/ }).click()
-    await expect(page.getByRole('button', { name: /History / })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /History / })).toBeVisible()
 
     await setSql(page, 'create table demo(id int)')
     await page.getByRole('button', { name: '运行' }).click()

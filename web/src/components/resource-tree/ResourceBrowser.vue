@@ -16,6 +16,14 @@ const props = defineProps<{
 const emit = defineEmits<{
   'select-connection': [dataSourceId: string, database: string]
   insert: [sql: string, dataSourceId: string, database: string]
+  'open-table': [
+    payload: {
+      dataSourceId: string
+      database: string
+      table: TableItem
+      pane: 'data' | 'properties'
+    },
+  ]
   notice: [message: string]
   suggestions: [values: string[]]
   refresh: []
@@ -45,8 +53,6 @@ const tablesByDb = ref<Record<string, TableItem[]>>({})
 const loadingTables = ref<Record<string, boolean>>({})
 const tableError = ref<Record<string, string>>({})
 const details = ref<Record<string, TableDetail>>({})
-const drawer = ref<TableDetail | null>(null)
-const drawerSourceId = ref<string | null>(null)
 const menu = ref<{
   x: number
   y: number
@@ -238,11 +244,24 @@ function selectGroup(dataSourceId: string, database: string, group: ObjectGroup)
   if (!isGroupOpen(dataSourceId, database, group)) toggleGroup(dataSourceId, database, group)
   emit('select-connection', dataSourceId, database)
 }
-async function openStructure(dataSourceId: string, database: string, table: string): Promise<void> {
+function selectTable(
+  dataSourceId: string,
+  database: string,
+  table: string,
+  bindConnection = true,
+): void {
   activeNode.value = { kind: 'table', dataSourceId, database, table }
-  emit('select-connection', dataSourceId, database)
-  drawer.value = await ensureDetail(dataSourceId, database, table)
-  drawerSourceId.value = dataSourceId
+  if (bindConnection) emit('select-connection', dataSourceId, database)
+}
+function openTable(
+  dataSourceId: string,
+  database: string,
+  table: TableItem,
+  pane: 'data' | 'properties' = 'data',
+): void {
+  selectTable(dataSourceId, database, table.name, false)
+  void ensureDetail(dataSourceId, database, table.name)
+  emit('open-table', { dataSourceId, database, table, pane })
   menu.value = null
 }
 async function copyName(name: string): Promise<void> {
@@ -252,6 +271,10 @@ async function copyName(name: string): Promise<void> {
 }
 function generateSelect(dataSourceId: string, database: string, table: string): void {
   emit('insert', selectPreview(database, table), dataSourceId, database)
+  menu.value = null
+}
+function insertName(dataSourceId: string, database: string, table: string): void {
+  emit('insert', quoteIdentifier(table), dataSourceId, database)
   menu.value = null
 }
 function openMenu(
@@ -294,17 +317,8 @@ watch(
         return loadTables(key.slice(0, sep), key.slice(sep + 1), true)
       }),
     )
-    if (drawer.value && drawerSourceId.value) {
-      const key = tableKey(drawerSourceId.value, drawer.value.database, drawer.value.table)
-      const next = { ...details.value }
-      delete next[key]
-      details.value = next
-      drawer.value = await ensureDetail(
-        drawerSourceId.value,
-        drawer.value.database,
-        drawer.value.table,
-      )
-    }
+    details.value = {}
+    publishSuggestions()
   },
 )
 watch(
@@ -547,10 +561,9 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
                       <button
                         class="tree-label"
                         :title="table.comment || table.name"
-                        @click="openStructure(source.id, item.name, table.name)"
-                        @dblclick.stop="
-                          emit('insert', quoteIdentifier(table.name), source.id, item.name)
-                        "
+                        :data-testid="`navigator-table-${source.id}-${item.name}-${table.name}`"
+                        @click="selectTable(source.id, item.name, table.name)"
+                        @dblclick.stop="openTable(source.id, item.name, table)"
                       >
                         <svg
                           v-if="group.type === 'TABLE'"
@@ -615,50 +628,6 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
         </div>
       </div>
     </div>
-    <aside
-      v-if="drawer"
-      class="flex max-h-[46%] min-h-[180px] flex-col border-t border-line bg-subtle"
-    >
-      <div class="flex items-center gap-2 border-b border-line px-3 py-2">
-        <svg class="tree-icon" viewBox="0 0 16 16" aria-hidden="true">
-          <rect x="1.4" y="2.4" width="13.2" height="11.2" rx="1.2" fill="#3b82f6" />
-          <path fill="#dbeafe" d="M1.4 5.15h13.2v1.05H1.4zM6.35 2.4h1.05v11.2H6.35z" />
-        </svg>
-        <div class="min-w-0 flex-1">
-          <strong class="block truncate text-sm">{{ drawer.table }}</strong>
-          <span class="text-[11px] text-muted">{{ drawer.database }}</span>
-        </div>
-        <button class="icon-btn" aria-label="关闭结构" @click="drawer = null">×</button>
-      </div>
-      <div class="min-h-0 flex-1 overflow-auto px-3 py-2 text-xs leading-normal">
-        <p class="mb-1 font-semibold text-muted">字段</p>
-        <div
-          v-for="column in drawer.columns"
-          :key="column.name"
-          class="grid grid-cols-[1fr_auto] gap-x-2 border-b border-line/70 py-1.5"
-        >
-          <span>
-            <b>{{ column.name }}</b>
-            <span v-if="column.primaryKey" class="ml-1 text-amber-500">PK</span>
-            <span class="ml-1 text-muted">{{ column.typeName }}</span>
-          </span>
-          <span class="text-muted">{{ column.nullable ? 'NULL' : 'NOT NULL' }}</span>
-          <span v-if="column.comment" class="col-span-2 text-[11px] text-muted">{{
-            column.comment
-          }}</span>
-        </div>
-        <p class="mb-1 mt-3 font-semibold text-muted">主键</p>
-        <p class="text-muted">
-          {{ drawer.primaryKey ? drawer.primaryKey.columns.join(', ') : '无' }}
-        </p>
-        <p class="mb-1 mt-3 font-semibold text-muted">索引</p>
-        <p v-for="index in drawer.indexes" :key="index.name" class="py-0.5">
-          {{ index.name }} · {{ index.unique ? 'UNIQUE' : index.type }} ({{
-            index.columns.join(', ')
-          }})
-        </p>
-      </div>
-    </aside>
     <Teleport to="body">
       <div
         v-if="menu"
@@ -669,13 +638,19 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
         <button class="menu-item" @click="copyName(menu.table.name)">复制名称</button>
         <button
           class="menu-item"
+          @click="insertName(menu.dataSourceId, menu.database, menu.table.name)"
+        >
+          插入名称
+        </button>
+        <button
+          class="menu-item"
           @click="generateSelect(menu.dataSourceId, menu.database, menu.table.name)"
         >
           生成 SELECT 前 100 行
         </button>
         <button
           class="menu-item"
-          @click="openStructure(menu.dataSourceId, menu.database, menu.table.name)"
+          @click="openTable(menu.dataSourceId, menu.database, menu.table, 'properties')"
         >
           查看结构
         </button>

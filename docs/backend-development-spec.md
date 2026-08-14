@@ -667,6 +667,7 @@ GET /api/v1/data-sources/{id}/table-detail?database=orders&table=order_item
 - `columns`：名称、原始类型、JDBC 类型、长度、精度、小数位、是否可空、默认值、额外属性、注释、序号。
 - `primaryKey`：名称和有序字段。
 - `indexes`：名称、是否唯一、类型和有序字段。
+- `ddl`：`SHOW CREATE TABLE` 返回的建表/建视图语句；读取失败时为 `null`。
 
 数据库名和表名只作为参数传给 `DatabaseMetaData` 或经过反引号转义的内部固定 SQL，禁止直接拼接未经校验的标识符。
 

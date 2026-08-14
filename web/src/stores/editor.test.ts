@@ -46,4 +46,27 @@ describe('editor tabs', () => {
     expect(idle.database).toBe('analytics')
     expect(next.database).toBe('orders')
   })
+  it('opens one object tab per table and does not treat it as an idle SQL tab', () => {
+    const store = useEditorStore()
+    const sql = store.createTab('ds-1', 'orders', 'select 1')
+    const table = {
+      database: 'orders',
+      name: 'order_item',
+      type: 'TABLE' as const,
+      comment: '订单明细',
+    }
+    const first = store.openTableTab('ds-1', 'orders', table)
+    expect(first.kind).toBe('table')
+    expect(first.title).toBe('order_item')
+    expect(first.viewerPane).toBe('data')
+    const second = store.openTableTab('ds-1', 'orders', table, 'properties')
+    expect(second.id).toBe(first.id)
+    expect(second.viewerPane).toBe('properties')
+    expect(store.activateConnection('ds-1', 'analytics').id).not.toBe(first.id)
+    expect(first.database).toBe('orders')
+    expect(sql.database).toBe('orders')
+    const stored = sessionStorage.getItem('zorth.sql-editor.drafts.v1') || ''
+    expect(stored).toContain('"kind":"table"')
+    expect(stored).toContain('order_item')
+  })
 })

@@ -1,15 +1,23 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { SqlExecutionResult } from '@/types/contracts'
+import type { DatabaseObjectType, SqlExecutionResult, TableItem } from '@/types/contracts'
 
 const STORAGE_KEY = 'zorth.sql-editor.drafts.v1'
 const MAX_BYTES = 200_000
+export type EditorTabKind = 'sql' | 'table'
+export type TableViewerPane = 'data' | 'properties'
+
 export interface EditorTab {
   id: string
+  kind: EditorTabKind
   title: string
   dataSourceId: string | null
   database: string | null
   sql: string
+  table: string | null
+  tableType: DatabaseObjectType | null
+  tableComment: string | null
+  viewerPane: TableViewerPane
   running: boolean
   executionId: string | null
   result: SqlExecutionResult | null
@@ -21,25 +29,56 @@ interface Draft {
   dataSourceId: string | null
   database: string | null
   sql: string
+  kind?: EditorTabKind
+  table?: string | null
+  tableType?: DatabaseObjectType | null
+  tableComment?: string | null
+  viewerPane?: TableViewerPane
 }
 interface DraftBundle {
   activeId: string
   tabs: Draft[]
 }
 
-export function isIdleTab(tab: Pick<EditorTab, 'sql' | 'result' | 'error' | 'running'>): boolean {
-  return !tab.sql.trim() && !tab.result && !tab.error && !tab.running
+export function isIdleTab(
+  tab: Pick<EditorTab, 'kind' | 'sql' | 'result' | 'error' | 'running'>,
+): boolean {
+  return tab.kind === 'sql' && !tab.sql.trim() && !tab.result && !tab.error && !tab.running
 }
 
 function isDraft(item: unknown): item is Draft {
-  return Boolean(
-    item &&
-      typeof item === 'object' &&
-      typeof (item as Draft).id === 'string' &&
-      typeof (item as Draft).title === 'string' &&
-      typeof (item as Draft).sql === 'string' &&
-      (item as Draft).sql.length <= MAX_BYTES,
-  )
+  if (!item || typeof item !== 'object') return false
+  const draft = item as Draft
+  if (
+    typeof draft.id !== 'string' ||
+    typeof draft.title !== 'string' ||
+    typeof draft.sql !== 'string' ||
+    draft.sql.length > MAX_BYTES
+  ) {
+    return false
+  }
+  if (draft.kind === 'table') return typeof draft.table === 'string' && draft.table.length > 0
+  return draft.kind === undefined || draft.kind === 'sql'
+}
+
+function toTab(item: Draft): EditorTab {
+  const tableTab = item.kind === 'table'
+  return {
+    id: item.id,
+    kind: tableTab ? 'table' : 'sql',
+    title: item.title,
+    dataSourceId: item.dataSourceId,
+    database: item.database,
+    sql: tableTab ? '' : item.sql,
+    table: tableTab ? item.table || null : null,
+    tableType: tableTab ? item.tableType || 'TABLE' : null,
+    tableComment: tableTab ? item.tableComment || null : null,
+    viewerPane: tableTab && item.viewerPane === 'properties' ? 'properties' : 'data',
+    running: false,
+    executionId: null,
+    result: null,
+    error: null,
+  }
 }
 
 function restore(): DraftBundle {
@@ -75,17 +114,18 @@ function nextQueryTitle(tabs: { title: string }[]): string {
   return `Query ${max + 1}`
 }
 
+function sameTable(tab: EditorTab, dataSourceId: string, database: string, table: string): boolean {
+  return (
+    tab.kind === 'table' &&
+    tab.dataSourceId === dataSourceId &&
+    tab.database === database &&
+    tab.table === table
+  )
+}
+
 export const useEditorStore = defineStore('editor', () => {
   const restored = restore()
-  const tabs = ref<EditorTab[]>(
-    restored.tabs.map((item) => ({
-      ...item,
-      running: false,
-      executionId: null,
-      result: null,
-      error: null,
-    })),
-  )
+  const tabs = ref<EditorTab[]>(restored.tabs.map(toTab))
   const activeId = ref(restored.activeId || tabs.value[0]?.id || '')
   const aborters = new Map<string, AbortController>()
   const active = computed(() => tabs.value.find((tab) => tab.id === activeId.value) || null)
@@ -94,13 +134,31 @@ export const useEditorStore = defineStore('editor', () => {
   function persist(): void {
     const bundle: DraftBundle = {
       activeId: activeId.value,
-      tabs: tabs.value.map(({ id, title, dataSourceId, database, sql }) => ({
-        id,
-        title,
-        dataSourceId,
-        database,
-        sql,
-      })),
+      tabs: tabs.value.map(
+        ({
+          id,
+          kind,
+          title,
+          dataSourceId,
+          database,
+          sql,
+          table,
+          tableType,
+          tableComment,
+          viewerPane,
+        }) => ({
+          id,
+          kind,
+          title,
+          dataSourceId,
+          database,
+          sql: kind === 'table' ? '' : sql,
+          table,
+          tableType,
+          tableComment,
+          viewerPane,
+        }),
+      ),
     }
     const value = JSON.stringify(bundle)
     if (value.length <= MAX_BYTES) sessionStorage.setItem(STORAGE_KEY, value)
@@ -113,10 +171,15 @@ export const useEditorStore = defineStore('editor', () => {
   ): EditorTab {
     const tab: EditorTab = {
       id: crypto.randomUUID(),
+      kind: 'sql',
       title: title || nextQueryTitle(tabs.value),
       dataSourceId,
       database,
       sql,
+      table: null,
+      tableType: null,
+      tableComment: null,
+      viewerPane: 'data',
       running: false,
       executionId: null,
       result: null,
@@ -127,19 +190,65 @@ export const useEditorStore = defineStore('editor', () => {
     persist()
     return tab
   }
+  function openTableTab(
+    dataSourceId: string,
+    database: string,
+    table: TableItem,
+    pane: TableViewerPane = 'data',
+  ): EditorTab {
+    const existing = tabs.value.find((tab) => sameTable(tab, dataSourceId, database, table.name))
+    if (existing) {
+      existing.viewerPane = pane
+      existing.tableType = table.type
+      existing.tableComment = table.comment
+      activeId.value = existing.id
+      persist()
+      return existing
+    }
+    const tab: EditorTab = {
+      id: crypto.randomUUID(),
+      kind: 'table',
+      title: table.name,
+      dataSourceId,
+      database,
+      sql: '',
+      table: table.name,
+      tableType: table.type,
+      tableComment: table.comment,
+      viewerPane: pane,
+      running: false,
+      executionId: null,
+      result: null,
+      error: null,
+    }
+    tabs.value.push(tab)
+    activeId.value = tab.id
+    persist()
+    return tab
+  }
+  function setViewerPane(id: string, pane: TableViewerPane): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab || tab.kind !== 'table') return
+    tab.viewerPane = pane
+    persist()
+  }
   function ensureTab(dataSourceId: string | null, database: string | null): EditorTab {
     return active.value || createTab(dataSourceId, database)
   }
   function bindTab(id: string, dataSourceId: string | null, database: string | null): void {
     const tab = tabs.value.find((item) => item.id === id)
-    if (!tab || tab.running) return
+    if (!tab || tab.running || tab.kind === 'table') return
     tab.dataSourceId = dataSourceId
     tab.database = database
     persist()
   }
   function activateConnection(dataSourceId: string | null, database: string | null): EditorTab {
     const current = active.value
-    if (current && current.dataSourceId === dataSourceId && current.database === database) {
+    if (
+      current?.kind === 'sql' &&
+      current.dataSourceId === dataSourceId &&
+      current.database === database
+    ) {
       return current
     }
     if (current && isIdleTab(current)) {
@@ -164,7 +273,7 @@ export const useEditorStore = defineStore('editor', () => {
   }
   function updateSql(id: string, sql: string): void {
     const tab = tabs.value.find((item) => item.id === id)
-    if (tab) {
+    if (tab && tab.kind === 'sql') {
       tab.sql = sql
       persist()
     }
@@ -214,6 +323,8 @@ export const useEditorStore = defineStore('editor', () => {
     active,
     runningCount,
     createTab,
+    openTableTab,
+    setViewerPane,
     ensureTab,
     bindTab,
     activateConnection,

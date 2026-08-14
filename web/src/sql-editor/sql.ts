@@ -68,7 +68,10 @@ export function quoteIdentifier(value: string): string {
   return `\`${value.replaceAll('`', '``')}\``
 }
 export function selectPreview(database: string, table: string): string {
-  return `SELECT *\nFROM ${quoteIdentifier(database)}.${quoteIdentifier(table)}\nLIMIT 100;`
+  return `${selectTableData(database, table)}\nLIMIT 100;`
+}
+export function selectTableData(database: string, table: string): string {
+  return `SELECT *\nFROM ${quoteIdentifier(database)}.${quoteIdentifier(table)}`
 }
 export function likelyNeedsDatabase(sql: string): boolean {
   const normalized = sql

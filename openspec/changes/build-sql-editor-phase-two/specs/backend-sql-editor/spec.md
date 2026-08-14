@@ -24,7 +24,7 @@ The SQL service SHALL expose paginated database, table/view, and table-detail AP
 
 #### Scenario: Read table structure
 - **WHEN** `GET /api/v1/data-sources/{id}/table-detail` receives a visible database and table
-- **THEN** it SHALL return ordered columns, primary-key fields, and ordered indexes including uniqueness and type
+- **THEN** it SHALL return ordered columns, primary-key fields, ordered indexes including uniqueness and type, and the table DDL from `SHOW CREATE TABLE`
 
 #### Scenario: Reject unsafe metadata input
 - **WHEN** a database/table identifier, type, page size, or cursor is malformed or tampered
