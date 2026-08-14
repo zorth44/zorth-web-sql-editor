@@ -72,6 +72,12 @@ public class DataSourceService {
     @Transactional(readOnly=true)
     public DataSourceDetailResponse get(AuthContext auth,String id){ DataSourceDetailResponse result=responses.detail(require(auth,id));metrics.dataSource("detail","success");return result; }
 
+    @Transactional(readOnly=true)
+    public SavedDataSource requireSaved(AuthContext auth,String id){
+        DataSourceRecord record=require(auth,id);
+        return new SavedDataSource(record.getId(),record.getName(),record.getVersion(),record.getDefaultDatabase(),configuration(record,decrypt(record)));
+    }
+
     @Transactional
     public DataSourceDetailResponse create(AuthContext auth,CreateDataSourceRequest request){
         validator.validateCreate(request);

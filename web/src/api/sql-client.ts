@@ -32,7 +32,7 @@ function fallbackError(response: Response): ApiErrorBody {
   }
 }
 
-export async function sqlRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function sqlFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken()
   const headers = new Headers(init.headers)
   headers.set('X-Request-Id', crypto.randomUUID())
@@ -41,7 +41,8 @@ export async function sqlRequest<T>(path: string, init: RequestInit = {}): Promi
   let response: Response
   try {
     response = await fetch(`${appEnv.sqlApiBase}${path}`, { ...init, headers })
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new ApiError(0, {
       requestId: headers.get('X-Request-Id')!,
       code: 'NETWORK_ERROR',
@@ -54,6 +55,11 @@ export async function sqlRequest<T>(path: string, init: RequestInit = {}): Promi
     const body = raw && typeof raw === 'object' ? (raw as ApiErrorBody) : fallbackError(response)
     throw new ApiError(response.status, { ...fallbackError(response), ...body })
   }
+  return response
+}
+
+export async function sqlRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await sqlFetch(path, init)
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }

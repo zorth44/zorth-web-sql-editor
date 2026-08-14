@@ -1,0 +1,3 @@
+package com.bocsoft.sqleditor.execution;
+import java.lang.reflect.Field;import java.lang.reflect.Modifier;import java.sql.Types;import java.util.Collections;import java.util.HashMap;import java.util.Map;
+public final class JdbcTypeNames {private static final Map<Integer,String>NAMES;static{Map<Integer,String>m=new HashMap<Integer,String>();for(Field f:Types.class.getFields())try{if(Modifier.isStatic(f.getModifiers())&&f.getType()==int.class)m.put(f.getInt(null),f.getName());}catch(Exception ignored){}NAMES=Collections.unmodifiableMap(m);}private JdbcTypeNames(){}public static String name(int type){String n=NAMES.get(type);return n==null?"OTHER":n;}}

@@ -12,6 +12,7 @@ function testRouter() {
     routes: [
       { path: '/auth/bridge', component: AuthBridgePage },
       { path: '/data-sources', component: { template: '<div>list</div>' } },
+      { path: '/sql-editor', component: { template: '<div>editor</div>' } },
     ],
   })
 }
@@ -43,7 +44,7 @@ describe('Token bridge receiver', () => {
       { targetOrigin: 'http://legacy.example.test' },
     )
     expect(JSON.stringify(postMessage.mock.calls)).not.toContain('bridge-token')
-    expect(router.currentRoute.value.path).toBe('/data-sources')
+    expect(router.currentRoute.value.path).toBe('/sql-editor')
     wrapper.unmount()
   })
   it('ignores a message from a non-allow-listed origin', async () => {

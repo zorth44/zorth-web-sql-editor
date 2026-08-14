@@ -26,7 +26,7 @@ async function receive(event: MessageEvent): Promise<void> {
       { type: 'ZORTH_SQL_AUTH_ACCEPTED', version: 1 },
       { targetOrigin: event.origin },
     )
-    await router.replace('/data-sources')
+    await router.replace('/sql-editor')
   } catch {
     clearToken()
     auth.clearAuth()

@@ -58,13 +58,13 @@ function cancelSelection(): void {
       </div>
       <div>
         <p class="mb-4 text-sm font-semibold uppercase tracking-[0.24em] text-teal-300">
-          Phase One
+          Phase Two
         </p>
         <h1 class="max-w-xl text-5xl font-semibold leading-tight">
-          安全、清晰地管理<br />产品数据连接
+          浏览、执行与回看<br />你的数据库工作
         </h1>
         <p class="mt-6 max-w-lg text-lg leading-8 text-slate-300">
-          登录后查看、测试和维护当前产品的数据源。数据库凭据不会保存在浏览器中。
+          在当前产品可见的数据源上编写 SQL、查看结果、导出 CSV，并回看自己的执行历史。
         </p>
       </div>
       <p class="text-sm text-slate-500">面向桌面的企业数据工作台</p>

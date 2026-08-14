@@ -1,10 +1,10 @@
 # Zorth Web SQL Service
 
-数据源管理后端，基于 Spring Boot 2.7.18、Java 8 字节码、MyBatis、Flyway 和 MySQL。所有业务数据由服务端从鉴权上下文派生 `productId`，浏览器提交的用户或产品字段会被拒绝。
+SQL 编辑器后端，基于 Spring Boot 2.7.18、Java 8 字节码、MyBatis、Flyway 和 MySQL。已包含数据源管理、元数据、单语句异步执行/取消、当前用户历史和流式 CSV 导出。所有业务数据由服务端从鉴权上下文派生 `productId`，浏览器提交的用户或产品字段会被拒绝。
 
 ## 本地验证
 
-前置条件：JDK 17、Maven、Docker，以及一个可访问的鉴权上下文 HTTP 端点。`bddf-authorization-service` 的内部上下文接口实现不在本项目范围内；本地测试用 WireMock 代替它。
+前置条件：JDK 17、Maven、Docker，以及一个可访问的鉴权上下文 HTTP 端点。仓库内的 `../auth-service` 可在本地替代暂缺的 `bddf-authorization-service`；单测继续用 WireMock 隔离外部依赖。
 
 ```bash
 cd service
@@ -30,3 +30,4 @@ VITE_AUTH_BRIDGE_ALLOWED_ORIGINS=https://portal.example.invalid pnpm build
 ```
 
 部署配置见 [docs/deployment.md](docs/deployment.md)，凭据轮换见 [docs/credential-rotation.md](docs/credential-rotation.md)。
+完整的第二阶段本地串联步骤见仓库 [docs/local-development.md](../docs/local-development.md)。

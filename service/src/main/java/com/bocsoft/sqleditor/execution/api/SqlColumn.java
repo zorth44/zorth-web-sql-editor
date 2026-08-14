@@ -1,0 +1,2 @@
+package com.bocsoft.sqleditor.execution.api;
+public class SqlColumn {private final String name,label,jdbcType,typeName;public SqlColumn(String name,String label,String jdbcType,String typeName){this.name=name;this.label=label;this.jdbcType=jdbcType;this.typeName=typeName;}public String getName(){return name;}public String getLabel(){return label;}public String getJdbcType(){return jdbcType;}public String getTypeName(){return typeName;}}

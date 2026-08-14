@@ -62,4 +62,28 @@ textarea {
   .panel {
     @apply rounded-xl border border-line bg-panel shadow-panel;
   }
+  .icon-btn {
+    @apply inline-grid h-7 w-7 shrink-0 place-items-center rounded text-xs text-muted hover:bg-slate-200 hover:text-ink;
+  }
+  .activity-btn {
+    @apply mb-2 grid h-9 w-9 place-items-center rounded hover:bg-slate-800 hover:text-white;
+  }
+}
+.sql-workspace {
+  height: calc(100vh - 48px);
+  min-height: 560px;
+}
+.sql-workspace .splitpanes__splitter {
+  background: var(--color-line);
+  position: relative;
+}
+.sql-workspace .splitpanes--vertical > .splitpanes__splitter {
+  width: 5px;
+  border-left: 2px solid white;
+  border-right: 2px solid white;
+}
+.sql-workspace .splitpanes--horizontal > .splitpanes__splitter {
+  height: 5px;
+  border-top: 2px solid white;
+  border-bottom: 2px solid white;
 }

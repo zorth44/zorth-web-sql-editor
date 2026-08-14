@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { appEnv } from '@/env'
 import { initialDataSources, mockDataSources, mockSession } from '@/mocks/fixtures'
 import type {
@@ -9,10 +9,20 @@ import type {
   DataSourceDetail,
   DataSourceListItem,
   UpdateDataSourceRequest,
+  HistorySummary,
+  SqlExecutionRequest,
 } from '@/types/contracts'
 
 const sql = (path: string) => `${appEnv.sqlApiBase}${path}`
 const auth = (path: string) => `${appEnv.authApiBase}${path}`
+const sqlRpc = (pattern: string) =>
+  new RegExp(`${appEnv.sqlApiBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${pattern}$`)
+function rpcId(request: Request, suffix: ':test' | ':cancel'): string {
+  const name = new URL(request.url).pathname.split('/').pop() || ''
+  return decodeURIComponent(name.endsWith(suffix) ? name.slice(0, -suffix.length) : name)
+}
+const mockHistory: HistorySummary[] = []
+const cancelledExecutions = new Set<string>()
 const error = (status: number, code: string, message: string, details?: ApiErrorBody['details']) =>
   HttpResponse.json<ApiErrorBody>(
     { requestId: crypto.randomUUID(), code, message, ...(details ? { details } : {}) },
@@ -229,7 +239,7 @@ export const handlers = [
     mockDataSources()[index] = updated
     return HttpResponse.json(updated)
   }),
-  http.post(sql('/api/v1/data-sources:test'), async ({ request }) => {
+  http.post(sqlRpc('/api/v1/data-sources:test'), async ({ request }) => {
     const denied = authorized(request)
     if (denied) return denied
     const body = (await request.json()) as ConnectionFields
@@ -239,10 +249,10 @@ export const handlers = [
       })
     return HttpResponse.json(testResult(body))
   }),
-  http.post(sql('/api/v1/data-sources/:id\\:test'), async ({ params, request }) => {
+  http.post(sqlRpc('/api/v1/data-sources/[^/]+:test'), async ({ request }) => {
     const denied = authorized(request)
     if (denied) return denied
-    const detail = mockDataSources().find((item) => item.id === params.id)
+    const detail = mockDataSources().find((item) => item.id === rpcId(request, ':test'))
     if (!detail) return error(404, 'DATA_SOURCE_NOT_FOUND', '数据源不存在或已不可见')
     const text = await request.text()
     const result = testResult(text ? (JSON.parse(text) as ConnectionFields) : detail)
@@ -262,6 +272,206 @@ export const handlers = [
     if (index < 0) return error(404, 'DATA_SOURCE_NOT_FOUND', '数据源不存在或已不可见')
     mockDataSources().splice(index, 1)
     return new HttpResponse(null, { status: 204 })
+  }),
+  http.get(sql('/api/v1/data-sources/:id/databases'), ({ params, request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    if (!mockDataSources().some((item) => item.id === params.id))
+      return error(404, 'DATA_SOURCE_NOT_FOUND', '数据源不存在或已不可见')
+    return HttpResponse.json({
+      items: [{ name: 'orders' }, { name: 'analytics' }],
+      nextPageToken: null,
+    })
+  }),
+  http.get(sql('/api/v1/data-sources/:id/tables'), ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const database = new URL(request.url).searchParams.get('database') || 'orders'
+    return HttpResponse.json({
+      items: [
+        { database, name: 'order_item', type: 'TABLE', comment: '订单明细' },
+        { database, name: 'order_view', type: 'VIEW', comment: '订单视图' },
+      ],
+      nextPageToken: null,
+    })
+  }),
+  http.get(sql('/api/v1/data-sources/:id/table-detail'), ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const url = new URL(request.url),
+      database = url.searchParams.get('database') || 'orders',
+      table = url.searchParams.get('table') || 'order_item'
+    return HttpResponse.json({
+      database,
+      table,
+      columns: [
+        {
+          name: 'id',
+          typeName: 'BIGINT',
+          jdbcType: 'BIGINT',
+          length: 20,
+          precision: 20,
+          scale: 0,
+          nullable: false,
+          defaultValue: null,
+          extra: 'auto_increment',
+          comment: '主键',
+          ordinal: 1,
+          primaryKey: true,
+        },
+        {
+          name: 'amount',
+          typeName: 'DECIMAL',
+          jdbcType: 'DECIMAL',
+          length: 12,
+          precision: 12,
+          scale: 2,
+          nullable: false,
+          defaultValue: '0.00',
+          extra: '',
+          comment: '金额',
+          ordinal: 2,
+          primaryKey: false,
+        },
+      ],
+      primaryKey: { name: 'PRIMARY', columns: ['id'] },
+      indexes: [{ name: 'PRIMARY', unique: true, type: 'OTHER', columns: ['id'] }],
+    })
+  }),
+  http.post(sql('/api/v1/sql/executions'), async ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const body = (await request.json()) as SqlExecutionRequest
+    const upper = body.statement.trim().toUpperCase()
+    const startedAt = new Date().toISOString()
+    let resultKind: 'RESULT_SET' | 'UPDATE_COUNT' | 'DDL' = 'RESULT_SET'
+    let statementType: HistorySummary['statementType'] = 'SELECT'
+    if (upper.includes('MOCK_ERROR')) {
+      mockHistory.unshift({
+        id: body.executionId,
+        dataSourceId: body.dataSourceId,
+        dataSourceName: '订单测试库',
+        database: body.database,
+        operation: 'EXECUTE',
+        statementSummary: body.statement,
+        statementType: 'SELECT',
+        status: 'FAILED',
+        resultKind: null,
+        returnedRows: null,
+        affectedRows: null,
+        durationMs: 18,
+        truncated: false,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+      })
+      return error(422, 'SQL_EXECUTION_FAILED', "Table 'orders.mock_error' doesn't exist", {
+        executionId: body.executionId,
+        sqlState: '42S02',
+        mysqlErrorCode: 1146,
+      })
+    }
+    if (upper.includes('SLEEP')) {
+      await delay(1500)
+      if (cancelledExecutions.has(body.executionId))
+        return error(409, 'SQL_EXECUTION_CANCELLED', 'SQL 执行已取消', {
+          executionId: body.executionId,
+        })
+    }
+    if (/^(CREATE|ALTER|DROP|TRUNCATE|RENAME)/.test(upper)) {
+      resultKind = 'DDL'
+      statementType = 'DDL'
+    } else if (/^(INSERT|UPDATE|DELETE|REPLACE)/.test(upper)) {
+      resultKind = 'UPDATE_COUNT'
+      statementType = (upper.match(/^\w+/)?.[0] || 'OTHER') as HistorySummary['statementType']
+    }
+    const summary: HistorySummary = {
+      id: body.executionId,
+      dataSourceId: body.dataSourceId,
+      dataSourceName: '订单测试库',
+      database: body.database,
+      operation: 'EXECUTE',
+      statementSummary: body.statement,
+      statementType,
+      status: 'SUCCESS',
+      resultKind,
+      returnedRows: resultKind === 'RESULT_SET' ? 3 : null,
+      affectedRows: resultKind === 'UPDATE_COUNT' ? 1 : null,
+      durationMs: 28,
+      truncated: false,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+    }
+    mockHistory.unshift(summary)
+    if (resultKind === 'RESULT_SET')
+      return HttpResponse.json({
+        executionId: body.executionId,
+        kind: 'RESULT_SET',
+        columns: [
+          { name: 'id', label: 'id', jdbcType: 'BIGINT', typeName: 'BIGINT' },
+          { name: 'amount', label: 'amount', jdbcType: 'DECIMAL', typeName: 'DECIMAL' },
+          { name: 'note', label: 'note', jdbcType: 'VARCHAR', typeName: 'VARCHAR' },
+        ],
+        rows: [
+          ['9007199254740993', '12.30', '中文,逗号'],
+          ['2', '0.10', null],
+          ['3', '99.00', { binary: true, size: 12, base64: null }],
+        ],
+        rowCount: 3,
+        truncated: false,
+        durationMs: 28,
+      })
+    return HttpResponse.json({
+      executionId: body.executionId,
+      kind: resultKind,
+      affectedRows: resultKind === 'DDL' ? null : 1,
+      durationMs: 28,
+      message: '执行成功',
+    })
+  }),
+  http.post(sqlRpc('/api/v1/sql/executions/[^/]+:cancel'), ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    cancelledExecutions.add(rpcId(request, ':cancel'))
+    return new HttpResponse(null, { status: 202 })
+  }),
+  http.post(sql('/api/v1/sql/exports'), async ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const body = (await request.json()) as { executionId: string }
+    if (
+      !mockHistory.some((item) => item.id === body.executionId && item.resultKind === 'RESULT_SET')
+    )
+      return error(400, 'SQL_NOT_EXPORTABLE', '该执行结果不可导出')
+    return new HttpResponse('\ufeffid,note\r\n1,"中文,逗号"\r\n2,"\'=SUM(A1:A2)"\r\n', {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="mock-orders.csv"',
+      },
+    })
+  }),
+  http.get(sql('/api/v1/sql/history'), ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const q = (new URL(request.url).searchParams.get('keyword') || '').toLowerCase()
+    return HttpResponse.json({
+      items: mockHistory.filter((item) => item.statementSummary.toLowerCase().includes(q)),
+      nextPageToken: null,
+    })
+  }),
+  http.get(sql('/api/v1/sql/history/:id'), ({ params, request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const item = mockHistory.find((entry) => entry.id === params.id)
+    return item
+      ? HttpResponse.json({
+          ...item,
+          statement: item.statementSummary,
+          sqlState: null,
+          mysqlErrorCode: null,
+          errorMessage: null,
+          connectionAvailable: true,
+        })
+      : error(404, 'EXECUTION_NOT_FOUND', '执行不存在')
   }),
 ]
 

@@ -136,3 +136,118 @@ export interface ConnectionTestResult {
   message: string
   failureCode: ConnectionFailureCode | null
 }
+
+export interface DatabaseItem {
+  name: string
+}
+export type DatabaseObjectType = 'TABLE' | 'VIEW'
+export interface TableItem {
+  database: string
+  name: string
+  type: DatabaseObjectType
+  comment: string | null
+}
+export interface ColumnItem {
+  name: string
+  typeName: string
+  jdbcType: string
+  length: number | null
+  precision: number | null
+  scale: number | null
+  nullable: boolean
+  defaultValue: string | null
+  extra: string | null
+  comment: string | null
+  ordinal: number
+  primaryKey: boolean
+}
+export interface PrimaryKeyItem {
+  name: string | null
+  columns: string[]
+}
+export interface IndexItem {
+  name: string
+  unique: boolean
+  type: string
+  columns: string[]
+}
+export interface TableDetail {
+  database: string
+  table: string
+  columns: ColumnItem[]
+  primaryKey: PrimaryKeyItem | null
+  indexes: IndexItem[]
+}
+
+export interface SqlColumn {
+  name: string
+  label: string
+  jdbcType: string
+  typeName: string
+}
+export interface BinaryValue {
+  binary: true
+  size: number
+  base64: null
+}
+export type SqlCellValue = unknown | BinaryValue
+export type SqlExecutionResult =
+  | {
+      kind: 'RESULT_SET'
+      executionId: string
+      columns: SqlColumn[]
+      rows: SqlCellValue[][]
+      rowCount: number
+      truncated: boolean
+      durationMs: number
+    }
+  | {
+      kind: 'UPDATE_COUNT' | 'DDL'
+      executionId: string
+      affectedRows: number | null
+      durationMs: number
+      message: string
+    }
+export interface SqlExecutionRequest {
+  executionId: string
+  dataSourceId: string
+  database: string | null
+  statement: string
+  rowLimit?: number
+}
+
+export type ExecutionStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'TIMEOUT'
+export type StatementType = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'REPLACE' | 'DDL' | 'OTHER'
+export interface HistorySummary {
+  id: string
+  dataSourceId: string
+  dataSourceName: string
+  database: string | null
+  operation: 'EXECUTE' | 'EXPORT'
+  statementSummary: string
+  statementType: StatementType
+  status: ExecutionStatus
+  resultKind: SqlExecutionResult['kind'] | null
+  returnedRows: number | null
+  affectedRows: number | null
+  durationMs: number | null
+  truncated: boolean
+  startedAt: string
+  finishedAt: string | null
+}
+export interface HistoryDetail extends HistorySummary {
+  statement: string
+  sqlState: string | null
+  mysqlErrorCode: number | null
+  errorMessage: string | null
+  connectionAvailable: boolean
+}
+export interface HistoryListParams {
+  keyword?: string
+  dataSourceId?: string
+  database?: string
+  status?: ExecutionStatus | ''
+  statementType?: StatementType | ''
+  pageSize?: number
+  pageToken?: string
+}

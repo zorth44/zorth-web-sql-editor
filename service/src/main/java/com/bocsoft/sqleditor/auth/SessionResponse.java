@@ -1,7 +1,7 @@
 package com.bocsoft.sqleditor.auth;
 
 import java.time.Instant;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 public class SessionResponse {
@@ -13,7 +13,7 @@ public class SessionResponse {
         this.user = new User(context.getUserId(), context.getUsername(), context.getDisplayName());
         this.product = new Product(context.getProductId(), context.getProductName());
         this.expiresAt = context.getTokenExpiresAt();
-        this.capabilities = Collections.singletonList("DATA_SOURCE_MANAGE");
+        this.capabilities = Arrays.asList("DATA_SOURCE_MANAGE", "SQL_EXECUTE", "SQL_EXPORT", "HISTORY_READ");
     }
     public User getUser() { return user; }
     public Product getProduct() { return product; }

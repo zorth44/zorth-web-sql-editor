@@ -10,6 +10,7 @@ import {
 } from '@/auth/transient-credentials'
 import { queryClient, queryKeys } from '@/query/client'
 import type { BoundAccount, Session } from '@/types/contracts'
+import { useEditorStore } from '@/stores/editor'
 
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<Session | null>(null)
@@ -73,6 +74,7 @@ export const useAuthStore = defineStore('auth', () => {
     session.value = null
     accounts.value = []
     bindingRequired.value = false
+    useEditorStore().clearAll()
     queryClient.clear()
   }
 

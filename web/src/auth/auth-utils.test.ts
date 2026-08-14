@@ -27,7 +27,7 @@ describe('Token storage', () => {
 describe('safe redirects and volatile credentials', () => {
   it.each(['https://evil.test/x', '//evil.test/x', 'data:text/plain,x', '/login', '/auth/bridge'])(
     'rejects %s',
-    (value) => expect(safeRelativeRedirect(value)).toBe('/data-sources'),
+    (value) => expect(safeRelativeRedirect(value)).toBe('/sql-editor'),
   )
   it('keeps an internal route and never serializes credentials', () => {
     expect(safeRelativeRedirect('/data-sources/ds-1/edit?tab=a')).toBe(

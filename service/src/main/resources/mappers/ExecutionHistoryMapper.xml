@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bocsoft.sqleditor.history.persistence.ExecutionHistoryMapper">
+  <resultMap id="history" type="com.bocsoft.sqleditor.history.persistence.ExecutionHistoryRecord">
+    <id property="id" column="id"/><result property="userId" column="user_id"/><result property="username" column="username"/>
+    <result property="productId" column="product_id"/><result property="dataSourceId" column="data_source_id"/>
+    <result property="dataSourceName" column="data_source_name"/><result property="databaseName" column="database_name"/>
+    <result property="operation" column="operation"/><result property="statementText" column="statement_text"/>
+    <result property="statementHash" column="statement_hash"/><result property="statementType" column="statement_type"/>
+    <result property="status" column="status"/><result property="resultKind" column="result_kind"/>
+    <result property="returnedRows" column="returned_rows"/><result property="affectedRows" column="affected_rows"/>
+    <result property="truncated" column="truncated"/><result property="durationMs" column="duration_ms"/>
+    <result property="mysqlErrorCode" column="mysql_error_code"/><result property="sqlState" column="sql_state"/>
+    <result property="errorMessage" column="error_message"/><result property="requestId" column="request_id"/>
+    <result property="clientIp" column="client_ip"/><result property="startedAt" column="started_at"/>
+    <result property="finishedAt" column="finished_at"/>
+  </resultMap>
+  <sql id="columns">id,user_id,username,product_id,data_source_id,data_source_name,database_name,operation,statement_text,statement_hash,statement_type,status,result_kind,returned_rows,affected_rows,truncated,duration_ms,mysql_error_code,sql_state,error_message,request_id,client_ip,started_at,finished_at</sql>
+  <insert id="insert">INSERT INTO sql_execution_history (<include refid="columns"/>) VALUES
+    (#{id},#{userId},#{username},#{productId},#{dataSourceId},#{dataSourceName},#{databaseName},#{operation},#{statementText},#{statementHash},#{statementType},#{status},#{resultKind},#{returnedRows},#{affectedRows},#{truncated},#{durationMs},#{mysqlErrorCode},#{sqlState},#{errorMessage},#{requestId},#{clientIp},#{startedAt},#{finishedAt})
+  </insert>
+  <select id="exists" resultType="int">SELECT COUNT(*) FROM sql_execution_history WHERE id=#{id}</select>
+  <update id="finish">UPDATE sql_execution_history SET status=#{status},result_kind=#{resultKind},returned_rows=#{returnedRows},affected_rows=#{affectedRows},truncated=#{truncated},duration_ms=#{durationMs},mysql_error_code=#{mysqlErrorCode},sql_state=#{sqlState},error_message=#{errorMessage},finished_at=#{finishedAt} WHERE id=#{id} AND status='RUNNING'</update>
+  <select id="findOwned" resultMap="history">SELECT <include refid="columns"/> FROM sql_execution_history WHERE id=#{id} AND user_id=#{userId}</select>
+  <select id="listOwned" resultMap="history">SELECT <include refid="columns"/> FROM sql_execution_history WHERE user_id=#{userId}
+    <if test="keyword != null">AND statement_text LIKE #{keyword} ESCAPE '\\'</if>
+    <if test="dataSourceId != null and dataSourceId != ''">AND data_source_id=#{dataSourceId}</if>
+    <if test="database != null and database != ''">AND database_name=#{database}</if>
+    <if test="status != null and status != ''">AND status=#{status}</if>
+    <if test="statementType != null and statementType != ''">AND statement_type=#{statementType}</if>
+    <if test="cursorStartedAt != null">AND (started_at &lt; #{cursorStartedAt} OR (started_at=#{cursorStartedAt} AND id &lt; #{cursorId}))</if>
+    ORDER BY started_at DESC,id DESC LIMIT #{limit}
+  </select>
+  <update id="markStale">UPDATE sql_execution_history SET status='FAILED',error_message='服务重启导致执行状态丢失',finished_at=#{finishedAt} WHERE status='RUNNING' AND started_at &lt; #{before}</update>
+  <delete id="deleteFinishedBefore">DELETE FROM sql_execution_history WHERE finished_at IS NOT NULL AND finished_at &lt; #{before}</delete>
+</mapper>

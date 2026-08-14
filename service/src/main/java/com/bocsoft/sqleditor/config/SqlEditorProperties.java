@@ -20,12 +20,18 @@ public class SqlEditorProperties {
     @Valid private final Cursor cursor = new Cursor();
     @Valid private final Network network = new Network();
     @Valid private final Pools pools = new Pools();
+    @Valid private final Execution execution = new Execution();
+    @Valid private final Export export = new Export();
+    @Valid private final History history = new History();
 
     public Auth getAuth() { return auth; }
     public Credentials getCredentials() { return credentials; }
     public Cursor getCursor() { return cursor; }
     public Network getNetwork() { return network; }
     public Pools getPools() { return pools; }
+    public Execution getExecution() { return execution; }
+    public Export getExport() { return export; }
+    public History getHistory() { return history; }
 
     @PostConstruct
     public void validateConfiguration() {
@@ -40,6 +46,9 @@ public class SqlEditorProperties {
         }
         if (pools.maxPools * pools.maxPoolSize > pools.maxConnections) {
             throw new IllegalStateException("Pool limits exceed the global target connection limit");
+        }
+        if (execution.executorPoolSize < execution.maxConcurrentGlobal) {
+            throw new IllegalStateException("Execution pool must cover the global execution limit");
         }
         validateKeyMaterial(credentials.keys, "Credential key", true);
         validateSingleKey(cursor.signingKey, "Cursor signing key");
@@ -130,5 +139,34 @@ public class SqlEditorProperties {
         public void setMaxPoolSize(int maxPoolSize) { this.maxPoolSize = maxPoolSize; }
         public int getIdlePoolMinutes() { return idlePoolMinutes; }
         public void setIdlePoolMinutes(int idlePoolMinutes) { this.idlePoolMinutes = idlePoolMinutes; }
+    }
+
+    public static class Execution {
+        @Min(1) @Max(100000) private int defaultRowLimit=1000;
+        @Min(1) @Max(100000) private int maxRowLimit=100000;
+        @Min(1024) private long maxResultBytes=104857600L;
+        @Min(1) @Max(3600) private int timeoutSeconds=60;
+        @Min(1) private int maxConcurrentPerUser=3;
+        @Min(1) private int maxConcurrentGlobal=50;
+        @Min(1) private int maxStatementBytes=1048576;
+        @Min(1) private int executorPoolSize=50;
+        public int getDefaultRowLimit(){return defaultRowLimit;} public void setDefaultRowLimit(int v){defaultRowLimit=v;}
+        public int getMaxRowLimit(){return maxRowLimit;} public void setMaxRowLimit(int v){maxRowLimit=v;}
+        public long getMaxResultBytes(){return maxResultBytes;} public void setMaxResultBytes(long v){maxResultBytes=v;}
+        public int getTimeoutSeconds(){return timeoutSeconds;} public void setTimeoutSeconds(int v){timeoutSeconds=v;}
+        public int getMaxConcurrentPerUser(){return maxConcurrentPerUser;} public void setMaxConcurrentPerUser(int v){maxConcurrentPerUser=v;}
+        public int getMaxConcurrentGlobal(){return maxConcurrentGlobal;} public void setMaxConcurrentGlobal(int v){maxConcurrentGlobal=v;}
+        public int getMaxStatementBytes(){return maxStatementBytes;} public void setMaxStatementBytes(int v){maxStatementBytes=v;}
+        public int getExecutorPoolSize(){return executorPoolSize;} public void setExecutorPoolSize(int v){executorPoolSize=v;}
+    }
+    public static class Export {
+        private boolean formulaProtection=true; private boolean nullLiteral=false;
+        public boolean isFormulaProtection(){return formulaProtection;} public void setFormulaProtection(boolean v){formulaProtection=v;}
+        public boolean isNullLiteral(){return nullLiteral;} public void setNullLiteral(boolean v){nullLiteral=v;}
+    }
+    public static class History {
+        @Min(0) private int retentionDays=90; @Min(1) private int staleRunningMinutes=5;
+        public int getRetentionDays(){return retentionDays;} public void setRetentionDays(int v){retentionDays=v;}
+        public int getStaleRunningMinutes(){return staleRunningMinutes;} public void setStaleRunningMinutes(int v){staleRunningMinutes=v;}
     }
 }

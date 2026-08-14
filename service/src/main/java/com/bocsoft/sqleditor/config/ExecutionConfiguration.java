@@ -1,0 +1,6 @@
+package com.bocsoft.sqleditor.config;
+import org.springframework.core.task.AsyncTaskExecutor;import org.springframework.beans.factory.annotation.Qualifier;import org.springframework.context.annotation.Bean;import org.springframework.context.annotation.Configuration;import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;import org.springframework.web.servlet.config.annotation.AsyncSupportConfigurer;import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+@Configuration public class ExecutionConfiguration {
+ @Bean(name="sqlExecutionExecutor")public AsyncTaskExecutor sqlExecutionExecutor(SqlEditorProperties properties){int size=properties.getExecution().getExecutorPoolSize();ThreadPoolTaskExecutor executor=new ThreadPoolTaskExecutor();executor.setCorePoolSize(size);executor.setMaxPoolSize(size);executor.setQueueCapacity(0);executor.setThreadNamePrefix("sql-exec-");executor.setWaitForTasksToCompleteOnShutdown(false);executor.initialize();return executor;}
+ @Bean public WebMvcConfigurer sqlAsyncMvc(@Qualifier("sqlExecutionExecutor")AsyncTaskExecutor executor,SqlEditorProperties properties){return new WebMvcConfigurer(){@Override public void configureAsyncSupport(AsyncSupportConfigurer configurer){configurer.setTaskExecutor(executor);configurer.setDefaultTimeout((properties.getExecution().getTimeoutSeconds()+5L)*1000L);}};}
+}

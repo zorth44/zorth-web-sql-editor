@@ -26,6 +26,17 @@
 | `SQL_EDITOR_TARGET_MAX_CONNECTIONS` | 否 | 动态连接全局预算，默认 50。 |
 | `SQL_EDITOR_TARGET_POOL_SIZE` | 否 | 单池上限，默认/最大 5，最小空闲为 0。 |
 | `SQL_EDITOR_TARGET_IDLE_POOL_MINUTES` | 否 | 空闲池退休时间，默认 30 分钟。 |
+| `SQL_EDITOR_DEFAULT_ROW_LIMIT` / `SQL_EDITOR_MAX_ROW_LIMIT` | 否 | 查询默认/硬上限，默认 1000 / 100000。 |
+| `SQL_EDITOR_MAX_RESULT_BYTES` | 否 | 查询和导出结果字节上限，默认 104857600。 |
+| `SQL_EDITOR_EXECUTION_TIMEOUT_SECONDS` | 否 | 查询、DML、DDL 和导出超时，默认 60 秒。 |
+| `SQL_EDITOR_MAX_CONCURRENT_PER_USER` | 否 | 单用户并行执行上限，默认 3。 |
+| `SQL_EDITOR_MAX_CONCURRENT_GLOBAL` | 否 | 实例全局执行上限，默认 50。 |
+| `SQL_EDITOR_EXECUTOR_POOL_SIZE` | 否 | JDBC 异步线程数，必须不小于全局执行上限，默认 50。 |
+| `SQL_EDITOR_MAX_STATEMENT_BYTES` | 否 | 单条 SQL UTF-8 字节上限，默认 1048576。 |
+| `SQL_EDITOR_CSV_FORMULA_PROTECTION` | 否 | CSV 公式前缀保护，默认 true。 |
+| `SQL_EDITOR_CSV_NULL_LITERAL` | 否 | CSV 是否将 NULL 输出为字面量，默认 false（空字段）。 |
+| `SQL_EDITOR_HISTORY_RETENTION_DAYS` | 否 | 历史保留天数，默认 90；0 关闭清理。 |
+| `SQL_EDITOR_STALE_RUNNING_MINUTES` | 否 | 启动时修正陈旧 RUNNING 的阈值，默认 5 分钟。 |
 | `SQL_EDITOR_MANAGEMENT_PORT` | 否 | 独立管理端口，默认 9081；仅绑定监控网络。 |
 
 密钥轮换任务另使用：`sql-editor.credentials.rotation.enabled`、`dry-run`、`from-version`、`batch-size`。推荐通过受控一次性配置文件或配置树提供，不通过公共容器参数输出。
@@ -40,3 +51,13 @@
 
 业务端口不得直接暴露到公网，应经网关完成来源限制和 TLS。管理端口只暴露 `health`、`prometheus`；`env`、`configprops`、`heapdump` 已禁用，健康详情关闭。liveness 不访问外部依赖；readiness 检查元数据 MySQL和有界鉴权端点，不遍历用户数据源。
 
+第二阶段执行取消依赖实例内 `ExecutionRegistry`，当前必须单实例部署。网关读取超时应略高于应用执行超时（默认建议 75 秒），同时保留取消和健康检查的普通 HTTP 线程容量。需要多实例时必须先实现 executionId 到执行节点的路由，不能直接水平扩容。
+
+## 第二阶段 API
+
+- 元数据：`GET /api/v1/data-sources/{id}/databases|tables|table-detail`
+- 执行与取消：`POST /api/v1/sql/executions`、`POST /api/v1/sql/executions/{id}:cancel`
+- 导出：`POST /api/v1/sql/exports`（仅重放当前用户成功查询）
+- 历史：`GET /api/v1/sql/history`、`GET /api/v1/sql/history/{id}`
+
+所有接口继续通过 Bearer Token 派生用户/产品；元数据和执行按产品校验数据源，历史按当前用户隔离。SQL 原文只进入受控元数据库历史，不写应用日志。

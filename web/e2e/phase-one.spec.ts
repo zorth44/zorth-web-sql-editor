@@ -6,7 +6,9 @@ async function login(page: Page, remember = false): Promise<void> {
   await page.getByLabel('密码').fill('ldap-e2e-secret')
   if (remember) await page.getByLabel('在此设备上记住我').check()
   await page.getByRole('button', { name: '登录' }).click()
-  await expect(page).toHaveURL(/\/data-sources$/)
+  await expect(page).toHaveURL(/\/sql-editor(?:\?|$)/)
+  await expect(page.getByText('结果 / 消息')).toBeVisible()
+  await page.goto('/data-sources')
   await expect(page.getByRole('heading', { name: '数据源' })).toBeVisible()
 }
 

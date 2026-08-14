@@ -23,7 +23,7 @@ export const router = createRouter({
       path: '/',
       component: AppShell,
       children: [
-        { path: '', redirect: '/data-sources' },
+        { path: '', redirect: '/sql-editor' },
         {
           path: 'data-sources',
           name: 'data-sources',
@@ -40,7 +40,18 @@ export const router = createRouter({
           component: () => import('@/pages/DataSourceFormPage.vue'),
           props: true,
         },
-        { path: 'sql-editor', redirect: '/data-sources' },
+        {
+          path: 'sql-editor',
+          name: 'sql-editor',
+          component: () => import('@/pages/SqlEditorPage.vue'),
+          meta: { workspace: true },
+        },
+        {
+          path: 'sql-editor/history/:historyId',
+          name: 'sql-editor-history',
+          component: () => import('@/pages/SqlEditorPage.vue'),
+          meta: { workspace: true },
+        },
       ],
     },
     {

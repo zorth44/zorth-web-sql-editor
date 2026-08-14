@@ -17,3 +17,17 @@ sql-editor:
   network:
     allowed-cidrs: ${SQL_EDITOR_NETWORK_ALLOWED_CIDRS}
     denied-cidrs: ${SQL_EDITOR_NETWORK_DENIED_CIDRS}
+  execution:
+    default-row-limit: ${SQL_EDITOR_DEFAULT_ROW_LIMIT:1000}
+    max-row-limit: ${SQL_EDITOR_MAX_ROW_LIMIT:100000}
+    max-result-bytes: ${SQL_EDITOR_MAX_RESULT_BYTES:104857600}
+    timeout-seconds: ${SQL_EDITOR_EXECUTION_TIMEOUT_SECONDS:60}
+    max-concurrent-per-user: ${SQL_EDITOR_MAX_CONCURRENT_PER_USER:3}
+    max-concurrent-global: ${SQL_EDITOR_MAX_CONCURRENT_GLOBAL:50}
+    executor-pool-size: ${SQL_EDITOR_EXECUTOR_POOL_SIZE:50}
+  export:
+    formula-protection: ${SQL_EDITOR_CSV_FORMULA_PROTECTION:true}
+    null-literal: ${SQL_EDITOR_CSV_NULL_LITERAL:false}
+  history:
+    retention-days: ${SQL_EDITOR_HISTORY_RETENTION_DAYS:90}
+    stale-running-minutes: ${SQL_EDITOR_STALE_RUNNING_MINUTES:5}

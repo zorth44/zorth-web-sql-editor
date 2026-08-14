@@ -1,0 +1,3 @@
+package com.bocsoft.sqleditor.execution;
+import com.bocsoft.sqleditor.common.ApiException;import org.junit.jupiter.api.Test;import static org.assertj.core.api.Assertions.*;
+class SqlStatementScannerTest {private final SqlStatementScanner scanner=new SqlStatementScanner();@Test void ignoresDelimitersInsideQuotesAndComments(){assertThat(scanner.split("select ';'; -- ;\n select `a;b` from t")).containsExactly("select ';'","-- ;\n select `a;b` from t");}@Test void rejectsMultipleAndUnclosedStatements(){assertThatThrownBy(()->scanner.requireSingle("select 1;select 2")).isInstanceOf(ApiException.class).extracting("code").isEqualTo("MULTI_STATEMENT_NOT_SUPPORTED");assertThatThrownBy(()->scanner.requireSingle("select 'x")).isInstanceOf(ApiException.class);}}
