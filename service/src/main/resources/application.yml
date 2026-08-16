@@ -2,9 +2,9 @@ spring:
   application:
     name: zorth-web-sql-service
   datasource:
-    url: ${SQL_EDITOR_METADATA_URL:}
-    username: ${SQL_EDITOR_METADATA_USERNAME:}
-    password: ${SQL_EDITOR_METADATA_PASSWORD:}
+    url: ${SQL_EDITOR_METADATA_URL:jdbc:mysql://127.0.0.1:3306/sqleditor}
+    username: ${SQL_EDITOR_METADATA_USERNAME:sqleditor_user}
+    password: ${SQL_EDITOR_METADATA_PASSWORD:sqleditor_password}
     hikari:
       maximum-pool-size: ${SQL_EDITOR_METADATA_POOL_SIZE:10}
       connection-init-sql: SET time_zone = '+00:00'
@@ -26,8 +26,8 @@ mybatis:
 
 sql-editor:
   auth:
-    context-url: ${SQL_EDITOR_AUTH_CONTEXT_URL:}
-    internal-service-key: ${SQL_EDITOR_AUTH_INTERNAL_SERVICE_KEY:}
+    context-url: ${SQL_EDITOR_AUTH_CONTEXT_URL:http://127.0.0.1:8090/internal/api/v1/auth/context}
+    internal-service-key: ${SQL_EDITOR_AUTH_INTERNAL_SERVICE_KEY:local-sql-editor-key}
     connect-timeout-ms: ${SQL_EDITOR_AUTH_CONNECT_TIMEOUT_MS:2000}
     read-timeout-ms: ${SQL_EDITOR_AUTH_READ_TIMEOUT_MS:3000}
     cache-ttl-seconds: ${SQL_EDITOR_AUTH_CACHE_TTL_SECONDS:60}
@@ -35,13 +35,13 @@ sql-editor:
   credentials:
     current-version: ${SQL_EDITOR_CREDENTIAL_CURRENT_VERSION:v1}
     keys:
-      v1: ${SQL_EDITOR_CREDENTIAL_CURRENT_KEY:}
+      v1: ${SQL_EDITOR_CREDENTIAL_CURRENT_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
   cursor:
-    signing-key: ${SQL_EDITOR_CURSOR_SIGNING_KEY:}
+    signing-key: ${SQL_EDITOR_CURSOR_SIGNING_KEY:YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk=}
     maximum-token-length: ${SQL_EDITOR_CURSOR_MAXIMUM_TOKEN_LENGTH:2048}
   network:
-    allowed-cidrs: ${SQL_EDITOR_NETWORK_ALLOWED_CIDRS:}
-    denied-cidrs: ${SQL_EDITOR_NETWORK_DENIED_CIDRS:127.0.0.0/8,169.254.0.0/16,::1/128,fe80::/10}
+    allowed-cidrs: ${SQL_EDITOR_NETWORK_ALLOWED_CIDRS:127.0.0.0/8}
+    denied-cidrs: ${SQL_EDITOR_NETWORK_DENIED_CIDRS:169.254.0.0/16,::1/128,fe80::/10}
   pools:
     max-pools: ${SQL_EDITOR_TARGET_MAX_POOLS:10}
     max-connections: ${SQL_EDITOR_TARGET_MAX_CONNECTIONS:50}
