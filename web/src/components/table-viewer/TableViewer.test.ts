@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import TableViewer from '@/components/table-viewer/TableViewer.vue'
+import ResultGrid from '@/components/result-grid/ResultGrid.vue'
 import { saveToken } from '@/auth/token-storage'
 
 function render(pane: 'data' | 'properties' = 'data') {
@@ -42,6 +43,8 @@ describe('table viewer', () => {
     expect(wrapper.text()).toContain('Data')
     expect(wrapper.text()).toContain('Properties')
     expect(wrapper.text()).not.toContain('Diagram')
+    expect(wrapper.findComponent(ResultGrid).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="result-scroll"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('1')
     await wrapper.get('[data-testid="table-viewer-tab-properties"]').trigger('click')
     expect(wrapper.emitted('update:pane')?.at(-1)).toEqual(['properties'])

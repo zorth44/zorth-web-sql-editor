@@ -17,10 +17,26 @@ import type { SqlCellValue, SqlColumn, SqlExecutionResult } from '@/types/contra
 import { cellMatches, compareCells, displayCell, previewCell } from './cell-value'
 import { columnTypeGlyph, columnTypeKind, defaultColumnWidth } from './column-type'
 import { clampRowLimit, DEFAULT_ROW_LIMIT, MAX_ROW_LIMIT, MIN_ROW_LIMIT } from './limits'
-
-const INDEX_WIDTH = 44
-const ROW_HEIGHT = 28
-const HEADER_HEIGHT = 30
+import {
+  HEADER_HEIGHT,
+  INDEX_WIDTH,
+  ROW_HEIGHT,
+  clampSelection,
+  dragFocus,
+  extendSelection,
+  hitTest,
+  inRect,
+  rectOf,
+  selectCell,
+  selectColumns,
+  selectRows,
+  selectionFromDrag,
+  selectionTsv,
+  type DragMode,
+  type GridPoint,
+  type GridSelection,
+  type HitTestLayout,
+} from './selection'
 
 type ColumnFilter = { mode: 'contains' | 'equals'; value: string } | { mode: 'null' | 'not-null' }
 type SortState = { col: number; dir: 'asc' | 'desc' }
@@ -54,7 +70,8 @@ const widths = ref<Record<number, number>>({})
 const scrollEl = ref<HTMLElement | null>(null)
 const scrollTop = ref(0)
 const viewport = ref(280)
-const selected = ref<{ row: number; col: number } | null>(null)
+const selection = ref<GridSelection | null>(null)
+const hover = ref<GridPoint | null>(null)
 const detail = ref<{ title: string; text: string } | null>(null)
 const menu = ref<MenuState | null>(null)
 const filterDraft = ref('')
@@ -62,6 +79,8 @@ const limitDraft = ref(String(props.rowLimit ?? DEFAULT_ROW_LIMIT))
 const copied = ref('')
 let copyTimer = 0
 let observer: ResizeObserver | undefined
+let dragging = false
+let dragMode: DragMode | null = null
 
 const columns = computed(() =>
   props.result?.kind === 'RESULT_SET' ? props.result.columns : ([] as SqlColumn[]),
@@ -110,6 +129,9 @@ const visible = computed(() => ordered.value.slice(start.value, end.value))
 const tableMinWidth = computed(
   () => INDEX_WIDTH + visualColumns.value.reduce((sum, item) => sum + widthOf(item.index), 0),
 )
+const selectedRect = computed(() => (selection.value ? rectOf(selection.value) : null))
+const visualColumnIndexes = computed(() => visualColumns.value.map((item) => item.index))
+const displayedRows = computed(() => ordered.value.map((item) => item.row))
 const summary = computed(() => {
   const result = props.result
   if (!result) return ''
@@ -138,7 +160,10 @@ function pinnedLeft(colIndex: number): number {
   return left
 }
 function resetView(): void {
-  selected.value = null
+  selection.value = null
+  hover.value = null
+  dragging = false
+  dragMode = null
   filter.value = ''
   columnFilters.value = {}
   sort.value = null
@@ -176,13 +201,27 @@ async function copy(text: string, label = '已复制'): Promise<void> {
 function cellAt(row: number, col: number): SqlCellValue {
   return rows.value[row]?.[col]
 }
-async function copyCell(): Promise<void> {
-  if (!selected.value) return
-  await copy(displayCell(cellAt(selected.value.row, selected.value.col)), '单元格已复制')
+function focusData(): { row: number; col: number } | null {
+  const current = selection.value
+  if (!current) return null
+  const item = ordered.value[current.focus.row]
+  const visual = visualColumns.value[current.focus.col]
+  if (!item || !visual) return null
+  return { row: item.index, col: visual.index }
+}
+async function copySelection(): Promise<void> {
+  if (!selection.value) return
+  const text = selectionTsv(selection.value, displayedRows.value, visualColumnIndexes.value)
+  const rect = rectOf(selection.value)
+  const count = (rect.rowEnd - rect.rowStart + 1) * (rect.colEnd - rect.colStart + 1)
+  await copy(text, count === 1 ? '单元格已复制' : '选区已复制')
+  closeMenu()
 }
 async function copyRow(): Promise<void> {
-  if (selected.value == null) return
-  await copy((rows.value[selected.value.row] || []).map(displayCell).join('\t'), '整行已复制')
+  const row = menu.value?.row ?? focusData()?.row
+  if (row == null) return
+  await copy((rows.value[row] || []).map(displayCell).join('\t'), '整行已复制')
+  closeMenu()
 }
 async function copyResult(): Promise<void> {
   if (props.result?.kind !== 'RESULT_SET') return
@@ -243,7 +282,14 @@ function openMenuValue(): void {
 function openMenu(event: MouseEvent, row: number | null, col: number): void {
   event.preventDefault()
   event.stopPropagation()
-  if (row != null) selected.value = { row, col }
+  if (row != null) {
+    const displayedRow = ordered.value.findIndex((item) => item.index === row)
+    const visualCol = visualColumns.value.findIndex((item) => item.index === col)
+    const rect = selectedRect.value
+    if (displayedRow < 0 || visualCol < 0 || !rect || !inRect(rect, displayedRow, visualCol)) {
+      if (displayedRow >= 0 && visualCol >= 0) selection.value = selectCell(displayedRow, visualCol)
+    }
+  }
   filterDraft.value = filterText(col)
   menu.value = {
     x: Math.min(event.clientX, window.innerWidth - 248),
@@ -252,6 +298,106 @@ function openMenu(event: MouseEvent, row: number | null, col: number): void {
     col,
     submenu: null,
   }
+}
+function currentLayout(): HitTestLayout {
+  const el = scrollEl.value
+  return {
+    indexWidth: INDEX_WIDTH,
+    headerHeight: HEADER_HEIGHT,
+    rowHeight: ROW_HEIGHT,
+    columnWidths: visualColumns.value.map((item) => widthOf(item.index)),
+    pinnedCount: visualColumns.value.filter((item) => item.pinned).length,
+    rowCount: ordered.value.length,
+    colCount: visualColumns.value.length,
+    scrollLeft: el?.scrollLeft || 0,
+    scrollTop: el?.scrollTop || 0,
+    viewportWidth: el?.clientWidth || 0,
+    viewportHeight: el?.clientHeight || 0,
+  }
+}
+function localPoint(event: PointerEvent): { x: number; y: number } | null {
+  const el = scrollEl.value
+  if (!el) return null
+  const rect = el.getBoundingClientRect()
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top }
+}
+function ignoreGridPointer(event: PointerEvent): boolean {
+  if (event.button !== 0) return true
+  const target = event.target
+  return (
+    target instanceof Element &&
+    Boolean(
+      target.closest(
+        '.result-resize, .result-cell-menu, .result-type, .result-sort-icon, input, textarea',
+      ),
+    )
+  )
+}
+function applyHitSelection(
+  event: PointerEvent,
+  hitRow: number,
+  hitCol: number,
+  mode: DragMode,
+): void {
+  const rowCount = ordered.value.length
+  const colCount = visualColumns.value.length
+  if (!rowCount || !colCount) return
+  const focus = { row: Math.max(0, hitRow), col: Math.max(0, hitCol) }
+  if (event.shiftKey && selection.value) {
+    selection.value = selectionFromDrag(mode, selection.value.anchor, focus, rowCount, colCount)
+    return
+  }
+  if (mode === 'row') selection.value = selectRows(focus.row, focus.row, colCount)
+  else if (mode === 'column') selection.value = selectColumns(focus.col, focus.col, rowCount)
+  else selection.value = selectCell(focus.row, focus.col)
+}
+function onGridPointerDown(event: PointerEvent): void {
+  if (ignoreGridPointer(event)) return
+  const point = localPoint(event)
+  if (!point) return
+  const hit = hitTest(point.x, point.y, currentLayout())
+  if (hit.region === 'outside' || hit.region === 'corner') return
+  event.preventDefault()
+  closeMenu()
+  const target = event.currentTarget
+  if (target instanceof HTMLElement && typeof target.setPointerCapture === 'function') {
+    try {
+      target.setPointerCapture(event.pointerId)
+    } catch {
+      /* jsdom */
+    }
+  }
+  dragMode = hit.region === 'row-number' ? 'row' : hit.region === 'header' ? 'column' : 'cell'
+  dragging = true
+  applyHitSelection(event, hit.row, hit.col, dragMode)
+}
+function onGridPointerMove(event: PointerEvent): void {
+  const point = localPoint(event)
+  if (!point) return
+  const layout = currentLayout()
+  const hit = hitTest(point.x, point.y, layout)
+  if (!dragging || !dragMode) {
+    hover.value =
+      hit.region === 'cell'
+        ? { row: hit.row, col: hit.col }
+        : hit.region === 'row-number'
+          ? { row: hit.row, col: -1 }
+          : null
+    return
+  }
+  const rowCount = ordered.value.length
+  const colCount = visualColumns.value.length
+  const current = selection.value
+  if (!current || !rowCount || !colCount) return
+  const focus = dragFocus(dragMode, hit, current.focus, rowCount, colCount)
+  selection.value = selectionFromDrag(dragMode, current.anchor, focus, rowCount, colCount)
+}
+function onGridPointerUp(): void {
+  dragging = false
+  dragMode = null
+}
+function onGridPointerLeave(): void {
+  if (!dragging) hover.value = null
 }
 function startResize(index: number, event: MouseEvent): void {
   event.preventDefault()
@@ -268,10 +414,6 @@ function startResize(index: number, event: MouseEvent): void {
   window.addEventListener('mousemove', move)
   window.addEventListener('mouseup', up)
 }
-function selectCell(row: number, col: number): void {
-  selected.value = { row, col }
-  closeMenu()
-}
 function onScroll(): void {
   scrollTop.value = scrollEl.value?.scrollTop || 0
   viewport.value = scrollEl.value?.clientHeight || viewport.value
@@ -285,18 +427,17 @@ function ensureVisible(filteredIndex: number): void {
     el.scrollTop = top - el.clientHeight + HEADER_HEIGHT + ROW_HEIGHT
   }
 }
-function moveSelection(dRow: number, dCol: number): void {
-  if (!columns.value.length || !ordered.value.length) return
-  const pos = Math.max(
-    0,
-    ordered.value.findIndex((item) => item.index === selected.value?.row),
-  )
-  const nextPos = Math.min(ordered.value.length - 1, Math.max(0, pos + dRow))
-  const col = Math.min(columns.value.length - 1, Math.max(0, (selected.value?.col ?? 0) + dCol))
-  const next = ordered.value[nextPos]
-  if (!next) return
-  selected.value = { row: next.index, col }
-  ensureVisible(nextPos)
+function moveSelection(dRow: number, dCol: number, extend = false): void {
+  const rowCount = ordered.value.length
+  const colCount = visualColumns.value.length
+  if (!rowCount || !colCount) return
+  const current = selection.value ?? selectCell(0, 0)
+  const focus = {
+    row: Math.min(rowCount - 1, Math.max(0, current.focus.row + dRow)),
+    col: Math.min(colCount - 1, Math.max(0, current.focus.col + dCol)),
+  }
+  selection.value = extend ? extendSelection(current, focus) : selectCell(focus.row, focus.col)
+  ensureVisible(focus.row)
 }
 function onGridKeydown(event: KeyboardEvent): void {
   const target = event.target
@@ -308,32 +449,44 @@ function onGridKeydown(event: KeyboardEvent): void {
   }
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c') {
     event.preventDefault()
-    void copyCell()
+    void copySelection()
     return
   }
-  if (event.key === 'Enter' && selected.value) {
+  const focused = focusData()
+  if (event.key === 'Enter' && focused) {
     event.preventDefault()
-    openValue(selected.value.row, selected.value.col)
+    openValue(focused.row, focused.col)
     return
   }
   if (event.key === 'ArrowDown') {
     event.preventDefault()
-    moveSelection(1, 0)
+    moveSelection(1, 0, event.shiftKey)
   } else if (event.key === 'ArrowUp') {
     event.preventDefault()
-    moveSelection(-1, 0)
+    moveSelection(-1, 0, event.shiftKey)
   } else if (event.key === 'ArrowRight') {
     event.preventDefault()
-    moveSelection(0, 1)
+    moveSelection(0, 1, event.shiftKey)
   } else if (event.key === 'ArrowLeft') {
     event.preventDefault()
-    moveSelection(0, -1)
+    moveSelection(0, -1, event.shiftKey)
   }
 }
 
 watch(
   () => [props.result, props.error],
   () => resetView(),
+)
+watch(
+  () => [ordered.value.length, visualColumns.value.length],
+  () => {
+    if (!selection.value) return
+    selection.value = clampSelection(
+      selection.value,
+      ordered.value.length,
+      visualColumns.value.length,
+    )
+  },
 )
 watch(
   () => props.rowLimit,
@@ -388,46 +541,67 @@ onBeforeUnmount(() => {
       <div
         ref="scrollEl"
         class="result-scroll"
+        data-testid="result-scroll"
         role="grid"
         aria-label="查询结果"
         tabindex="0"
         @scroll.passive="onScroll"
+        @pointerdown="onGridPointerDown"
+        @pointermove="onGridPointerMove"
+        @pointerup="onGridPointerUp"
+        @pointercancel="onGridPointerUp"
+        @lostpointercapture="onGridPointerUp"
+        @pointerleave="onGridPointerLeave"
       >
         <div class="result-table" :style="{ minWidth: `${tableMinWidth}px` }">
           <div class="result-head" role="row" :style="{ height: `${HEADER_HEIGHT}px` }">
             <div class="result-index result-index-head" role="columnheader">#</div>
             <div
-              v-for="item in visualColumns"
+              v-for="(item, visualCol) in visualColumns"
               :key="`${item.index}:${item.column.name}`"
               class="result-header"
-              :class="{ 'result-col-pinned': item.pinned }"
+              :class="{
+                'result-col-pinned': item.pinned,
+                'result-header-selected':
+                  selectedRect &&
+                  visualCol >= selectedRect.colStart &&
+                  visualCol <= selectedRect.colEnd,
+              }"
               role="columnheader"
               :style="{
                 width: `${widthOf(item.index)}px`,
                 left: item.pinned ? `${pinnedLeft(item.index)}px` : undefined,
               }"
-              :title="`${item.column.jdbcType} / ${item.column.typeName}`"
+              :title="`${item.column.jdbcType} / ${item.column.typeName} · 单击选列，类型标记排序`"
               :data-testid="`result-header-${item.index}`"
-              @click="cycleSort(item.index)"
               @contextmenu="openMenu($event, null, item.index)"
             >
               <span
                 class="result-type"
                 :data-kind="columnTypeKind(item.column.jdbcType)"
-                :title="item.column.jdbcType"
+                :title="`排序 · ${item.column.jdbcType}`"
+                :data-testid="`result-sort-glyph-${item.index}`"
+                @pointerdown.stop
+                @click.stop="cycleSort(item.index)"
               >
                 {{ columnTypeGlyph(columnTypeKind(item.column.jdbcType)) }}
               </span>
               <span class="result-header-label">{{ item.column.label }}</span>
               <ArrowUp
                 v-if="sort?.col === item.index && sort.dir === 'asc'"
-                class="result-header-icon"
+                class="result-header-icon result-sort-icon"
                 :size="11"
+                data-testid="result-sort-icon"
+                @pointerdown.stop
+                @click.stop="cycleSort(item.index)"
               />
               <ArrowDown
                 v-else-if="sort?.col === item.index && sort.dir === 'desc'"
-                class="result-header-icon"
+                class="result-header-icon result-sort-icon"
                 :size="11"
+                data-testid="result-sort-icon"
+                @pointerdown.stop
+                @click.stop="cycleSort(item.index)"
               />
               <Filter v-if="columnFilters[item.index]" class="result-header-icon" :size="11" />
               <button
@@ -435,6 +609,7 @@ onBeforeUnmount(() => {
                 type="button"
                 aria-label="调整列宽"
                 @click.stop
+                @pointerdown.stop
                 @mousedown="startResize(item.index, $event)"
               />
             </div>
@@ -445,26 +620,41 @@ onBeforeUnmount(() => {
               class="result-window"
             >
               <div
-                v-for="item in visible"
+                v-for="(item, offset) in visible"
                 :key="item.index"
                 class="result-row"
-                :class="{ 'result-row-selected': selected?.row === item.index }"
+                :class="{
+                  'result-row-hover': hover?.row === start + offset,
+                  'result-row-in-selection':
+                    selectedRect &&
+                    start + offset >= selectedRect.rowStart &&
+                    start + offset <= selectedRect.rowEnd,
+                }"
                 role="row"
                 :style="{ height: `${ROW_HEIGHT}px` }"
               >
-                <div class="result-index">{{ item.index + 1 }}</div>
+                <div class="result-index" :data-testid="`result-row-number-${item.index}`">
+                  {{ item.index + 1 }}
+                </div>
                 <div
-                  v-for="col in visualColumns"
+                  v-for="(col, visualCol) in visualColumns"
                   :key="col.index"
                   class="result-cell"
                   :class="{
+                    'result-cell-hover': hover?.row === start + offset && hover?.col === visualCol,
+                    'result-cell-selected':
+                      selectedRect && inRect(selectedRect, start + offset, visualCol),
                     'result-cell-active':
-                      selected?.row === item.index && selected?.col === col.index,
+                      selection?.focus.row === start + offset && selection?.focus.col === visualCol,
                     'result-cell-null': item.row[col.index] === null,
                     'result-col-pinned': col.pinned,
                   }"
                   role="gridcell"
-                  :tabindex="selected?.row === item.index && selected?.col === col.index ? 0 : -1"
+                  :tabindex="
+                    selection?.focus.row === start + offset && selection?.focus.col === visualCol
+                      ? 0
+                      : -1
+                  "
                   :style="{
                     width: `${widthOf(col.index)}px`,
                     left: col.pinned ? `${pinnedLeft(col.index)}px` : undefined,
@@ -473,19 +663,21 @@ onBeforeUnmount(() => {
                     item.row[col.index] === '' ? '空字符串' : displayCell(item.row[col.index])
                   "
                   :data-testid="`result-cell-${item.index}-${col.index}`"
-                  @click="selectCell(item.index, col.index)"
                   @dblclick="openValue(item.index, col.index)"
                   @contextmenu="openMenu($event, item.index, col.index)"
                 >
                   <span v-if="item.row[col.index] === ''">&nbsp;</span>
                   <span v-else>{{ previewCell(item.row[col.index]) }}</span>
                   <button
-                    v-if="selected?.row === item.index && selected?.col === col.index"
+                    v-if="
+                      selection?.focus.row === start + offset && selection?.focus.col === visualCol
+                    "
                     class="result-cell-menu"
                     type="button"
                     title="单元格操作"
                     aria-label="单元格操作"
                     data-testid="result-cell-menu"
+                    @pointerdown.stop
                     @click.stop="openMenu($event, item.index, col.index)"
                   >
                     <Menu :size="12" />
@@ -570,8 +762,8 @@ onBeforeUnmount(() => {
         <button v-if="menu.row != null" class="result-ctx-item" @click="openMenuValue">
           <PanelRight :size="14" />在值面板中显示
         </button>
-        <button v-if="menu.row != null" class="result-ctx-item" @click="copyCell">
-          <Copy :size="14" />复制单元格
+        <button v-if="selection" class="result-ctx-item" @click="copySelection">
+          <Copy :size="14" />复制选区
         </button>
         <button v-if="menu.row != null" class="result-ctx-item" @click="copyRow">
           <Copy :size="14" />复制整行
