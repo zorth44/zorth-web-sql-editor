@@ -6,6 +6,15 @@ const STORAGE_KEY = 'zorth.sql-editor.drafts.v1'
 const MAX_BYTES = 200_000
 export type EditorTabKind = 'sql' | 'table'
 export type TableViewerPane = 'data' | 'properties'
+export type StatementStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED'
+
+export interface StatementRun {
+  position: number
+  sql: string
+  status: StatementStatus
+  result: SqlExecutionResult | null
+  error: string | null
+}
 
 export interface EditorTab {
   id: string
@@ -22,6 +31,9 @@ export interface EditorTab {
   executionId: string | null
   result: SqlExecutionResult | null
   error: string | null
+  statements: StatementRun[]
+  resultIndex: number
+  runningIndex: number | null
 }
 interface Draft {
   id: string
@@ -78,6 +90,9 @@ function toTab(item: Draft): EditorTab {
     executionId: null,
     result: null,
     error: null,
+    statements: [],
+    resultIndex: 0,
+    runningIndex: null,
   }
 }
 
@@ -128,6 +143,7 @@ export const useEditorStore = defineStore('editor', () => {
   const tabs = ref<EditorTab[]>(restored.tabs.map(toTab))
   const activeId = ref(restored.activeId || tabs.value[0]?.id || '')
   const aborters = new Map<string, AbortController>()
+  const cancelled = new Set<string>()
   const active = computed(() => tabs.value.find((tab) => tab.id === activeId.value) || null)
   const runningCount = computed(() => tabs.value.filter((tab) => tab.running).length)
 
@@ -184,6 +200,9 @@ export const useEditorStore = defineStore('editor', () => {
       executionId: null,
       result: null,
       error: null,
+      statements: [],
+      resultIndex: 0,
+      runningIndex: null,
     }
     tabs.value.push(tab)
     activeId.value = tab.id
@@ -220,6 +239,9 @@ export const useEditorStore = defineStore('editor', () => {
       executionId: null,
       result: null,
       error: null,
+      statements: [],
+      resultIndex: 0,
+      runningIndex: null,
     }
     tabs.value.push(tab)
     activeId.value = tab.id
@@ -283,36 +305,104 @@ export const useEditorStore = defineStore('editor', () => {
     if (index < 0) return
     aborters.get(id)?.abort()
     aborters.delete(id)
+    cancelled.delete(id)
     tabs.value.splice(index, 1)
     if (activeId.value === id) activeId.value = tabs.value[Math.max(0, index - 1)]?.id || ''
     persist()
   }
-  function start(id: string, executionId: string): AbortController {
+  function beginScript(id: string, sqls: string[]): void {
     if (runningCount.value >= 3) throw new Error('最多同时执行 3 条 SQL')
     const tab = tabs.value.find((item) => item.id === id)
     if (!tab || tab.running) throw new Error('当前页签正在执行')
-    const controller = new AbortController()
-    aborters.set(id, controller)
+    cancelled.delete(id)
     tab.running = true
-    tab.executionId = executionId
+    tab.executionId = null
     tab.result = null
     tab.error = null
+    tab.resultIndex = 0
+    tab.runningIndex = null
+    tab.statements = sqls.map((sql, index) => ({
+      position: index + 1,
+      sql,
+      status: 'PENDING',
+      result: null,
+      error: null,
+    }))
+  }
+  function startStatement(id: string, index: number, executionId: string): AbortController {
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab) throw new Error('页签不存在')
+    const statement = tab.statements[index]
+    if (!statement) throw new Error('语句不存在')
+    const controller = new AbortController()
+    aborters.set(id, controller)
+    tab.executionId = executionId
+    tab.runningIndex = index
+    statement.status = 'RUNNING'
     return controller
   }
-  function finish(id: string, result?: SqlExecutionResult, error?: string): void {
+  function finishStatement(
+    id: string,
+    index: number,
+    result?: SqlExecutionResult,
+    error?: string,
+  ): void {
     const tab = tabs.value.find((item) => item.id === id)
     aborters.delete(id)
     if (!tab) return
-    tab.running = false
+    const statement = tab.statements[index]
+    if (statement) {
+      statement.status = error ? 'FAILED' : 'SUCCESS'
+      statement.result = result || null
+      statement.error = error || null
+    }
+    tab.runningIndex = null
+    tab.resultIndex = index
     tab.result = result || null
     tab.error = error || null
   }
+  function endScript(id: string): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    aborters.delete(id)
+    cancelled.delete(id)
+    if (!tab) return
+    tab.running = false
+    tab.runningIndex = null
+    for (const statement of tab.statements) {
+      if (statement.status === 'PENDING' || statement.status === 'RUNNING') {
+        statement.status = 'SKIPPED'
+      }
+    }
+  }
+  function start(id: string, executionId: string, sql = ''): AbortController {
+    beginScript(id, [sql])
+    return startStatement(id, 0, executionId)
+  }
+  function finish(id: string, result?: SqlExecutionResult, error?: string): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    finishStatement(id, tab?.runningIndex ?? 0, result, error)
+    endScript(id)
+  }
+  function viewResult(id: string, index: number): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    const statement = tab?.statements[index]
+    if (!tab || !statement) return
+    tab.resultIndex = index
+    tab.result = statement.result
+    tab.error = statement.error
+  }
+  /** Stops the in-flight statement and tells a running script loop not to continue. */
   function abort(id: string): void {
+    cancelled.add(id)
     aborters.get(id)?.abort()
+  }
+  function isCancelled(id: string): boolean {
+    return cancelled.has(id)
   }
   function clearAll(): void {
     for (const controller of aborters.values()) controller.abort()
     aborters.clear()
+    cancelled.clear()
     tabs.value = []
     activeId.value = ''
     sessionStorage.removeItem(STORAGE_KEY)
@@ -331,9 +421,15 @@ export const useEditorStore = defineStore('editor', () => {
     setActive,
     updateSql,
     closeTab,
+    beginScript,
+    startStatement,
+    finishStatement,
+    endScript,
     start,
     finish,
+    viewResult,
     abort,
+    isCancelled,
     clearAll,
   }
 })

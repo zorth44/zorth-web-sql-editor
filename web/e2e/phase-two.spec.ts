@@ -96,4 +96,49 @@ test.describe('phase-two SQL editor', () => {
     await page.getByRole('button', { name: '停止' }).click()
     await expect(page.getByRole('button', { name: '运行' })).toBeVisible()
   })
+
+  test('runs a multi-statement script, browses each result, and stops on the first error', async ({
+    page,
+  }) => {
+    await login(page)
+    await setSql(
+      page,
+      'select * from order_item;\nupdate order_item set amount = 1;\nselect * from order_item',
+    )
+    await expect(page.getByTestId('run-button')).toContainText('运行')
+    await expect(page.getByTestId('run-button')).not.toContainText('运行选中')
+    await page.getByTestId('run-button').click()
+
+    const summary = page.getByTestId('script-summary')
+    await expect(summary).toContainText('共 3 条语句，成功 3 条')
+    await expect(summary).toContainText('UPDATE')
+    await expect(summary).toContainText('影响 1 行')
+    await page.getByRole('tab', { name: '第 1 条语句，成功' }).click()
+    await expect(page.getByText('9007199254740993')).toBeVisible()
+    await page.getByRole('tab', { name: '第 2 条语句，成功' }).click()
+    await expect(page.getByText('执行成功', { exact: true })).toBeVisible()
+    await page.getByTestId('script-summary-tab').click()
+    await expect(summary).toContainText('共 3 条语句')
+
+    await setSql(page, 'select * from order_item;\nselect * from mock_error;\nselect 1')
+    await page.getByTestId('run-button').click()
+    await expect(page.getByTestId('script-summary')).toContainText('第 2 条失败后已停止')
+    await expect(page.getByTestId('script-summary')).toContainText('已执行的语句不会回滚')
+    await expect(page.getByTestId('script-summary')).toContainText('未执行')
+    await expect(page.getByRole('tab', { name: '第 3 条语句，未执行' })).toBeVisible()
+  })
+
+  test('runs only the selected statements and says so on the run button', async ({ page }) => {
+    await login(page)
+    await setSql(page, 'select * from order_item;\nselect * from mock_error')
+    await page.locator('.monaco-editor').first().click()
+    // Select the first line only, so the failing second statement stays out of the run.
+    await page.keyboard.press('Control+Home')
+    await page.keyboard.press('Shift+ArrowDown')
+    await expect(page.getByTestId('run-button')).toContainText('运行选中')
+    await page.getByTestId('run-button').click()
+    await expect(page.getByText('9007199254740993')).toBeVisible()
+    await expect(page.getByTestId('script-summary')).toHaveCount(0)
+    await expect(page.getByText(/doesn't exist/)).toHaveCount(0)
+  })
 })

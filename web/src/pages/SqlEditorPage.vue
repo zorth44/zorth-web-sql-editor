@@ -20,13 +20,14 @@ import { getHistory } from '@/api/history'
 import { safeErrorMessage } from '@/api/api-error'
 import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
 import HistoryPanel from '@/components/history/HistoryPanel.vue'
-import ResultGrid from '@/components/result-grid/ResultGrid.vue'
+import ScriptResultPanel from '@/components/result-grid/ScriptResultPanel.vue'
 import TableViewer from '@/components/table-viewer/TableViewer.vue'
 import WelcomeStart from '@/components/welcome/WelcomeStart.vue'
 import SqlMonacoEditor from '@/components/editor/SqlMonacoEditor.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { DEFAULT_ROW_LIMIT } from '@/components/result-grid/limits'
 import { likelyNeedsDatabase, selectTableData } from '@/sql-editor/sql'
+import { planScript, runScript as runScriptStatements } from '@/sql-editor/script-runner'
 import {
   SIDEBAR_DEFAULT_PX,
   SIDEBAR_MAX_PX,
@@ -47,10 +48,12 @@ const auth = useAuthStore()
 const notifications = useNotificationsStore()
 const monacoRef = ref<{
   getRunnableStatement: () => string
+  getRunnableScript: () => string
   formatSql: () => void
   insertAtCursor: (sql: string) => void
   focus: () => void
 } | null>(null)
+const hasSelection = ref(false)
 
 const sources = ref<DataSourceListItem[]>([])
 const selectedSource = ref<string | null>(null)
@@ -83,8 +86,16 @@ const suggestions = computed(() =>
 const currentSource = computed(
   () => sources.value.find((item) => item.id === selectedSource.value) || null,
 )
-const runShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘↵' : 'Ctrl+Enter'
-const formatShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌥⇧F' : 'Shift+Alt+F'
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
+const runShortcut = isMac ? '⌘⇧↵' : 'Ctrl+Shift+Enter'
+const statementShortcut = isMac ? '⌘↵' : 'Ctrl+Enter'
+const formatShortcut = isMac ? '⌥⇧F' : 'Shift+Alt+F'
+const runLabel = computed(() => (hasSelection.value ? '运行选中' : '运行'))
+const runTitle = computed(() =>
+  hasSelection.value
+    ? `运行选中的全部语句（${runShortcut}），运行当前语句用 ${statementShortcut}`
+    : `运行编辑器全部语句（${runShortcut}），运行当前语句用 ${statementShortcut}`,
+)
 
 async function syncUrl() {
   const query: { dataSourceId?: string; database?: string } = {}
@@ -144,8 +155,8 @@ async function insertSql(sql: string, dataSourceId: string, database: string) {
   if (monacoRef.value) monacoRef.value.insertAtCursor(sql)
   else editor.updateSql(tab.id, `${tab.sql.trim() ? `${tab.sql}\n` : ''}${sql}`)
 }
-function runCurrent() {
-  void run(monacoRef.value?.getRunnableStatement() || active.value?.sql || '')
+function runScript() {
+  void executeScriptText(monacoRef.value?.getRunnableScript() || active.value?.sql || '')
 }
 function formatSql() {
   monacoRef.value?.formatSql()
@@ -162,40 +173,38 @@ async function loadTableData(id: string, force = false) {
   await executeOnTab(id, selectTableData(tab.database, tab.table))
 }
 async function executeOnTab(tabId: string, statement: string) {
+  await executeStatements(tabId, [statement.trim()])
+}
+async function executeStatements(tabId: string, statements: string[]) {
   const tab = editor.tabs.find((item) => item.id === tabId)
   if (!tab || !tab.dataSourceId) return
-  const sql = statement.trim()
-  const executionId = crypto.randomUUID()
-  let controller: AbortController
+  const dataSourceId = tab.dataSourceId
+  const database = tab.database
+  let outcome
   try {
-    controller = editor.start(tabId, executionId)
+    outcome = await runScriptStatements(editor, {
+      tabId,
+      statements,
+      newExecutionId: () => crypto.randomUUID(),
+      describeError: (error) =>
+        error instanceof DOMException && error.name === 'AbortError'
+          ? '执行已取消'
+          : safeErrorMessage(error, 'SQL 执行失败'),
+      execute: (statement, executionId, signal) =>
+        executeSql(
+          { executionId, dataSourceId, database, statement, rowLimit: rowLimit.value },
+          signal,
+        ),
+    })
   } catch (e) {
     notice(e instanceof Error ? e.message : '无法执行')
     return
   }
-  try {
-    const result = await executeSql(
-      {
-        executionId,
-        dataSourceId: tab.dataSourceId,
-        database: tab.database,
-        statement: sql,
-        rowLimit: rowLimit.value,
-      },
-      controller.signal,
-    )
-    editor.finish(tabId, result)
-    if (result.kind === 'DDL') {
-      resourceNonce.value++
-      await queryClient.invalidateQueries({ queryKey: queryKeys.metadata(tab.dataSourceId) })
-    }
-    await queryClient.invalidateQueries({ queryKey: ['sql-history'] })
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') {
-      editor.finish(tabId, undefined, '执行已取消')
-    } else editor.finish(tabId, undefined, safeErrorMessage(e, 'SQL 执行失败'))
-    await queryClient.invalidateQueries({ queryKey: ['sql-history'] })
+  if (outcome.sawDdl) {
+    resourceNonce.value++
+    await queryClient.invalidateQueries({ queryKey: queryKeys.metadata(dataSourceId) })
   }
+  await queryClient.invalidateQueries({ queryKey: ['sql-history'] })
 }
 async function run(statement: string) {
   const tab = active.value
@@ -213,7 +222,26 @@ async function run(statement: string) {
     notice('请在左侧导航选择数据库')
     return
   }
-  await executeOnTab(tab.id, sql)
+  await executeStatements(tab.id, [sql])
+}
+async function executeScriptText(text: string) {
+  const tab = active.value
+  if (!tab || tab.kind !== 'sql' || !canExecute.value) return
+  if (!text.trim()) {
+    notice('请输入要执行的 SQL')
+    return
+  }
+  if (!tab.dataSourceId) {
+    notice('请在左侧导航选择数据源')
+    return
+  }
+  const plan = planScript(text, { hasDatabase: Boolean(tab.database) })
+  if (!plan.ok) {
+    notice(plan.message)
+    return
+  }
+  if (plan.warning) notice(plan.warning)
+  await executeStatements(tab.id, plan.statements)
 }
 async function stop() {
   const tab = active.value
@@ -465,10 +493,11 @@ onBeforeUnmount(() => {
                   v-if="!active?.running"
                   class="btn-primary min-h-8 px-3 py-1 text-xs"
                   :disabled="!canExecute"
-                  :title="`运行当前语句或选区（${runShortcut}）`"
-                  @click="runCurrent"
+                  :title="runTitle"
+                  data-testid="run-button"
+                  @click="runScript"
                 >
-                  <Play :size="14" />运行
+                  <Play :size="14" />{{ runLabel }}
                   <kbd class="shortcut shortcut-on-primary">{{ runShortcut }}</kbd>
                 </button>
                 <button v-else class="btn min-h-8 px-3 py-1 text-xs text-danger" @click="stop">
@@ -508,19 +537,24 @@ onBeforeUnmount(() => {
                     :model-value="active.sql"
                     :suggestions="suggestions"
                     @update:model-value="editor.updateSql(active!.id, $event)"
+                    @update:has-selection="hasSelection = $event"
                     @run="run"
-                    @run-all="run"
+                    @run-script="executeScriptText"
                     @notice="notice"
                   />
                 </Pane>
                 <Pane :size="38" min-size="18">
-                  <ResultGrid
+                  <ScriptResultPanel
+                    :statements="active?.statements || []"
                     :result="active?.result || null"
                     :error="active?.error || null"
+                    :result-index="active?.resultIndex ?? 0"
+                    :running-index="active?.runningIndex ?? null"
                     :running="Boolean(active?.running)"
                     :can-export="canExport"
                     :exporting="exporting"
                     :row-limit="rowLimit"
+                    @select="active && editor.viewResult(active.id, $event)"
                     @update:row-limit="rowLimit = $event"
                     @export="requestExport"
                     @cancel-export="exportAbort?.abort()"
@@ -532,10 +566,10 @@ onBeforeUnmount(() => {
                         <span class="result-footer-sep">|</span>
                         {{ active?.title || '无页签' }}
                         <span class="result-footer-sep">|</span>
-                        MySQL · 每次运行一条语句
+                        MySQL · 脚本按语句顺序执行
                       </span>
                     </template>
-                  </ResultGrid>
+                  </ScriptResultPanel>
                 </Pane>
               </Splitpanes>
             </template>

@@ -682,7 +682,7 @@ GET /api/v1/data-sources/{id}/table-detail?database=orders&table=order_item
 - 不做危险语句识别、审批或额外拦截。`SELECT INTO OUTFILE`、`LOAD DATA` 等能否执行，只取决于 MySQL 账号。
 - `autoCommit=true`。DML 成功即提交；MySQL DDL 通常会隐式提交。
 - 一次请求只允许一条语句，Connector 设置 `allowMultiQueries=false`。
-- 前端尽力切分当前语句；后端用同一规则做权威校验。无法可靠识别或存在第二条语句时返回 `400 MULTI_STATEMENT_NOT_SUPPORTED`。
+- 前端把脚本切分后逐条串行提交，每条语句一个请求和一个 `executionId`；后端用同一规则做权威校验。无法可靠识别或存在第二条语句时返回 `400 MULTI_STATEMENT_NOT_SUPPORTED`。这条兜底不因前端支持脚本而放宽。
 - 不支持 `DELIMITER` 客户端命令；存储过程、触发器脚本不作为验收范围。
 - 取消和超时都是尽力而为。语句已在数据库完成或已经提交时，取消不能撤销结果。
 

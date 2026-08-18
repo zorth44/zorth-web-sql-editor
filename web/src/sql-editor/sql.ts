@@ -1,11 +1,26 @@
+export const MAX_SCRIPT_STATEMENTS = 200
+
 export interface SqlSegment {
   text: string
   start: number
   end: number
 }
+export interface SqlScript {
+  statements: SqlSegment[]
+  /**
+   * False when the scanner ended inside a string, quoted identifier, or comment.
+   * The split cannot be trusted, so the caller sends the whole text and lets the
+   * backend scanner produce the authoritative error.
+   */
+  reliable: boolean
+}
 type State = 'normal' | 'single' | 'double' | 'backtick' | 'line' | 'block'
 
 export function splitSql(source: string): SqlSegment[] {
+  return scanSql(source).statements
+}
+
+export function scanSql(source: string): SqlScript {
   const segments: SqlSegment[] = []
   let state: State = 'normal'
   let start = 0
@@ -52,7 +67,9 @@ export function splitSql(source: string): SqlSegment[] {
     }
   }
   add(source.length)
-  return segments
+  // A line comment running to the end of input is well formed; the other
+  // non-normal states mean an opener was never closed.
+  return { statements: segments, reliable: state === 'normal' || state === 'line' }
 }
 
 export function statementAt(source: string, offset: number): SqlSegment | null {
@@ -73,10 +90,29 @@ export function selectPreview(database: string, table: string): string {
 export function selectTableData(database: string, table: string): string {
   return `SELECT *\nFROM ${quoteIdentifier(database)}.${quoteIdentifier(table)}`
 }
-export function likelyNeedsDatabase(sql: string): boolean {
-  const normalized = sql
+function stripLeadingNoise(sql: string): string {
+  return sql
     .replace(/^(?:\s|\/\*[\s\S]*?\*\/|--[^\r\n]*(?:\r?\n|$)|#[^\r\n]*(?:\r?\n|$))*/g, '')
     .toUpperCase()
+}
+/** Leading keyword of a statement, used to label it in the script summary. */
+export function statementKeyword(sql: string): string {
+  return /^[A-Z]+/.exec(stripLeadingNoise(sql))?.[0] || 'SQL'
+}
+/**
+ * Statements whose effect lives on the connection session. Each script statement
+ * borrows its own pooled connection, so these never reach the statements after them.
+ */
+export function needsSessionAffinity(sql: string): boolean {
+  const normalized = stripLeadingNoise(sql)
+  return (
+    /^SET\b/.test(normalized) ||
+    /^USE\b/.test(normalized) ||
+    /^CREATE\s+TEMPORARY\b/.test(normalized)
+  )
+}
+export function likelyNeedsDatabase(sql: string): boolean {
+  const normalized = stripLeadingNoise(sql)
   return (
     /^(INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|TRUNCATE|RENAME)\b/.test(normalized) ||
     (/^(SELECT|WITH|EXPLAIN|DESC|DESCRIBE)\b/.test(normalized) &&

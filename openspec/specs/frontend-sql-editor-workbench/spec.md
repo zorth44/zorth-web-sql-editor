@@ -2,10 +2,8 @@
 
 ## Purpose
 
-Define the SQL workspace resource navigator and lazy metadata browsing behavior for visible data sources.
-
+Define the SQL workspace: the resource navigator and lazy metadata browsing for visible data sources, connection-bound recoverable tabs, Monaco MySQL editing, execution and cancellation interaction, result presentation, CSV export, and the current-user history workspace.
 ## Requirements
-
 ### Requirement: Data-source-rooted resource navigator
 The SQL workspace sidebar SHALL list visible data sources as tree roots. Expanding a data source SHALL lazily load its databases; expanding a database SHALL lazily load tables and views. Each editor tab SHALL display its bound data source and database. The workspace SHALL NOT place data-source or database selectors above the tab bar; connection changes SHALL come from the resource tree. The active tab SHALL remain visually distinct from inactive tabs without relying on focus styling.
 
@@ -116,3 +114,171 @@ The frontend SHALL present RESULT_SET grids, including SQL execution results and
 #### Scenario: Preserve existing result actions
 - **WHEN** a RESULT_SET grid is showing a selection
 - **THEN** the user SHALL still be able to open the value panel for the focused cell, copy the entire result from the footer, export CSV, and use column filter, pin, and context-menu sort
+
+### Requirement: Connection-bound SQL workspace
+The frontend SHALL provide `/sql-editor` as a protected desktop workspace whose data-source/database selection is reflected in safe URL parameters and whose tabs retain immutable connection bindings.
+
+#### Scenario: Select a connection
+- **WHEN** a user selects a visible data source and one of its databases
+- **THEN** the workspace SHALL update `dataSourceId` and `database` query parameters and new tabs SHALL bind to that connection
+
+#### Scenario: Open a connection URL
+- **WHEN** a user opens a workspace URL containing connection parameters
+- **THEN** the frontend SHALL reload server-authorized data-source/metadata state and SHALL treat a 404 as unavailable rather than trusting URL ownership
+
+#### Scenario: Change connection with an existing tab
+- **WHEN** the selected connection changes while the active tab has content or results
+- **THEN** the frontend SHALL create or select a tab bound to the new connection and SHALL NOT silently mutate the old tab's binding
+
+### Requirement: Recoverable SQL tabs
+The workspace SHALL open on a welcome page when no editor tab is open, support multiple connection-bound tabs, confirm destructive close, and persist only bounded SQL draft state in Session Storage.
+
+#### Scenario: Start the editor
+- **WHEN** no recoverable draft exists
+- **THEN** the workspace SHALL show a welcome page with an action to open a SQL editor and SHALL NOT auto-select a data source or create `Query 1`
+
+#### Scenario: Close the last tab
+- **WHEN** a user closes the last editor tab
+- **THEN** the workspace SHALL return to the welcome page and SHALL NOT immediately create a replacement tab
+
+#### Scenario: Open SQL from the welcome page
+- **WHEN** a user chooses to open a SQL editor from the welcome page
+- **THEN** the workspace SHALL create a query tab bound to the currently selected connection, which MAY be unbound until a data source and database are chosen in the resource tree
+
+#### Scenario: Reload drafts
+- **WHEN** the page reloads with valid bounded draft state
+- **THEN** tab names, SQL text, and non-sensitive connection identifiers MAY be restored while results, Tokens, and credentials SHALL NOT be restored
+
+#### Scenario: Logout or receive 401
+- **WHEN** authenticated teardown occurs
+- **THEN** all editor draft, active execution, result, and query-cache state SHALL be cleared
+
+#### Scenario: Close a non-empty tab
+- **WHEN** a user closes a tab containing SQL
+- **THEN** the frontend SHALL require confirmation before discarding it
+
+### Requirement: Monaco MySQL editing
+The frontend SHALL wrap Monaco with MySQL language behavior, formatting, metadata completion, and documented keyboard commands, and SHALL expose whether a selection exists so run affordances can label themselves.
+
+#### Scenario: Execute selection or current statement
+- **WHEN** a user presses Cmd/Ctrl+Enter
+- **THEN** the frontend SHALL execute the non-empty selection or the statement containing the cursor as determined by a scanner that ignores delimiters in quotes and comments
+
+#### Scenario: Execute a script
+- **WHEN** a user presses Cmd/Ctrl+Shift+Enter
+- **THEN** the frontend SHALL execute every statement in the selection when one exists, otherwise every statement in the editor, and SHALL NOT block multiple statements with “暂不支持批量执行”
+
+#### Scenario: Label the run action from the selection
+- **WHEN** the editor selection changes between empty and non-empty
+- **THEN** the workspace run action SHALL relabel itself between running the whole editor and running the selection so the current target is visible without hovering
+
+#### Scenario: Save shortcut
+- **WHEN** a user presses Cmd/Ctrl+S
+- **THEN** the frontend SHALL prevent browser save and state that worksheet persistence is not available
+
+#### Scenario: Request completion
+- **WHEN** completion is requested for the active connection/database
+- **THEN** Monaco SHALL offer known database, table/view, and column names without inserting credentials or untrusted executable snippets
+
+### Requirement: Execution and cancellation interaction
+The frontend SHALL execute with a fresh UUID per statement, run multi-statement scripts serially within the owning tab, prevent duplicate submission per tab, cap active tabs at three executions, and expose cancellation for both single statements and scripts.
+
+#### Scenario: Run valid SQL
+- **WHEN** connection requirements and non-empty single SQL are satisfied
+- **THEN** the tab SHALL enter running state, send one non-retried execution request with a new UUID, and render the terminal result/error
+
+#### Scenario: Run a script serially
+- **WHEN** a script with more than one statement starts in a tab
+- **THEN** the frontend SHALL execute the statements in source order, sending the next request only after the previous one reaches a terminal state, SHALL count the whole script as one running execution for that tab, and SHALL show which statement of how many is currently running
+
+#### Scenario: A script statement fails
+- **WHEN** a statement in a running script fails, is cancelled, or times out
+- **THEN** the frontend SHALL stop before the remaining statements, SHALL keep the results already produced, SHALL identify the failing statement and its error, and SHALL state that already-executed statements are not rolled back
+
+#### Scenario: Stop an execution
+- **WHEN** a user chooses Stop for a running tab
+- **THEN** the frontend SHALL call the cancellation endpoint for the in-flight statement, abort the request where applicable, discard any statements still queued for that script, and restore runnable UI when the terminal state is known
+
+#### Scenario: Leave during execution
+- **WHEN** the workspace is closed or navigated away from with in-flight work
+- **THEN** every owned fetch SHALL be aborted, queued script statements SHALL be discarded, and local running state SHALL be cleared
+
+#### Scenario: Complete a DDL
+- **WHEN** a DDL execution succeeds
+- **THEN** metadata for the active database SHALL be invalidated and refreshed
+
+### Requirement: Accessible typed result presentation
+The frontend SHALL distinguish result sets, update counts, and DDL messages, SHALL present one result per executed statement together with a script summary, and SHALL preserve special database-value semantics.
+
+#### Scenario: Render a query result
+- **WHEN** RESULT_SET data arrives
+- **THEN** the frontend SHALL render a spreadsheet-style grid with typed column headers, a row-number column, sticky headers, virtualized/scrollable rows, selected-row and focused-cell chrome, a value panel for cell contents, client-side sort/filter/pin, row count, duration, truncation, a next-run row limit, and keyboard-accessible cell/row/result copy plus CSV export from the result footer
+
+#### Scenario: Render multiple statement results
+- **WHEN** a script executed more than one statement
+- **THEN** the result area SHALL offer one selectable result tab per statement that produced a result, each using the same grid behavior as a single execution, and SHALL keep the statement order of the script
+
+#### Scenario: Render a script summary
+- **WHEN** a script execution reaches a terminal state
+- **THEN** the frontend SHALL show a summary listing every statement in order with its type, terminal status, duration, and returned or affected row count, and SHALL mark the failing statement when execution stopped early
+
+#### Scenario: Render special cell values
+- **WHEN** a cell is NULL, empty string, long text, BIGINT/DECIMAL string, or binary descriptor
+- **THEN** the UI SHALL visibly distinguish NULL from empty, preserve numeric strings, collapse long text with detail access, and show binary type/size without raw bytes
+
+#### Scenario: Render an execution error
+- **WHEN** execution fails with SQLState/MySQL code or a stable 404/409/422/429/504 code
+- **THEN** the frontend SHALL show the safe mapped message and database codes while excluding stack, JDBC URL, credentials, and internal network details
+
+### Requirement: Query export workflow
+The frontend SHALL offer CSV export only for a successful query result and SHALL send only its execution ID and requested row limit.
+
+#### Scenario: Start an export
+- **WHEN** a user confirms that export re-executes the query
+- **THEN** the frontend SHALL fetch the CSV without automatic retry, keep it as a Blob, derive a safe filename, and start download without converting the payload to text
+
+#### Scenario: Cancel an export
+- **WHEN** a user cancels an in-progress download or leaves the page
+- **THEN** its AbortSignal SHALL stop the request and the UI SHALL return to an idle export state
+
+### Requirement: Current-user history workspace
+The frontend SHALL list/filter current-user history, display summaries, and reopen history SQL in a new tab.
+
+#### Scenario: Filter and paginate history
+- **WHEN** a user supplies keyword, connection, database, status, or type filters
+- **THEN** the frontend SHALL request server-side filtered cursor pages ordered newest first
+
+#### Scenario: Reopen available history
+- **WHEN** history detail reports an available connection
+- **THEN** the frontend SHALL open a new tab with the original SQL and connection without automatically executing it
+
+#### Scenario: Reopen unavailable history
+- **WHEN** history detail reports `connectionAvailable=false`
+- **THEN** the frontend SHALL restore SQL only and require a new connection selection
+
+### Requirement: SQL editor quality gates
+The second-stage frontend SHALL extend production contract mocks and repeatable unit, component, E2E, static, and build checks.
+
+#### Scenario: Verify editor behavior
+- **WHEN** frontend verification runs
+- **THEN** tests SHALL cover SQL extraction, special values, DDL metadata invalidation, SELECT/DML/DDL/error/cancel, CSV, metadata, and history core flows
+
+### Requirement: Script execution boundaries
+The frontend SHALL split script text with a scanner that ignores delimiters inside strings, quoted identifiers, and comments, SHALL execute each resulting statement as an independent single-statement request, and SHALL declare the resulting session and transaction limits to the user.
+
+#### Scenario: Split a script before execution
+- **WHEN** a user runs text containing more than one non-empty statement
+- **THEN** the frontend SHALL derive the statement list using the same delimiter rules as the backend scanner and SHALL send each statement as its own request with its own fresh UUID
+
+#### Scenario: Warn about session-scoped statements
+- **WHEN** a script to be executed contains a statement that depends on connection session state, such as `SET`, `CREATE TEMPORARY TABLE`, or `USE`
+- **THEN** the frontend SHALL warn before execution that session state does not carry across statements because each statement borrows its own pooled connection
+
+#### Scenario: Fall back when splitting is unreliable
+- **WHEN** the scanner finishes with an unterminated string, quoted identifier, or comment
+- **THEN** the frontend SHALL send the entire text as a single statement and SHALL let the backend return the authoritative error rather than rejecting the text locally
+
+#### Scenario: Exceed the script statement cap
+- **WHEN** a script splits into more statements than the configured maximum
+- **THEN** the frontend SHALL refuse to start execution and SHALL state the cap and that the script must be split
+

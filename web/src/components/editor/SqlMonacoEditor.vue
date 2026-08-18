@@ -6,13 +6,14 @@ import { useThemeStore } from '@/stores/theme'
 import 'monaco-editor/features/register.all'
 import 'monaco-editor/languages/definitions/mysql/register'
 import { format } from 'sql-formatter'
-import { splitSql, statementAt } from '@/sql-editor/sql'
+import { statementAt } from '@/sql-editor/sql'
 
 const props = defineProps<{ modelValue: string; suggestions?: string[] }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   run: [statement: string]
-  'run-all': [statement: string]
+  'run-script': [script: string]
+  'update:hasSelection': [value: boolean]
   notice: [message: string]
 }>()
 const theme = useThemeStore()
@@ -24,15 +25,26 @@ function monacoTheme(): string {
   return theme.scheme === 'dark' ? 'vs-dark' : 'vs'
 }
 
-function currentStatement(): string {
+function selectedText(): string {
   if (!editor) return ''
   const model = editor.getModel()
   const selection = editor.getSelection()
   if (!model || !selection) return ''
-  const selected = model.getValueInRange(selection).trim()
+  return model.getValueInRange(selection).trim()
+}
+function currentStatement(): string {
+  if (!editor) return ''
+  const selected = selectedText()
   if (selected) return selected
+  const model = editor.getModel()
   const position = editor.getPosition()
-  return position ? statementAt(model.getValue(), model.getOffsetAt(position))?.text || '' : ''
+  if (!model || !position) return ''
+  return statementAt(model.getValue(), model.getOffsetAt(position))?.text || ''
+}
+/** The selection when there is one, otherwise the whole editor. */
+function runnableScript(): string {
+  if (!editor) return ''
+  return selectedText() || (editor.getValue() || '').trim()
 }
 function installCompletion(): void {
   completion?.dispose()
@@ -57,6 +69,9 @@ function installCompletion(): void {
 }
 function getRunnableStatement(): string {
   return currentStatement()
+}
+function getRunnableScript(): string {
+  return runnableScript()
 }
 function formatSql(): void {
   if (!editor) return
@@ -118,6 +133,7 @@ onMounted(() => {
     suggestOnTriggerCharacters: true,
   })
   editor.onDidChangeModelContent(() => emit('update:modelValue', editor?.getValue() || ''))
+  editor.onDidChangeCursorSelection(() => emit('update:hasSelection', Boolean(selectedText())))
   editor.addAction({
     id: 'zorth-run',
     label: '运行当前语句',
@@ -125,14 +141,10 @@ onMounted(() => {
     run: () => emit('run', currentStatement()),
   })
   editor.addAction({
-    id: 'zorth-run-all',
-    label: '运行全部',
+    id: 'zorth-run-script',
+    label: '运行脚本',
     keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter],
-    run: () => {
-      const value = editor?.getValue() || ''
-      if (splitSql(value).length > 1) emit('notice', '暂不支持批量执行')
-      else emit('run-all', value.trim())
-    },
+    run: () => emit('run-script', runnableScript()),
   })
   editor.addAction({
     id: 'zorth-format',
@@ -163,7 +175,7 @@ onBeforeUnmount(() => {
   completion?.dispose()
   editor?.dispose()
 })
-defineExpose({ getRunnableStatement, formatSql, insertAtCursor, focus })
+defineExpose({ getRunnableStatement, getRunnableScript, formatSql, insertAtCursor, focus })
 </script>
 <template>
   <div ref="root" class="h-full min-h-[180px] w-full" aria-label="SQL 编辑器" />
