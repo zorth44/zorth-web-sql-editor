@@ -117,7 +117,7 @@ The SQL service SHALL provide bounded, lazy Hikari pools keyed by data-source ID
 
 #### Scenario: Discard a switched catalog when no default database exists
 - **WHEN** a request changed the connection catalog and the saved data source has no default database
-- **THEN** the service SHALL discard that connection instead of returning it to the pool with a leftover `USE`
+- **THEN** the service SHALL evict that connection from the target Hikari pool instead of returning it with a leftover `USE`, and SHALL NOT abort the physical JDBC connection in a way that leaves a closed connection reusable from the pool
 
 #### Scenario: Test a connection
 - **WHEN** either connection-test endpoint runs

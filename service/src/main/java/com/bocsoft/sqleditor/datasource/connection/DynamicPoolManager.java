@@ -48,6 +48,16 @@ public class DynamicPoolManager implements PoolLifecycle {
         } catch (SQLException | RuntimeException exception) { recordWait(started,"failed");throw exception; }
     }
 
+    public void evict(String id, Connection connection) {
+        PoolEntry entry = pools.get(id);
+        if (entry != null && !entry.dataSource.isClosed()) {
+            entry.dataSource.evictConnection(connection);
+        }
+        try {
+            if (connection != null && !connection.isClosed()) connection.close();
+        } catch (SQLException ignored) { }
+    }
+
     @Override public void invalidate(String id){PoolEntry entry=pools.remove(id);if(entry!=null)entry.close();}
     public int size(){return pools.size();}
 

@@ -611,7 +611,7 @@ sql-editor:
 
 1. `connection.setAutoCommit(true)`。
 2. 若数据源 `default_database` 非空，将 catalog 恢复为该值。Connector/J 不允许 `setCatalog(null)`，空默认库不得调用 `setCatalog`。
-3. 若默认库为空且本次请求已经切换过 catalog，丢弃该连接，不要带着残留的 `USE` 还池。
+3. 若默认库为空且本次请求已经切换过 catalog，从目标 Hikari 池逐出该连接（`HikariDataSource.evictConnection`），不要调用 `Connection.abort()` 后再还池——abort 会掐死物理连接却把已关闭的包装对象留在池里，下一个请求（例如查看表 DATA）就会在 `setAutoCommit` 时报 `No operations allowed after connection closed`。
 4. 清理警告；如有未提交事务（防御性）则 rollback。还池/丢弃失败不得覆盖已经成功的业务结果。
 5. 不要依赖用户 SQL 里的 `USE` 或 `SET SESSION` 对后续请求仍然生效。第二阶段若用户执行了这类语句，只影响当次连接，还池后丢弃。
 

@@ -22,7 +22,6 @@ class ConnectionUseTest {
         verify(connection).setCatalog("orders");
         verify(connection).clearWarnings();
         verify(connection).close();
-        verify(connection, never()).abort(any());
         verify(connection, never()).getCatalog();
     }
 
@@ -34,7 +33,6 @@ class ConnectionUseTest {
         String result = ConnectionUse.execute(connection, null, value -> "ok");
         assertThat(result).isEqualTo("ok");
         verify(connection, never()).setCatalog(any());
-        verify(connection, never()).abort(any());
         verify(connection).close();
     }
 
@@ -46,19 +44,29 @@ class ConnectionUseTest {
         String result = ConnectionUse.execute(connection, "  ", value -> "ok");
         assertThat(result).isEqualTo("ok");
         verify(connection, never()).setCatalog(any());
-        verify(connection, never()).abort(any());
         verify(connection).close();
     }
 
     @Test
-    void discardsConnectionWhenCatalogWasSwitchedAndDefaultIsBlank() throws Exception {
+    void evictsConnectionWhenCatalogWasSwitchedAndDefaultIsBlank() throws Exception {
+        Connection connection = mock(Connection.class);
+        when(connection.getAutoCommit()).thenReturn(true);
+        when(connection.getCatalog()).thenReturn("orders");
+        ConnectionUse.Evict evict = mock(ConnectionUse.Evict.class);
+        String result = ConnectionUse.execute(connection, null, evict, value -> "ok");
+        assertThat(result).isEqualTo("ok");
+        verify(connection, never()).setCatalog(any());
+        verify(evict).evict(connection);
+        verify(connection, never()).close();
+    }
+
+    @Test
+    void closesWhenCatalogWasSwitchedAndNoEvictCallback() throws Exception {
         Connection connection = mock(Connection.class);
         when(connection.getAutoCommit()).thenReturn(true);
         when(connection.getCatalog()).thenReturn("orders");
         String result = ConnectionUse.execute(connection, null, value -> "ok");
         assertThat(result).isEqualTo("ok");
-        verify(connection, never()).setCatalog(any());
-        verify(connection).abort(any());
         verify(connection).close();
     }
 

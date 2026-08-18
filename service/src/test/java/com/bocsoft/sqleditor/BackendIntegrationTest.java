@@ -100,6 +100,29 @@ class BackendIntegrationTest {
             .andExpect(jsonPath("$.items[*].name").value(org.hamcrest.Matchers.hasItem(MYSQL.getDatabaseName())));
     }
 
+    @Test void executesTablePreviewImmediatelyAfterListingTablesWhenDefaultDatabaseIsOmitted()throws Exception{
+        JsonNode created=createWithoutDefaultDatabase("token-a","空默认库预览");
+        String id=created.path("id").asText();
+        String database=MYSQL.getDatabaseName();
+        mvc.perform(get("/api/v1/data-sources/"+id+"/tables").param("database",database).header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items").isArray());
+        executeSelect(id,database,"SELECT * FROM `"+database+"`.`sql_data_source`");
+        executeSelect(id,database,"SELECT * FROM `"+database+"`.`sql_data_source`");
+    }
+
+    private void executeSelect(String dataSourceId,String database,String sql)throws Exception{
+        String executionId=java.util.UUID.randomUUID().toString();
+        MvcResult started=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+executionId+"\",\"dataSourceId\":\""+dataSourceId+"\",\"database\":\""+database+"\",\"statement\":\""+sql+"\",\"rowLimit\":100}"))
+            .andExpect(request().asyncStarted())
+            .andReturn();
+        mvc.perform(asyncDispatch(started))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.kind").value("RESULT_SET"))
+            .andExpect(jsonPath("$.code").doesNotExist());
+    }
+
     private JsonNode create(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payload(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andExpect(header().string("Location",org.hamcrest.Matchers.startsWith("/api/v1/data-sources/"))).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private JsonNode createWithoutDefaultDatabase(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payloadWithoutDefaultDatabase(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private static String payload(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
