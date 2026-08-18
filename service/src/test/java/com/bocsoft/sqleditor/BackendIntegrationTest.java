@@ -90,8 +90,20 @@ class BackendIntegrationTest {
 
     @Test void openApiAndOperationalSurfacesRemainSecretFree()throws Exception{MvcResult result=mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn();String openApi=result.getResponse().getContentAsString();assertThat(openApi).contains("\"writeOnly\":true").doesNotContain("passwordCiphertext").doesNotContain("passwordIv").doesNotContain("keyVersion").doesNotContain("internalServiceKey");mvc.perform(get("/actuator/env")).andExpect(status().is4xxClientError());mvc.perform(get("/actuator/configprops")).andExpect(status().is4xxClientError());mvc.perform(get("/actuator/heapdump")).andExpect(status().is4xxClientError());}
 
+    @Test void listsVisibleDatabasesWhenDefaultDatabaseIsOmitted()throws Exception{
+        JsonNode created=createWithoutDefaultDatabase("token-a","空默认库");
+        String id=created.path("id").asText();
+        assertThat(created.path("defaultDatabase").isMissingNode() || created.path("defaultDatabase").isNull()).isTrue();
+        mvc.perform(get("/api/v1/data-sources/"+id+"/databases").header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").doesNotExist())
+            .andExpect(jsonPath("$.items[*].name").value(org.hamcrest.Matchers.hasItem(MYSQL.getDatabaseName())));
+    }
+
     private JsonNode create(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payload(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andExpect(header().string("Location",org.hamcrest.Matchers.startsWith("/api/v1/data-sources/"))).andReturn();return json.readTree(result.getResponse().getContentAsString());}
+    private JsonNode createWithoutDefaultDatabase(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payloadWithoutDefaultDatabase(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private static String payload(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
+    private static String payloadWithoutDefaultDatabase(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
     private static String connectionPayload(String password){return "{\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"}}";}
     private static String connectionPayloadDatabase(String password,String database){return connectionPayload(password).replace("\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\"","\"defaultDatabase\":\""+database+"\"");}
     private static String connectionPayloadPort(String password,int port){return connectionPayload(password).replace("\"port\":"+MYSQL.getMappedPort(3306),"\"port\":"+port);}

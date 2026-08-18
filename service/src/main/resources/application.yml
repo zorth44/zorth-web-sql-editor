@@ -40,7 +40,7 @@ sql-editor:
     signing-key: ${SQL_EDITOR_CURSOR_SIGNING_KEY:YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk=}
     maximum-token-length: ${SQL_EDITOR_CURSOR_MAXIMUM_TOKEN_LENGTH:2048}
   network:
-    allowed-cidrs: ${SQL_EDITOR_NETWORK_ALLOWED_CIDRS:127.0.0.0/8}
+    allowed-cidrs: ${SQL_EDITOR_NETWORK_ALLOWED_CIDRS:127.0.0.0/8,10.118.247.8/32}
     denied-cidrs: ${SQL_EDITOR_NETWORK_DENIED_CIDRS:169.254.0.0/16,::1/128,fe80::/10}
   pools:
     max-pools: ${SQL_EDITOR_TARGET_MAX_POOLS:10}

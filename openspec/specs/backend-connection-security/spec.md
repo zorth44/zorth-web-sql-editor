@@ -109,7 +109,15 @@ The SQL service SHALL provide bounded, lazy Hikari pools keyed by data-source ID
 
 #### Scenario: Return a borrowed connection
 - **WHEN** an internal consumer finishes using a pooled connection
-- **THEN** it SHALL rollback defensively when needed, restore auto-commit and the configured catalog, clear warnings, and release resources with deterministic close semantics
+- **THEN** it SHALL rollback defensively when needed, restore auto-commit, restore the configured catalog only when `defaultDatabase` is non-empty, clear warnings, and release resources with deterministic close semantics
+
+#### Scenario: Return a connection with no default database
+- **WHEN** the saved data source has a null or blank `defaultDatabase`
+- **THEN** the service SHALL NOT call `setCatalog(null)` or `setCatalog("")`, and SHALL NOT fail a successful consumer result because catalog restore is impossible on Connector/J
+
+#### Scenario: Discard a switched catalog when no default database exists
+- **WHEN** a request changed the connection catalog and the saved data source has no default database
+- **THEN** the service SHALL discard that connection instead of returning it to the pool with a leftover `USE`
 
 #### Scenario: Test a connection
 - **WHEN** either connection-test endpoint runs

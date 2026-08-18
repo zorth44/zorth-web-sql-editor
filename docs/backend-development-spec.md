@@ -610,9 +610,10 @@ sql-editor:
 还池前必须重置会话，避免 `USE` / `SET` / `setCatalog` 污染下一个请求：
 
 1. `connection.setAutoCommit(true)`。
-2. 将 catalog 恢复为数据源 `default_database`；若为空则设为 `null`。
-3. 清理警告；如有未提交事务（防御性）则 rollback。
-4. 不要依赖用户 SQL 里的 `USE` 或 `SET SESSION` 对后续请求仍然生效。第二阶段若用户执行了这类语句，只影响当次连接，还池后丢弃。
+2. 若数据源 `default_database` 非空，将 catalog 恢复为该值。Connector/J 不允许 `setCatalog(null)`，空默认库不得调用 `setCatalog`。
+3. 若默认库为空且本次请求已经切换过 catalog，丢弃该连接，不要带着残留的 `USE` 还池。
+4. 清理警告；如有未提交事务（防御性）则 rollback。还池/丢弃失败不得覆盖已经成功的业务结果。
+5. 不要依赖用户 SQL 里的 `USE` 或 `SET SESSION` 对后续请求仍然生效。第二阶段若用户执行了这类语句，只影响当次连接，还池后丢弃。
 
 测试连接使用短生命周期连接，测完立即关闭，不要把测试连接放进业务池。
 
@@ -1029,7 +1030,7 @@ com.bocsoft.sqleditor
 
 第二阶段：
 
-- 数据库/表/字段/主键/索引元数据。
+- 数据库/表/字段/主键/索引元数据；`defaultDatabase` 为空时列库仍返回账号可见的非系统库。
 - SELECT、INSERT、UPDATE、DELETE、CREATE、ALTER、DROP、SHOW DATABASES。
 - 账号权限不足时保留 MySQL 错误码。
 - 超时和取消后连接能归还池；取消请求在执行占用期间仍能被处理。
