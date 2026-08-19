@@ -45,4 +45,10 @@ public class EngineRegistry {
         if (!StringUtils.hasText(id)) return require(EngineId.MYSQL);
         return requireSaved(id);
     }
+
+    public List<EngineDescriptor> descriptors() {
+        List<EngineDescriptor> items = new java.util.ArrayList<EngineDescriptor>();
+        for (EngineSupport engine : engines.values()) items.add(engine.descriptor());
+        return Collections.unmodifiableList(items);
+    }
 }

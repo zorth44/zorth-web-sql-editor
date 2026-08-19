@@ -74,6 +74,14 @@ The SQL service SHALL implement `POST /api/v1/data-sources:test` using a short-l
 - **WHEN** an unsaved test request includes name, description, user, product, or permission fields
 - **THEN** the service SHALL return `400 VALIDATION_FAILED` without attempting a connection
 
+#### Scenario: Dispatch the submitted engine
+- **WHEN** the test body includes a registered `engine`
+- **THEN** the service SHALL build JDBC and classify failures through that engine
+
+#### Scenario: Default MYSQL when engine is omitted
+- **WHEN** the test body omits `engine`
+- **THEN** the service SHALL dispatch MYSQL and SHALL still attempt the connection when the remaining fields are valid
+
 ### Requirement: Test a visible saved data source
 The SQL service SHALL implement both saved and unsaved-edit modes of `POST /api/v1/data-sources/{id}:test` without changing configuration versions.
 

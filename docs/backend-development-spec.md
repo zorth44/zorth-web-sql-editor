@@ -316,6 +316,51 @@ GET /api/v1/session
 - 未声明的 `properties` 键和值一律返回 `400 VALIDATION_FAILED`，不得静默丢弃。
 - 数据源写接口使用严格请求 DTO；所有未声明字段均返回 `400 VALIDATION_FAILED`。因此客户端尝试提交产品字段时不会被静默接受。
 
+### 8.0 引擎目录
+
+```http
+GET /api/v1/engines
+```
+
+登录即可调用，不要求 `DATA_SOURCE_MANAGE`，也不打开目标库连接。返回当前已注册引擎的描述（字段、JDBC 属性、资源树、编辑器语言），供表单和资源树渲染。当前只注册 MYSQL。响应不含密码、完整 JDBC URL、CIDR 策略或加密材料。
+
+```json
+{
+  "items": [
+    {
+      "id": "MYSQL",
+      "displayName": "MySQL",
+      "family": "MYSQL_WIRE",
+      "defaultPort": 3306,
+      "editorLanguage": "mysql",
+      "capabilities": {
+        "defaultNamespaceRequired": false,
+        "canSwitchNamespaceOnConnection": true
+      },
+      "connectionFields": [
+        { "name": "host", "kind": "HOST", "widget": "TEXT", "label": "Host", "required": true, "maxLength": 255 },
+        { "name": "port", "kind": "PORT", "widget": "NUMBER", "label": "Port", "required": true, "min": 1, "max": 65535, "defaultValue": "3306" },
+        { "name": "username", "kind": "USERNAME", "widget": "TEXT", "label": "用户名", "required": true, "maxLength": 128 },
+        { "name": "password", "kind": "PASSWORD", "widget": "PASSWORD", "label": "密码", "required": false, "requiredOnCreate": true, "maxLength": 1024 },
+        { "name": "defaultDatabase", "kind": "DEFAULT_NAMESPACE", "widget": "TEXT", "label": "默认数据库", "required": false, "maxLength": 64 },
+        { "name": "sslMode", "kind": "SSL_MODE", "widget": "SELECT", "label": "SSL 模式", "required": true, "defaultValue": "PREFERRED" },
+        { "name": "connectTimeoutSeconds", "kind": "TIMEOUT", "widget": "NUMBER", "label": "连接超时（秒）", "required": true, "min": 1, "max": 30, "defaultValue": "10" }
+      ],
+      "propertyFields": [
+        { "name": "serverTimezone", "widget": "TEXT", "label": "serverTimezone", "defaultValue": "Asia/Shanghai" }
+      ],
+      "resourceTree": [
+        { "kind": "NAMESPACE", "label": "数据库", "filterLabel": "筛选数据库", "listEndpoint": "databases" },
+        { "kind": "TABLE", "label": "表", "filterLabel": "筛选表名", "parentKind": "NAMESPACE" },
+        { "kind": "VIEW", "label": "视图", "parentKind": "NAMESPACE" }
+      ]
+    }
+  ]
+}
+```
+
+`connectionFields[].name` 必须是现有请求字段；`DEFAULT_NAMESPACE` 对应 `defaultDatabase`，不新增持久化 JSON 字段。`resourceTree` 第一层 `NAMESPACE` 的 `listEndpoint=databases` 表示沿用 `GET /api/v1/data-sources/{id}/databases`，路径和查询参数不改名。
+
 ### 8.1 列表
 
 ```http
@@ -477,10 +522,11 @@ DELETE /api/v1/data-sources/{id}?version=3
 POST /api/v1/data-sources:test
 ```
 
-只接收以下连接字段，不接收 `name`、`description` 或产品字段：
+只接收以下连接字段，不接收 `name`、`description` 或产品字段。`engine` 可选：传入则必须是已注册引擎；省略时仍按 MYSQL 测试。未知 `engine` 返回 `400 VALIDATION_FAILED`，不发起连接。
 
 ```json
 {
+  "engine": "MYSQL",
   "host": "mysql.internal",
   "port": 3306,
   "username": "order_dev",
@@ -623,15 +669,26 @@ sql-editor:
 
 所有元数据接口先校验数据源 `product_id` 与当前产品一致（失败一律 404），再使用目标 MySQL 账号访问。数据库账号看不到的对象不额外暴露。本节为第二阶段。
 
-### 11.1 数据库列表
+### 11.1 数据库列表（NAMESPACE 适配）
 
 ```http
 GET /api/v1/data-sources/{id}/databases?keyword=&pageSize=100&pageToken=&includeSystem=false
 ```
 
+该路径是引擎目录里 `NAMESPACE` 的适配接口：产品层叫 NAMESPACE，MYSQL 实现仍列出 catalog/schema。路径、查询参数和 JSON 字段 `name` 都不改名；每项增加 `kind=NAMESPACE`。表和表结构接口继续用查询参数/字段 `database` 表示父 NAMESPACE 名。
+
 `pageSize` 默认 100，上限 200。数据来源可使用 `DatabaseMetaData#getCatalogs()` 或 `INFORMATION_SCHEMA.SCHEMATA`。是否在导航中展示系统库由 `includeSystem` 和配置决定，默认隐藏 `information_schema`、`performance_schema`、`mysql` 和 `sys`。
 
 隐藏系统库只影响元数据导航。用户在 SQL 编辑器里仍可查询这些库，最终可见性以 MySQL 账号为准；`SELECT INTO OUTFILE` 等同样不额外拦截。
+
+```json
+{
+  "items": [
+    { "name": "orders", "kind": "NAMESPACE" }
+  ],
+  "nextPageToken": null
+}
+```
 
 ### 11.2 表和视图
 
@@ -976,13 +1033,14 @@ com.bocsoft.sqleditor
     DataSourceService
     CredentialCipher
     DynamicPoolManager
+  engine/
+    EngineSupport
+    EngineRegistry
+    EngineCatalogController
+    mysql/MysqlEngineSupport
   metadata/
     MetadataController
     MetadataService
-    engine/
-      EngineSupport
-      EngineRegistry
-      mysql/MysqlEngineSupport
   execution/
     SqlExecutionController
     SqlExecutionService

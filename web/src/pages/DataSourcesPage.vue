@@ -3,9 +3,11 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useMutation, useQuery } from '@tanstack/vue-query'
 import { Plus, Search, FlaskConical, Pencil, Trash2 } from 'lucide-vue-next'
 import { deleteDataSource, listDataSources, testSavedDataSource } from '@/api/data-sources'
+import { listEngines } from '@/api/engines'
 import { safeErrorMessage } from '@/api/api-error'
 import { canManageDataSources } from '@/api/session'
 import { dataSourceInUse } from '@/data-sources/api-errors'
+import { engineDisplayName } from '@/data-sources/catalog'
 import { queryClient, queryKeys } from '@/query/client'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -41,6 +43,14 @@ const listQuery = useQuery({
     }),
   staleTime: 30_000,
 })
+const enginesQuery = useQuery({
+  queryKey: queryKeys.engines(),
+  queryFn: listEngines,
+  staleTime: 60_000,
+})
+function typeLabel(engine: string): string {
+  return engineDisplayName(enginesQuery.data.value?.items, engine)
+}
 
 watch(inputKeyword, (value) => {
   window.clearTimeout(debounceTimer)
@@ -190,7 +200,7 @@ function formatTime(value: string | null): string {
               >
                 <td class="px-5 py-4">
                   <strong class="block">{{ item.name }}</strong
-                  ><span class="text-xs text-muted">MySQL · {{ item.id }}</span>
+                  ><span class="text-xs text-muted">{{ typeLabel(item.engine) }} · {{ item.id }}</span>
                 </td>
                 <td class="px-5 py-4">
                   <span class="block">{{ item.host }}:{{ item.port }}</span

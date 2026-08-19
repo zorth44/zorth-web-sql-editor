@@ -42,8 +42,8 @@ export interface ApiErrorBody {
     | Record<string, unknown>
 }
 
-export type Engine = 'MYSQL'
-export type SslMode = 'DISABLED' | 'PREFERRED' | 'REQUIRED'
+export type Engine = string
+export type SslMode = string
 export type TestStatus = 'SUCCESS' | 'FAILED'
 export type ConnectionFailureCode =
   | 'AUTHENTICATION_FAILED'
@@ -52,16 +52,7 @@ export type ConnectionFailureCode =
   | 'DATABASE_NOT_FOUND'
   | 'TLS_FAILED'
   | 'CONNECTION_FAILED'
-export type JdbcProperties = Partial<
-  Record<
-    | 'serverTimezone'
-    | 'characterSetResults'
-    | 'zeroDateTimeBehavior'
-    | 'tinyInt1isBit'
-    | 'sendFractionalSeconds',
-    string
-  >
->
+export type JdbcProperties = Record<string, string>
 
 export interface DataSourceListItem {
   id: string
@@ -102,6 +93,7 @@ export interface DataSourceListParams {
 }
 
 export interface ConnectionFields {
+  engine?: Engine
   host: string
   port: number
   username: string
@@ -139,6 +131,7 @@ export interface ConnectionTestResult {
 
 export interface DatabaseItem {
   name: string
+  kind?: 'NAMESPACE'
 }
 export type DatabaseObjectType = 'TABLE' | 'VIEW'
 export interface TableItem {
@@ -251,4 +244,58 @@ export interface HistoryListParams {
   statementType?: StatementType | ''
   pageSize?: number
   pageToken?: string
+}
+
+export type EngineFieldWidget = 'TEXT' | 'NUMBER' | 'PASSWORD' | 'SELECT'
+export type EngineFieldKind =
+  | 'HOST'
+  | 'PORT'
+  | 'USERNAME'
+  | 'PASSWORD'
+  | 'DEFAULT_NAMESPACE'
+  | 'SSL_MODE'
+  | 'TIMEOUT'
+export type ResourceTreeKind = 'NAMESPACE' | 'TABLE' | 'VIEW' | 'PARTITION'
+
+export interface EngineFieldOption {
+  value: string
+  label: string
+}
+export interface EngineField {
+  name: string
+  kind?: EngineFieldKind | string
+  widget: EngineFieldWidget | string
+  label: string
+  required: boolean
+  requiredOnCreate?: boolean
+  min?: number
+  max?: number
+  maxLength?: number
+  defaultValue?: string
+  options?: EngineFieldOption[]
+}
+export interface ResourceTreeLevel {
+  kind: ResourceTreeKind | string
+  label: string
+  filterLabel?: string
+  listEndpoint?: string
+  parentKind?: string
+}
+export interface EngineCapabilities {
+  defaultNamespaceRequired: boolean
+  canSwitchNamespaceOnConnection: boolean
+}
+export interface EngineDescriptor {
+  id: Engine
+  displayName: string
+  family: string
+  defaultPort: number
+  editorLanguage: string
+  capabilities: EngineCapabilities
+  connectionFields: EngineField[]
+  propertyFields: EngineField[]
+  resourceTree: ResourceTreeLevel[]
+}
+export interface EngineCatalog {
+  items: EngineDescriptor[]
 }

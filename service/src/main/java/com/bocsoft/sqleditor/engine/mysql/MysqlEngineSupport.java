@@ -4,13 +4,18 @@ import com.bocsoft.sqleditor.datasource.connection.ConnectionConfiguration;
 import com.bocsoft.sqleditor.datasource.connection.JdbcTarget;
 import com.bocsoft.sqleditor.datasource.connection.ResolvedTarget;
 import com.bocsoft.sqleditor.engine.ConnectionFailure;
+import com.bocsoft.sqleditor.engine.EngineCapabilities;
+import com.bocsoft.sqleditor.engine.EngineDescriptor;
+import com.bocsoft.sqleditor.engine.EngineField;
 import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.ResourceTreeLevel;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -27,6 +32,29 @@ public class MysqlEngineSupport implements EngineSupport {
     @Override public boolean defaultNamespaceRequired() { return false; }
     @Override public boolean canSwitchNamespaceOnConnection() { return true; }
     @Override public int identifierMaxLength() { return 64; }
+
+    @Override public EngineDescriptor descriptor() {
+        return new EngineDescriptor(
+            id(), "MySQL", family(), 3306, "mysql",
+            new EngineCapabilities(defaultNamespaceRequired(), canSwitchNamespaceOnConnection()),
+            Arrays.asList(
+                EngineField.connection("host", "HOST", "TEXT", "Host", true, null, null, Integer.valueOf(255), null, null),
+                EngineField.connection("port", "PORT", "NUMBER", "Port", true, Integer.valueOf(1), Integer.valueOf(65535), null, "3306", null),
+                EngineField.connection("username", "USERNAME", "TEXT", "用户名", true, null, null, Integer.valueOf(128), null, null),
+                EngineField.password("password", "密码", 1024),
+                EngineField.connection("defaultDatabase", "DEFAULT_NAMESPACE", "TEXT", "默认数据库", false, null, null, Integer.valueOf(64), null, null),
+                EngineField.connection("sslMode", "SSL_MODE", "SELECT", "SSL 模式", true, null, null, null, "PREFERRED",
+                    EngineField.labeled("DISABLED", "禁用", "PREFERRED", "优先", "REQUIRED", "必需")),
+                EngineField.connection("connectTimeoutSeconds", "TIMEOUT", "NUMBER", "连接超时（秒）", true, Integer.valueOf(1), Integer.valueOf(30), null, "10", null)
+            ),
+            MysqlJdbc.PROPERTY_FIELDS,
+            Arrays.asList(
+                ResourceTreeLevel.namespace("数据库", "筛选数据库", "databases"),
+                ResourceTreeLevel.child("TABLE", "表", "筛选表名", "NAMESPACE"),
+                ResourceTreeLevel.child("VIEW", "视图", null, "NAMESPACE")
+            )
+        );
+    }
 
     @Override public Map<String, String> validateProperties(Map<String, String> properties) { return jdbc.validateProperties(properties); }
     @Override public JdbcTarget buildJdbc(ConnectionConfiguration configuration, ResolvedTarget resolved) { return jdbc.build(configuration, resolved); }

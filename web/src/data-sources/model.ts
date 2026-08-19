@@ -3,13 +3,17 @@ import type {
   CreateDataSourceRequest,
   DataSourceDetail,
   EditConnectionTestRequest,
+  Engine,
   JdbcProperties,
   SslMode,
   UpdateDataSourceRequest,
 } from '@/types/contracts'
+import { sanitizeProperties } from '@/data-sources/catalog'
+import type { EngineDescriptor } from '@/types/contracts'
 
 export interface DataSourceFormModel {
   name: string
+  engine: Engine
   host: string
   port: number
   username: string
@@ -24,6 +28,7 @@ export interface DataSourceFormModel {
 export function emptyDataSourceForm(): DataSourceFormModel {
   return {
     name: '',
+    engine: 'MYSQL',
     host: '',
     port: 3306,
     username: '',
@@ -39,6 +44,7 @@ export function emptyDataSourceForm(): DataSourceFormModel {
 export function detailToForm(detail: DataSourceDetail): DataSourceFormModel {
   return {
     name: detail.name,
+    engine: detail.engine,
     host: detail.host,
     port: detail.port,
     username: detail.username,
@@ -51,8 +57,12 @@ export function detailToForm(detail: DataSourceDetail): DataSourceFormModel {
   }
 }
 
-function connectionFields(form: DataSourceFormModel): EditConnectionTestRequest {
+function connectionFields(
+  form: DataSourceFormModel,
+  descriptor?: EngineDescriptor,
+): EditConnectionTestRequest {
   return {
+    engine: form.engine,
     host: form.host.trim(),
     port: Number(form.port),
     username: form.username.trim(),
@@ -60,15 +70,18 @@ function connectionFields(form: DataSourceFormModel): EditConnectionTestRequest 
     defaultDatabase: form.defaultDatabase.trim() || null,
     sslMode: form.sslMode,
     connectTimeoutSeconds: Number(form.connectTimeoutSeconds),
-    properties: { ...form.properties },
+    properties: sanitizeProperties({ ...form.properties }, descriptor),
   }
 }
 
-export function mapCreateRequest(form: DataSourceFormModel): CreateDataSourceRequest {
+export function mapCreateRequest(
+  form: DataSourceFormModel,
+  descriptor?: EngineDescriptor,
+): CreateDataSourceRequest {
   return {
     name: form.name.trim(),
-    engine: 'MYSQL',
-    ...connectionFields(form),
+    engine: form.engine,
+    ...connectionFields(form, descriptor),
     password: form.password,
     description: form.description.trim() || null,
   }
@@ -76,18 +89,25 @@ export function mapCreateRequest(form: DataSourceFormModel): CreateDataSourceReq
 export function mapUpdateRequest(
   form: DataSourceFormModel,
   version: number,
+  descriptor?: EngineDescriptor,
 ): UpdateDataSourceRequest {
   return {
     name: form.name.trim(),
-    engine: 'MYSQL',
-    ...connectionFields(form),
+    engine: form.engine,
+    ...connectionFields(form, descriptor),
     description: form.description.trim() || null,
     version,
   }
 }
-export function mapCreateTestRequest(form: DataSourceFormModel): CreateConnectionTestRequest {
-  return { ...connectionFields(form), password: form.password }
+export function mapCreateTestRequest(
+  form: DataSourceFormModel,
+  descriptor?: EngineDescriptor,
+): CreateConnectionTestRequest {
+  return { ...connectionFields(form, descriptor), password: form.password }
 }
-export function mapEditTestRequest(form: DataSourceFormModel): EditConnectionTestRequest {
-  return connectionFields(form)
+export function mapEditTestRequest(
+  form: DataSourceFormModel,
+  descriptor?: EngineDescriptor,
+): EditConnectionTestRequest {
+  return connectionFields(form, descriptor)
 }

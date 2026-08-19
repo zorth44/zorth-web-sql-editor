@@ -7,7 +7,9 @@ import { getTableDetail, listDatabases, listTables } from '@/api/metadata'
 beforeEach(() => saveToken('mock-token', false))
 describe('phase-two API contracts', () => {
   it('uses frozen metadata shapes', async () => {
-    expect((await listDatabases('ds-orders-a')).items.map((item) => item.name)).toContain('orders')
+    const databases = await listDatabases('ds-orders-a')
+    expect(databases.items.map((item) => item.name)).toContain('orders')
+    expect(databases.items.every((item) => item.kind === 'NAMESPACE')).toBe(true)
     expect((await listTables('ds-orders-a', 'orders')).items[0]?.type).toBe('TABLE')
     expect(
       (await getTableDetail('ds-orders-a', 'orders', 'order_item')).primaryKey?.columns,

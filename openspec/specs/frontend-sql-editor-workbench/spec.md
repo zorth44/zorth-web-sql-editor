@@ -2,29 +2,55 @@
 
 ## Purpose
 
-Define the SQL workspace: the resource navigator and lazy metadata browsing for visible data sources, connection-bound recoverable tabs, Monaco MySQL editing, execution and cancellation interaction, result presentation, CSV export, and the current-user history workspace.
+Define the SQL workspace: the resource navigator and lazy metadata browsing for visible data sources, connection-bound recoverable tabs, Monaco editing from the engine catalog, execution and cancellation interaction, result presentation, CSV export, and the current-user history workspace.
 ## Requirements
+### Requirement: Catalog-driven NAMESPACE navigator
+The resource tree SHALL treat the first layer under a data source as `NAMESPACE` and SHALL load it through the selected engine's catalog `listEndpoint`. For MYSQL that endpoint is the existing databases API. Tree labels and filter placeholders SHALL come from that engine's `resourceTree` entry.
+
+#### Scenario: Expand MYSQL namespaces through databases
+- **WHEN** the user expands a data source whose `engine` is MYSQL
+- **THEN** the frontend SHALL call `GET /api/v1/data-sources/{id}/databases` and render each item as a NAMESPACE node using the catalog NAMESPACE label
+
+#### Scenario: Bind the editor from a NAMESPACE node
+- **WHEN** the user selects a NAMESPACE or a table under it
+- **THEN** the workspace SHALL bind the active tab using the existing `dataSourceId` and `database` URL parameters, where `database` holds the NAMESPACE name
+
+#### Scenario: Ignore unknown tree kinds
+- **WHEN** a catalog `resourceTree` contains a kind other than NAMESPACE, TABLE, or VIEW
+- **THEN** the frontend SHALL skip that level without failing the tree render
+
+### Requirement: Editor language from engine catalog
+The SQL editor SHALL set Monaco language from the bound data source engine's `editorLanguage`. MYSQL SHALL use `mysql`. If the catalog is unavailable or the language is not registered, the editor SHALL fall back to `mysql` and remain editable.
+
+#### Scenario: Open a MYSQL-bound tab
+- **WHEN** the active tab is bound to a MYSQL data source
+- **THEN** Monaco SHALL use language `mysql`
+
+#### Scenario: Open an unbound welcome-created tab
+- **WHEN** a SQL tab has no data source yet
+- **THEN** the editor SHALL use `mysql` until a data source is bound
+
 ### Requirement: Data-source-rooted resource navigator
-The SQL workspace sidebar SHALL list visible data sources as tree roots. Expanding a data source SHALL lazily load its databases; expanding a database SHALL lazily load tables and views. Each editor tab SHALL display its bound data source and database. The workspace SHALL NOT place data-source or database selectors above the tab bar; connection changes SHALL come from the resource tree. The active tab SHALL remain visually distinct from inactive tabs without relying on focus styling.
+The SQL workspace sidebar SHALL list visible data sources as tree roots. Expanding a data source SHALL lazily load its NAMESPACE children; expanding a NAMESPACE SHALL lazily load tables and views. Each editor tab SHALL display its bound data source and NAMESPACE name. The workspace SHALL NOT place data-source or NAMESPACE selectors above the tab bar; connection changes SHALL come from the resource tree. The active tab SHALL remain visually distinct from inactive tabs without relying on focus styling.
 
 #### Scenario: Browse from a data source
 - **WHEN** the resource tree is shown and the user has visible data sources
-- **THEN** the tree SHALL render those data sources as top-level nodes, each labeled with name and host/port, and SHALL NOT render databases until their parent data source is expanded
+- **THEN** the tree SHALL render those data sources as top-level nodes, each labeled with name and host/port, and SHALL NOT render NAMESPACE children until their parent data source is expanded
 
 #### Scenario: Expand a data source
 - **WHEN** a user expands a data source node
-- **THEN** the frontend SHALL fetch that source's databases on demand and show them as children of the data source
+- **THEN** the frontend SHALL fetch that source's NAMESPACE list on demand through the catalog `listEndpoint` and show them as children of the data source
 
 #### Scenario: Keep multiple data sources expanded
 - **WHEN** a user expands a second data source while another remains expanded
-- **THEN** both sources' loaded databases SHALL remain visible and query keys SHALL stay scoped by data source id
+- **THEN** both sources' loaded NAMESPACE children SHALL remain visible and query keys SHALL stay scoped by data source id
 
 #### Scenario: Bind the editor from the tree
-- **WHEN** a user selects a database or table in the tree while a SQL tab is active
-- **THEN** the workspace SHALL bind the active tab to that data source and database, SHALL show that source name and database on the tab, and SHALL update URL parameters to match
+- **WHEN** a user selects a NAMESPACE or table in the tree while a SQL tab is active
+- **THEN** the workspace SHALL bind the active tab to that data source and NAMESPACE, SHALL show that source name and NAMESPACE on the tab, and SHALL update URL parameters `dataSourceId` and `database` to match
 
 #### Scenario: Select a connection on the welcome page
-- **WHEN** a user selects a database in the tree while no editor tab is open
+- **WHEN** a user selects a NAMESPACE in the tree while no editor tab is open
 - **THEN** the workspace SHALL update URL parameters and tree highlight and SHALL NOT create a SQL tab
 
 #### Scenario: Identify the active tab
@@ -33,15 +59,15 @@ The SQL workspace sidebar SHALL list visible data sources as tree roots. Expandi
 
 #### Scenario: Switch tabs
 - **WHEN** a user activates another tab
-- **THEN** the workspace SHALL restore that tab's bound data source and database in the URL, tree highlight, and status bar without changing other tabs' bindings
+- **THEN** the workspace SHALL restore that tab's bound data source and NAMESPACE in the URL, tree highlight, and status bar without changing other tabs' bindings
 
 #### Scenario: Filter databases and tables under an expanded source
 - **WHEN** a user expands a data source
-- **THEN** the tree SHALL show two filters under that source, labeled as database-name and table-name filters, and SHALL NOT show a global data-source search
-- **WHEN** the user types a database name in that source's database filter
-- **THEN** only matching databases of that source SHALL remain visible
+- **THEN** the tree SHALL show two filters under that source, labeled from the catalog NAMESPACE and table-level `filterLabel` values, and SHALL NOT show a global data-source search
+- **WHEN** the user types a NAMESPACE name in that source's NAMESPACE filter
+- **THEN** only matching NAMESPACE children of that source SHALL remain visible
 - **WHEN** the user types a table name in that source's table filter
-- **THEN** tables and views under already-expanded databases of that source SHALL be filtered
+- **THEN** tables and views under already-expanded NAMESPACE children of that source SHALL be filtered
 
 #### Scenario: No visible data sources
 - **WHEN** the current user has no visible data sources
@@ -56,11 +82,11 @@ The SQL workspace sidebar SHALL list visible data sources as tree roots. Expandi
 - **THEN** the main pane SHALL show the welcome page again and SHALL NOT immediately create a replacement tab
 
 ### Requirement: Lazy metadata resource browser
-The workspace SHALL browse data sources, databases, tables/views, columns, primary keys, and indexes through the metadata APIs with search and layer-specific refresh. Metadata caches SHALL be keyed by data source id so identically named databases on different sources stay isolated.
+The workspace SHALL browse data sources, NAMESPACE children, tables/views, columns, primary keys, and indexes through the metadata APIs with search and layer-specific refresh. Metadata caches SHALL be keyed by data source id so identically named NAMESPACE values on different sources stay isolated.
 
 #### Scenario: Expand resources
-- **WHEN** a user expands a data source, expands a database, and opens a table
-- **THEN** the frontend SHALL lazily fetch databases for that source, then tables/views, then table detail and show fields, key, index, type, nullability, and comments
+- **WHEN** a user expands a data source, expands a NAMESPACE, and opens a table
+- **THEN** the frontend SHALL lazily fetch NAMESPACE children for that source through the existing databases API, then tables/views, then table detail and show fields, key, index, type, nullability, and comments
 
 #### Scenario: Change data source
 - **WHEN** a different data source becomes the active editor connection
@@ -158,7 +184,7 @@ The workspace SHALL open on a welcome page when no editor tab is open, support m
 - **THEN** the frontend SHALL require confirmation before discarding it
 
 ### Requirement: Monaco MySQL editing
-The frontend SHALL wrap Monaco with MySQL language behavior, formatting, metadata completion, and documented keyboard commands, and SHALL expose whether a selection exists so run affordances can label themselves.
+The frontend SHALL wrap Monaco with the bound engine's catalog language (MYSQL: `mysql`), formatting, metadata completion, and documented keyboard commands, and SHALL expose whether a selection exists so run affordances can label themselves.
 
 #### Scenario: Execute selection or current statement
 - **WHEN** a user presses Cmd/Ctrl+Enter
@@ -177,8 +203,8 @@ The frontend SHALL wrap Monaco with MySQL language behavior, formatting, metadat
 - **THEN** the frontend SHALL prevent browser save and state that worksheet persistence is not available
 
 #### Scenario: Request completion
-- **WHEN** completion is requested for the active connection/database
-- **THEN** Monaco SHALL offer known database, table/view, and column names without inserting credentials or untrusted executable snippets
+- **WHEN** completion is requested for the active connection/NAMESPACE
+- **THEN** Monaco SHALL offer known NAMESPACE, table/view, and column names without inserting credentials or untrusted executable snippets
 
 ### Requirement: Execution and cancellation interaction
 The frontend SHALL execute with a fresh UUID per statement, run multi-statement scripts serially within the owning tab, prevent duplicate submission per tab, cap active tabs at three executions, and expose cancellation for both single statements and scripts.

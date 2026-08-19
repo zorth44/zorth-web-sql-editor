@@ -12,6 +12,7 @@ const fake = {
   value: 'select 1;\nselect 2;',
   selection: '',
   cursorOffset: 0,
+  createdLanguage: 'mysql',
   selectionListener: (() => {}) as () => void,
 }
 
@@ -24,7 +25,9 @@ vi.mock('monaco-editor/editor', () => ({
   },
   editor: {
     setTheme: () => {},
-    create: () => ({
+    create: (_el: unknown, options: { language?: string }) => {
+      fake.createdLanguage = options.language || 'mysql'
+      return {
       getValue: () => fake.value,
       setValue: (next: string) => {
         fake.value = next
@@ -46,7 +49,8 @@ vi.mock('monaco-editor/editor', () => ({
       executeEdits: () => true,
       focus: () => {},
       dispose: () => {},
-    }),
+    }
+    },
   },
 }))
 
@@ -56,12 +60,13 @@ beforeEach(() => {
   fake.value = 'select 1;\nselect 2;'
   fake.selection = ''
   fake.cursorOffset = 0
+  fake.createdLanguage = 'mysql'
 })
 
-async function render() {
+async function render(language?: string) {
   const SqlMonacoEditor = (await import('@/components/editor/SqlMonacoEditor.vue')).default
   return mount(SqlMonacoEditor, {
-    props: { modelValue: fake.value },
+    props: language ? { modelValue: fake.value, language } : { modelValue: fake.value },
     attachTo: document.body,
   })
 }
@@ -101,5 +106,17 @@ describe('sql monaco editor', () => {
     fake.selectionListener()
     expect(wrapper.emitted('update:hasSelection')?.at(-1)).toEqual([false])
     wrapper.unmount()
+  })
+
+  it('creates Monaco as mysql for MYSQL, unbound tabs, and unknown languages', async () => {
+    const mysql = await render('mysql')
+    expect(fake.createdLanguage).toBe('mysql')
+    mysql.unmount()
+    const unbound = await render()
+    expect(fake.createdLanguage).toBe('mysql')
+    unbound.unmount()
+    const unknown = await render('pgsql')
+    expect(fake.createdLanguage).toBe('mysql')
+    unknown.unmount()
   })
 })

@@ -39,6 +39,7 @@ describe('data-source list', () => {
     expect(wrapper.find('[data-testid="data-source-ds-orders-a"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="data-source-ds-orders-b"]').exists()).toBe(true)
     expect(wrapper.text().match(/订单测试库/g)).toHaveLength(2)
+    expect(wrapper.text()).toContain('MySQL')
     expect(wrapper.text()).not.toContain('password')
     wrapper.unmount()
   })

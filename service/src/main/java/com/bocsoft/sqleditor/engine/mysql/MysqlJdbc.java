@@ -4,6 +4,8 @@ import com.bocsoft.sqleditor.common.ApiException;
 import com.bocsoft.sqleditor.datasource.connection.ConnectionConfiguration;
 import com.bocsoft.sqleditor.datasource.connection.JdbcTarget;
 import com.bocsoft.sqleditor.datasource.connection.ResolvedTarget;
+import com.bocsoft.sqleditor.engine.EngineField;
+import com.bocsoft.sqleditor.engine.EngineFieldOption;
 import java.io.UnsupportedEncodingException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -12,26 +14,55 @@ import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
 final class MysqlJdbc {
+    static final List<EngineField> PROPERTY_FIELDS = Collections.unmodifiableList(Arrays.asList(
+        EngineField.property("serverTimezone", "TEXT", "serverTimezone", "Asia/Shanghai", null),
+        EngineField.property("characterSetResults", "SELECT", "characterSetResults", null, Arrays.asList("utf8", "UTF-8")),
+        EngineField.property("zeroDateTimeBehavior", "SELECT", "zeroDateTimeBehavior", null, Arrays.asList("EXCEPTION", "CONVERT_TO_NULL", "ROUND")),
+        EngineField.property("tinyInt1isBit", "SELECT", "tinyInt1isBit", null, Arrays.asList("true", "false")),
+        EngineField.property("sendFractionalSeconds", "SELECT", "sendFractionalSeconds", null, Arrays.asList("true", "false"))
+    ));
+
     Map<String, String> validateProperties(Map<String, String> input) {
         Map<String, String> safe = new LinkedHashMap<String, String>();
         if (input == null) return safe;
+        Map<String, EngineField> fields = propertyFieldsByName();
         for (Map.Entry<String, String> entry : input.entrySet()) {
             String key = entry.getKey();
+            EngineField field = fields.get(key);
+            if (field == null) throw invalid(key);
             String value = entry.getValue();
             if ("serverTimezone".equals(key)) validateTimeZone(value);
-            else if ("characterSetResults".equals(key)) oneOf(key, value, "utf8", "UTF-8");
-            else if ("zeroDateTimeBehavior".equals(key)) oneOf(key, value, "CONVERT_TO_NULL", "EXCEPTION", "ROUND");
-            else if ("tinyInt1isBit".equals(key) || "sendFractionalSeconds".equals(key)) oneOf(key, value, "true", "false");
-            else throw invalid(key);
+            else oneOf(key, value, optionValues(field));
             safe.put(key, value);
         }
         return safe;
+    }
+
+    List<String> allowedPropertyKeys() {
+        List<String> keys = new ArrayList<String>();
+        for (EngineField field : PROPERTY_FIELDS) keys.add(field.getName());
+        return keys;
+    }
+
+    private Map<String, EngineField> propertyFieldsByName() {
+        Map<String, EngineField> fields = new LinkedHashMap<String, EngineField>();
+        for (EngineField field : PROPERTY_FIELDS) fields.put(field.getName(), field);
+        return fields;
+    }
+
+    private String[] optionValues(EngineField field) {
+        List<EngineFieldOption> options = field.getOptions();
+        if (options == null) return new String[0];
+        String[] values = new String[options.size()];
+        for (int i = 0; i < options.size(); i++) values[i] = options.get(i).getValue();
+        return values;
     }
 
     JdbcTarget build(ConnectionConfiguration configuration, ResolvedTarget resolved) {

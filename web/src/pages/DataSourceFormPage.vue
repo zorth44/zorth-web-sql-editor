@@ -10,10 +10,12 @@ import {
   testEditForm,
   updateDataSource,
 } from '@/api/data-sources'
+import { listEngines } from '@/api/engines'
 import { isApiError, safeErrorMessage } from '@/api/api-error'
 import { canManageDataSources } from '@/api/session'
 import { apiFieldErrors, versionConflict } from '@/data-sources/api-errors'
 import { detailToForm, emptyDataSourceForm, type DataSourceFormModel } from '@/data-sources/model'
+import { defaultsFromDescriptor, engineById } from '@/data-sources/catalog'
 import {
   hasFormErrors,
   mapFieldErrors,
@@ -47,12 +49,38 @@ const detailQuery = useQuery({
   retry: (count, error) =>
     count < 1 && (!isApiError(error) || error.status === 0 || error.status >= 500),
 })
+const enginesQuery = useQuery({
+  queryKey: queryKeys.engines(),
+  queryFn: listEngines,
+  staleTime: 60_000,
+})
+const engines = computed(() => enginesQuery.data.value?.items || [])
+const descriptor = computed(
+  () => engineById(engines.value, form.value.engine) || engines.value[0] || null,
+)
 watch(
   () => detailQuery.data.value,
   (detail) => {
     if (detail) form.value = detailToForm(detail)
   },
   { immediate: true },
+)
+watch(
+  () => enginesQuery.data.value,
+  (catalog) => {
+    if (edit.value || !catalog?.items.length) return
+    const selected = engineById(catalog.items, form.value.engine) || catalog.items[0]
+    if (!selected) return
+    form.value = { ...form.value, ...defaultsFromDescriptor(selected) }
+  },
+)
+watch(
+  () => form.value.engine,
+  (engineId, previous) => {
+    if (!previous || engineId === previous) return
+    const selected = engineById(engines.value, engineId)
+    if (selected) form.value = { ...form.value, ...defaultsFromDescriptor(selected) }
+  },
 )
 const allowed = computed(() => canManageDataSources(auth.session || undefined))
 const busy = computed(() => saveMutation.isPending.value || testMutation.isPending.value)
@@ -64,7 +92,7 @@ function clearErrors(): void {
 }
 function validate(): boolean {
   clearErrors()
-  Object.assign(errors, validateDataSourceForm(form.value, edit.value ? 'edit' : 'create'))
+  Object.assign(errors, validateDataSourceForm(form.value, edit.value ? 'edit' : 'create', descriptor.value || undefined))
   return !hasFormErrors(errors)
 }
 function handleApiError(error: unknown): void {
@@ -85,8 +113,13 @@ function scrubPassword(): void {
 const saveMutation = useMutation({
   mutationFn: () =>
     edit.value
-      ? updateDataSource(id.value, form.value, detailQuery.data.value!.version)
-      : createDataSource(form.value),
+      ? updateDataSource(
+          id.value,
+          form.value,
+          detailQuery.data.value!.version,
+          descriptor.value || undefined,
+        )
+      : createDataSource(form.value, descriptor.value || undefined),
   retry: false,
   onSuccess: async () => {
     scrubPassword()
@@ -105,7 +138,10 @@ const saveMutation = useMutation({
   },
 })
 const testMutation = useMutation({
-  mutationFn: () => (edit.value ? testEditForm(id.value, form.value) : testCreateForm(form.value)),
+  mutationFn: () =>
+    edit.value
+      ? testEditForm(id.value, form.value, descriptor.value || undefined)
+      : testCreateForm(form.value, descriptor.value || undefined),
   retry: false,
   onSuccess: (result) => {
     testResult.value = result
@@ -145,15 +181,20 @@ onBeforeUnmount(scrubPassword)
         {{ edit ? detailQuery.data.value?.name || '编辑数据源' : '新增数据源' }}
       </h1>
       <p class="mt-2 text-sm text-muted">
-        配置 MySQL 连接。产品范围由服务端会话确定，不在表单中选择。
+        配置目标库连接。产品范围由服务端会话确定，不在表单中选择。
       </p>
     </div>
     <div v-if="!allowed" class="panel p-8 text-center text-muted" role="alert">
       当前账号没有数据源管理能力。
     </div>
     <LoadingState
-      v-else-if="edit && detailQuery.isPending.value"
-      label="正在加载数据源详情…"
+      v-else-if="enginesQuery.isPending.value || (edit && detailQuery.isPending.value)"
+      :label="edit ? '正在加载数据源详情…' : '正在加载引擎目录…'"
+    /><ErrorState
+      v-else-if="enginesQuery.isError.value"
+      :message="safeErrorMessage(enginesQuery.error.value)"
+      retryable
+      @retry="enginesQuery.refetch()"
     /><ErrorState
       v-else-if="edit && detailQuery.isError.value"
       :message="
@@ -175,6 +216,8 @@ onBeforeUnmount(scrubPassword)
         v-model="form"
         :errors="errors"
         :edit="edit"
+        :engines="engines"
+        :descriptor="descriptor"
         :password-configured="Boolean(detailQuery.data.value?.passwordConfigured)"
         :disabled="busy"
       />

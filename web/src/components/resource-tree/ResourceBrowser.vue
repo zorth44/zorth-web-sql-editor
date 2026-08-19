@@ -5,10 +5,12 @@ import { ChevronRight, Menu, RefreshCw, Search } from 'lucide-vue-next'
 import { getTableDetail, listDatabases, listTables } from '@/api/metadata'
 import { quoteIdentifier, selectPreview } from '@/sql-editor/sql'
 import { safeErrorMessage } from '@/api/api-error'
-import type { DataSourceListItem, DatabaseItem, TableDetail, TableItem } from '@/types/contracts'
+import type { DataSourceListItem, DatabaseItem, EngineDescriptor, TableDetail, TableItem } from '@/types/contracts'
+import { namespaceLevel, objectLevels } from '@/data-sources/catalog'
 
 const props = defineProps<{
   sources: DataSourceListItem[]
+  engines?: EngineDescriptor[]
   dataSourceId: string | null
   database: string | null
   reloadToken?: number
@@ -36,10 +38,31 @@ type ActiveNode =
   | { kind: 'group'; dataSourceId: string; database: string; group: ObjectGroup }
   | { kind: 'table'; dataSourceId: string; database: string; table: string }
 
-const groups: { type: ObjectGroup; label: string }[] = [
-  { type: 'TABLE', label: '表' },
-  { type: 'VIEW', label: '视图' },
-]
+function descriptorOf(source: DataSourceListItem): EngineDescriptor | undefined {
+  return (props.engines || []).find((item) => item.id === source.engine) || (props.engines || [])[0]
+}
+function namespaceMeta(source: DataSourceListItem) {
+  return namespaceLevel(descriptorOf(source))
+}
+function groupsOf(source: DataSourceListItem): { type: ObjectGroup; label: string }[] {
+  const levels = objectLevels(descriptorOf(source))
+  if (!levels.length)
+    return [
+      { type: 'TABLE', label: '表' },
+      { type: 'VIEW', label: '视图' },
+    ]
+  return levels.map((level) => ({ type: level.kind as ObjectGroup, label: level.label }))
+}
+function tableFilterLabel(source: DataSourceListItem): string {
+  return (
+    objectLevels(descriptorOf(source)).find((level) => level.kind === 'TABLE')?.filterLabel ||
+    '筛选表名'
+  )
+}
+function namespaceLabel(dataSourceId: string): string {
+  const source = props.sources.find((item) => item.id === dataSourceId)
+  return (source && namespaceMeta(source)?.label) || '数据库'
+}
 
 const databaseSearchBySource = ref<Record<string, string>>({})
 const tableSearchBySource = ref<Record<string, string>>({})
@@ -158,7 +181,7 @@ async function loadDatabases(dataSourceId: string, force = false): Promise<void>
   } catch (e) {
     databaseError.value = {
       ...databaseError.value,
-      [dataSourceId]: safeErrorMessage(e, '数据库加载失败'),
+      [dataSourceId]: safeErrorMessage(e, `${namespaceLabel(dataSourceId)}加载失败`),
     }
   } finally {
     loadingDatabases.value = { ...loadingDatabases.value, [dataSourceId]: false }
@@ -403,21 +426,21 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
           <div
             class="tree-filter tree-row-depth-1"
             role="search"
-            :aria-label="'筛选 ' + source.name + ' 的数据库和表'"
+            :aria-label="'筛选 ' + source.name + ' 的' + (namespaceMeta(source)?.label || '数据库') + '和表'"
           >
             <Search class="shrink-0" :size="12" aria-hidden="true" />
             <input
               class="tree-filter-input"
-              placeholder="筛选库名"
-              aria-label="筛选数据库"
-              title="筛选数据库"
+              :placeholder="namespaceMeta(source)?.filterLabel || '筛选库名'"
+              :aria-label="namespaceMeta(source)?.filterLabel || '筛选数据库'"
+              :title="namespaceMeta(source)?.filterLabel || '筛选数据库'"
               :data-testid="`navigator-db-filter-${source.id}`"
               :value="databaseQuery(source.id)"
               @input="setDatabaseQuery(source.id, $event)"
             />
             <input
               class="tree-filter-input"
-              placeholder="筛选表名"
+              :placeholder="tableFilterLabel(source)"
               aria-label="筛选表"
               title="筛选表 / 视图"
               :data-testid="`navigator-table-filter-${source.id}`"
@@ -426,13 +449,13 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
             />
           </div>
           <p v-if="loadingDatabases[source.id]" class="px-3 py-1.5 text-xs text-muted">
-            正在加载数据库…
+            正在加载{{ namespaceMeta(source)?.label || '数据库' }}…
           </p>
           <p v-else-if="databaseError[source.id]" class="px-3 py-1.5 text-xs text-danger">
             {{ databaseError[source.id] }}
           </p>
           <p v-else-if="!databasesOf(source.id).length" class="tree-empty tree-row-depth-1">
-            没有匹配的数据库
+            没有匹配的{{ namespaceMeta(source)?.label || '数据库' }}
           </p>
           <div v-for="item in databasesOf(source.id)" :key="item.name">
             <div
@@ -486,7 +509,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
                 {{ tableError[dbKey(source.id, item.name)] }}
               </p>
               <template v-else>
-                <div v-for="group in groups" :key="group.type">
+                <div v-for="group in groupsOf(source)" :key="group.type">
                   <div
                     class="tree-row tree-row-depth-2 group"
                     :class="{

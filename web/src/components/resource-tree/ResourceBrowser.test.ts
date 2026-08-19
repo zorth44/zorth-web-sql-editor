@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
 import { initialDataSources } from '@/mocks/fixtures'
 import { saveToken } from '@/auth/token-storage'
-import type { DataSourceListItem } from '@/types/contracts'
+import type { DataSourceListItem, EngineDescriptor } from '@/types/contracts'
+import { mysqlEngineDescriptor } from '@/mocks/engines'
 
 const sources = initialDataSources as DataSourceListItem[]
 
 async function renderBrowser(props: {
   sources?: DataSourceListItem[]
+  engines?: EngineDescriptor[]
   dataSourceId?: string | null
   database?: string | null
   reloadToken?: number
@@ -28,6 +30,7 @@ async function renderBrowser(props: {
       sources: props.sources ?? sources,
       dataSourceId: props.dataSourceId ?? null,
       database: props.database ?? null,
+      ...(props.engines ? { engines: props.engines } : {}),
       ...(props.reloadToken === undefined ? {} : { reloadToken: props.reloadToken }),
     },
     global: { plugins: [router] },
@@ -163,6 +166,33 @@ describe('resource navigator', () => {
       pane: 'data',
       table: { name: 'order_item', type: 'TABLE' },
     })
+    wrapper.unmount()
+  })
+
+  it('labels NAMESPACE filters from the engine catalog and skips unknown tree kinds', async () => {
+    const engines = [
+      {
+        ...mysqlEngineDescriptor,
+        resourceTree: [
+          ...mysqlEngineDescriptor.resourceTree,
+          { kind: 'PARTITION', label: '分区', parentKind: 'TABLE' },
+        ],
+      },
+    ]
+    const wrapper = await renderBrowser({
+      engines,
+      dataSourceId: 'ds-orders-a',
+      database: 'orders',
+    })
+    expect(
+      wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').attributes('placeholder'),
+    ).toBe('筛选数据库')
+    expect(
+      wrapper.get('[data-testid="navigator-table-filter-ds-orders-a"]').attributes('placeholder'),
+    ).toBe('筛选表名')
+    expect(wrapper.text()).toContain('表')
+    expect(wrapper.text()).toContain('视图')
+    expect(wrapper.text()).not.toContain('分区')
     wrapper.unmount()
   })
 })

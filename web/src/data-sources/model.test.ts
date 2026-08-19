@@ -6,6 +6,7 @@ import {
   mapEditTestRequest,
   mapUpdateRequest,
 } from '@/data-sources/model'
+import { mysqlEngineDescriptor } from '@/mocks/engines'
 import { mapFieldErrors, validateDataSourceForm } from '@/data-sources/validation'
 
 function validForm() {
@@ -30,7 +31,10 @@ describe('data-source request mappers', () => {
       expect(request).not.toHaveProperty('productId')
       expect(request).not.toHaveProperty('productIds')
       expect(request).not.toHaveProperty('userId')
+      expect(request.engine).toBe('MYSQL')
     })
+    expect(mapCreateRequest({ ...validForm(), engine: 'OTHER' }).engine).toBe('OTHER')
+    expect(mapCreateTestRequest({ ...validForm(), engine: 'OTHER' }).engine).toBe('OTHER')
     expect(requests[1]).toMatchObject({ version: 7, password: 'db-secret' })
   })
   it('allows empty edit password for saved-secret reuse', () => {
@@ -66,13 +70,26 @@ describe('data-source request mappers', () => {
         sendFractionalSeconds: 'true',
       },
     }
-    expect(validateDataSourceForm(allowed, 'create')).toEqual({})
-    expect(JSON.stringify(mapCreateRequest(allowed))).not.toContain('useUnicode')
-    expect(JSON.stringify(mapCreateRequest(allowed))).not.toContain('allowPublicKeyRetrieval')
+    expect(validateDataSourceForm(allowed, 'create', mysqlEngineDescriptor)).toEqual({})
+    expect(JSON.stringify(mapCreateRequest(allowed, mysqlEngineDescriptor))).not.toContain(
+      'useUnicode',
+    )
+    expect(JSON.stringify(mapCreateRequest(allowed, mysqlEngineDescriptor))).not.toContain(
+      'allowPublicKeyRetrieval',
+    )
+    expect(
+      JSON.stringify(
+        mapCreateRequest(
+          { ...allowed, properties: { ...allowed.properties, allowLoadLocalInfile: 'true' } },
+          mysqlEngineDescriptor,
+        ),
+      ),
+    ).not.toContain('allowLoadLocalInfile')
     expect(
       validateDataSourceForm(
         { ...allowed, properties: { serverTimezone: 'not/a-real-time-zone' } },
         'create',
+        mysqlEngineDescriptor,
       ),
     ).toHaveProperty('properties')
     expect(

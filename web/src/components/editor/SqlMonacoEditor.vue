@@ -5,10 +5,11 @@ import * as monaco from 'monaco-editor/editor'
 import { useThemeStore } from '@/stores/theme'
 import 'monaco-editor/features/register.all'
 import 'monaco-editor/languages/definitions/mysql/register'
+import { MYSQL_EDITOR_LANGUAGE } from '@/data-sources/catalog'
 import { format } from 'sql-formatter'
 import { statementAt } from '@/sql-editor/sql'
 
-const props = defineProps<{ modelValue: string; suggestions?: string[] }>()
+const props = defineProps<{ modelValue: string; suggestions?: string[]; language?: string }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   run: [statement: string]
@@ -23,6 +24,9 @@ let completion: monaco.IDisposable | undefined
 
 function monacoTheme(): string {
   return theme.scheme === 'dark' ? 'vs-dark' : 'vs'
+}
+function resolvedLanguage(): typeof MYSQL_EDITOR_LANGUAGE {
+  return MYSQL_EDITOR_LANGUAGE
 }
 
 function selectedText(): string {
@@ -48,7 +52,7 @@ function runnableScript(): string {
 }
 function installCompletion(): void {
   completion?.dispose()
-  completion = monaco.languages.registerCompletionItemProvider('mysql', {
+  completion = monaco.languages.registerCompletionItemProvider(resolvedLanguage(), {
     provideCompletionItems(model, position) {
       const range = model.getWordUntilPosition(position)
       return {
@@ -76,7 +80,7 @@ function getRunnableScript(): string {
 function formatSql(): void {
   if (!editor) return
   try {
-    editor.setValue(format(editor.getValue(), { language: 'mysql' }))
+    editor.setValue(format(editor.getValue(), { language: resolvedLanguage() }))
   } catch {
     emit('notice', '当前 SQL 无法格式化')
   }
@@ -110,7 +114,7 @@ onMounted(() => {
   if (!root.value) return
   editor = monaco.editor.create(root.value, {
     value: props.modelValue,
-    language: 'mysql',
+    language: resolvedLanguage(),
     theme: monacoTheme(),
     automaticLayout: true,
     minimap: { enabled: false },

@@ -12,6 +12,7 @@ import type {
   DataSourceDetail,
   DataSourceListItem,
   DataSourceListParams,
+  EngineDescriptor,
 } from '@/types/contracts'
 
 export function listDataSources(
@@ -24,20 +25,24 @@ export function listDataSources(
 export function getDataSource(id: string): Promise<DataSourceDetail> {
   return sqlRequest(`/api/v1/data-sources/${encodeURIComponent(id)}`)
 }
-export function createDataSource(form: DataSourceFormModel): Promise<DataSourceDetail> {
+export function createDataSource(
+  form: DataSourceFormModel,
+  descriptor?: EngineDescriptor,
+): Promise<DataSourceDetail> {
   return sqlRequest('/api/v1/data-sources', {
     method: 'POST',
-    body: JSON.stringify(mapCreateRequest(form)),
+    body: JSON.stringify(mapCreateRequest(form, descriptor)),
   })
 }
 export function updateDataSource(
   id: string,
   form: DataSourceFormModel,
   version: number,
+  descriptor?: EngineDescriptor,
 ): Promise<DataSourceDetail> {
   return sqlRequest(`/api/v1/data-sources/${encodeURIComponent(id)}`, {
     method: 'PUT',
-    body: JSON.stringify(mapUpdateRequest(form, version)),
+    body: JSON.stringify(mapUpdateRequest(form, version, descriptor)),
   })
 }
 export function deleteDataSource(id: string, version: number): Promise<void> {
@@ -45,16 +50,23 @@ export function deleteDataSource(id: string, version: number): Promise<void> {
     method: 'DELETE',
   })
 }
-export function testCreateForm(form: DataSourceFormModel): Promise<ConnectionTestResult> {
+export function testCreateForm(
+  form: DataSourceFormModel,
+  descriptor?: EngineDescriptor,
+): Promise<ConnectionTestResult> {
   return sqlRequest('/api/v1/data-sources:test', {
     method: 'POST',
-    body: JSON.stringify(mapCreateTestRequest(form)),
+    body: JSON.stringify(mapCreateTestRequest(form, descriptor)),
   })
 }
-export function testEditForm(id: string, form: DataSourceFormModel): Promise<ConnectionTestResult> {
+export function testEditForm(
+  id: string,
+  form: DataSourceFormModel,
+  descriptor?: EngineDescriptor,
+): Promise<ConnectionTestResult> {
   return sqlRequest(`/api/v1/data-sources/${encodeURIComponent(id)}:test`, {
     method: 'POST',
-    body: JSON.stringify(mapEditTestRequest(form)),
+    body: JSON.stringify(mapEditTestRequest(form, descriptor)),
   })
 }
 export function testSavedDataSource(id: string): Promise<ConnectionTestResult> {

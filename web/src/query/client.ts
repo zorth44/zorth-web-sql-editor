@@ -20,6 +20,7 @@ export const queryKeys = {
     ['data-sources', 'list', { keyword, pageSize, pageToken: pageToken || '' }] as const,
   dataSourceDetails: () => ['data-sources', 'detail'] as const,
   dataSourceDetail: (id: string) => ['data-sources', 'detail', id] as const,
+  engines: () => ['engines'] as const,
   metadata: (dataSourceId: string) => ['metadata', dataSourceId] as const,
   databases: (dataSourceId: string, keyword: string) =>
     ['metadata', dataSourceId, 'databases', keyword] as const,

@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse } from 'msw'
 import { appEnv } from '@/env'
 import { initialDataSources, mockDataSources, mockSession } from '@/mocks/fixtures'
+import { mockEngineCatalog } from '@/mocks/engines'
 import type {
   ApiErrorBody,
   ConnectionFields,
@@ -135,6 +136,11 @@ export const handlers = [
     sql('/api/v1/session'),
     ({ request }) => authorized(request) || HttpResponse.json(mockSession),
   ),
+  http.get(sql('/api/v1/engines'), ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    return HttpResponse.json(mockEngineCatalog)
+  }),
   http.get(sql('/api/v1/data-sources'), ({ request }) => {
     const denied = authorized(request)
     if (denied) return denied
@@ -279,7 +285,10 @@ export const handlers = [
     if (!mockDataSources().some((item) => item.id === params.id))
       return error(404, 'DATA_SOURCE_NOT_FOUND', '数据源不存在或已不可见')
     return HttpResponse.json({
-      items: [{ name: 'orders' }, { name: 'analytics' }],
+      items: [
+        { name: 'orders', kind: 'NAMESPACE' },
+        { name: 'analytics', kind: 'NAMESPACE' },
+      ],
       nextPageToken: null,
     })
   }),

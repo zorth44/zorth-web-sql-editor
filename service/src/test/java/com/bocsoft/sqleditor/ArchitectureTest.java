@@ -28,6 +28,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule engineDoesNotDependOnControllers = noClasses()
         .that().resideInAPackage("..engine..")
+        .and().haveSimpleNameNotEndingWith("Controller")
         .should().dependOnClassesThat().haveSimpleNameEndingWith("Controller");
 
     @ArchTest

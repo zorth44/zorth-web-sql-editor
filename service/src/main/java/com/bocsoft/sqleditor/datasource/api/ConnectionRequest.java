@@ -21,6 +21,7 @@ public class ConnectionRequest {
     @NotBlank private String sslMode;
     @NotNull @Min(1) @Max(30) private Integer connectTimeoutSeconds;
     @NotNull private Map<String, String> properties = new LinkedHashMap<String, String>();
+    private String engine;
     public String getHost() { return host; } public void setHost(String v) { host=v; }
     public Integer getPort() { return port; } public void setPort(Integer v) { port=v; }
     public String getUsername() { return username; } public void setUsername(String v) { username=v; }
@@ -29,4 +30,5 @@ public class ConnectionRequest {
     public String getSslMode() { return sslMode; } public void setSslMode(String v) { sslMode=v; }
     public Integer getConnectTimeoutSeconds() { return connectTimeoutSeconds; } public void setConnectTimeoutSeconds(Integer v) { connectTimeoutSeconds=v; }
     public Map<String, String> getProperties() { return properties; } public void setProperties(Map<String, String> v) { properties=v; }
+    public String getEngine() { return engine; } public void setEngine(String v) { engine=v; }
 }

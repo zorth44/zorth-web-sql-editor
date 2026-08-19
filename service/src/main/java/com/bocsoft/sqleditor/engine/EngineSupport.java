@@ -17,6 +17,7 @@ public interface EngineSupport {
     boolean defaultNamespaceRequired();
     boolean canSwitchNamespaceOnConnection();
     int identifierMaxLength();
+    EngineDescriptor descriptor();
 
     Map<String, String> validateProperties(Map<String, String> properties);
     JdbcTarget buildJdbc(ConnectionConfiguration configuration, ResolvedTarget resolved);

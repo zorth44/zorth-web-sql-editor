@@ -85,6 +85,34 @@ class DataSourceServiceTest {
         assertThat(validator.connection(request, "secret", true).getEngine()).isEqualTo(EngineId.MYSQL);
     }
 
+    @Test void unsavedConnectionTestUsesSubmittedEngine() {
+        ConnectionRequest request = new ConnectionRequest();
+        request.setEngine(EngineId.MYSQL);
+        request.setHost("mysql.internal");
+        request.setPort(3306);
+        request.setUsername("user");
+        request.setPassword("secret");
+        request.setSslMode("DISABLED");
+        request.setConnectTimeoutSeconds(10);
+        request.setProperties(Collections.singletonMap("serverTimezone", "UTC"));
+        assertThat(validator.connection(request, "secret", true).getEngine()).isEqualTo(EngineId.MYSQL);
+    }
+
+    @Test void unsavedConnectionTestRejectsUnregisteredEngine() {
+        ConnectionRequest request = new ConnectionRequest();
+        request.setEngine("POSTGRESQL");
+        request.setHost("mysql.internal");
+        request.setPort(3306);
+        request.setUsername("user");
+        request.setPassword("secret");
+        request.setSslMode("DISABLED");
+        request.setConnectTimeoutSeconds(10);
+        request.setProperties(Collections.singletonMap("serverTimezone", "UTC"));
+        assertThatThrownBy(() -> validator.connection(request, "secret", true)).isInstanceOfSatisfying(ApiException.class, e -> {
+            assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
+        });
+    }
+
     @Test void scopesListAndInvisibleReadsByProduct() {
         when(mapper.list(eq("p1"), isNull(), isNull(), isNull(), eq(21))).thenReturn(Collections.emptyList());
         service.list(auth, "", 20, null);

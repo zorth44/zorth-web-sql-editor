@@ -1,15 +1,8 @@
-import type { FieldError } from '@/types/contracts'
+import type { EngineDescriptor, FieldError } from '@/types/contracts'
 import type { DataSourceFormModel } from '@/data-sources/model'
 
 export type FormField = keyof DataSourceFormModel
 export type FormErrors = Partial<Record<FormField, string>>
-
-const PROPERTY_VALUES: Record<string, readonly string[]> = {
-  characterSetResults: ['utf8', 'UTF-8'],
-  zeroDateTimeBehavior: ['EXCEPTION', 'CONVERT_TO_NULL', 'ROUND'],
-  tinyInt1isBit: ['true', 'false'],
-  sendFractionalSeconds: ['true', 'false'],
-}
 
 function isKnownTimeZone(value: string): boolean {
   try {
@@ -20,36 +13,63 @@ function isKnownTimeZone(value: string): boolean {
   }
 }
 
+function fieldOf(descriptor: EngineDescriptor | undefined, name: string) {
+  return descriptor?.connectionFields.find((item) => item.name === name)
+}
+
 export function validateDataSourceForm(
   form: DataSourceFormModel,
   mode: 'create' | 'edit',
+  descriptor?: EngineDescriptor,
 ): FormErrors {
   const errors: FormErrors = {}
   const nameLength = form.name.trim().length
   if (nameLength < 1 || nameLength > 100) errors.name = '名称长度必须为 1–100 个字符'
+  if (!form.engine) errors.engine = '请选择数据库类型'
   if (!form.host.trim()) errors.host = '请输入 Host'
   else if (/^[a-z][a-z\d+.-]*:\/\//i.test(form.host.trim())) errors.host = 'Host 不应包含协议'
   else if (form.host.trim().length > 255) errors.host = 'Host 最多 255 个字符'
-  if (!Number.isInteger(Number(form.port)) || Number(form.port) < 1 || Number(form.port) > 65535)
-    errors.port = '端口必须在 1–65535 之间'
+  const portField = fieldOf(descriptor, 'port')
+  const portMin = portField?.min ?? 1
+  const portMax = portField?.max ?? 65535
+  if (!Number.isInteger(Number(form.port)) || Number(form.port) < portMin || Number(form.port) > portMax)
+    errors.port = `端口必须在 ${portMin}–${portMax} 之间`
   const usernameLength = form.username.trim().length
   if (usernameLength < 1 || usernameLength > 128) errors.username = '用户名长度必须为 1–128 个字符'
   if (mode === 'create' && !form.password) errors.password = '新增数据源必须输入密码'
   else if (form.password.length > 1024) errors.password = '密码最多 1024 个字符'
-  if (form.defaultDatabase.trim().length > 64) errors.defaultDatabase = '默认数据库最多 64 个字符'
+  const namespaceMax = fieldOf(descriptor, 'defaultDatabase')?.maxLength ?? 64
+  if (form.defaultDatabase.trim().length > namespaceMax)
+    errors.defaultDatabase = `默认数据库最多 ${namespaceMax} 个字符`
+  const timeoutField = fieldOf(descriptor, 'connectTimeoutSeconds')
+  const timeoutMin = timeoutField?.min ?? 1
+  const timeoutMax = timeoutField?.max ?? 30
   if (
     !Number.isInteger(Number(form.connectTimeoutSeconds)) ||
-    Number(form.connectTimeoutSeconds) < 1 ||
-    Number(form.connectTimeoutSeconds) > 30
+    Number(form.connectTimeoutSeconds) < timeoutMin ||
+    Number(form.connectTimeoutSeconds) > timeoutMax
   )
-    errors.connectTimeoutSeconds = '连接超时必须在 1–30 秒之间'
+    errors.connectTimeoutSeconds = `连接超时必须在 ${timeoutMin}–${timeoutMax} 秒之间`
   if (form.description.length > 500) errors.description = '描述最多 500 个字符'
+  const sslField = fieldOf(descriptor, 'sslMode')
+  if (sslField?.options?.length && !sslField.options.some((item) => item.value === form.sslMode)) {
+    errors.sslMode = 'SSL 模式不合法'
+  }
+  const propertyFields = descriptor?.propertyFields
   for (const [key, value] of Object.entries(form.properties)) {
-    const allowed =
-      key === 'serverTimezone'
-        ? Boolean(value) && isKnownTimeZone(value)
-        : PROPERTY_VALUES[key]?.includes(value || '')
-    if (!allowed) {
+    if (!value) continue
+    if (propertyFields) {
+      const field = propertyFields.find((item) => item.name === key)
+      const allowed = field
+        ? key === 'serverTimezone'
+          ? isKnownTimeZone(value)
+          : !field.options?.length || field.options.some((item) => item.value === value)
+        : false
+      if (!allowed) {
+        errors.properties = `JDBC 参数 ${key} 的值不在白名单中`
+        break
+      }
+    } else if (key === 'serverTimezone' ? !isKnownTimeZone(value) : false) {
       errors.properties = `JDBC 参数 ${key} 的值不在白名单中`
       break
     }
@@ -69,6 +89,7 @@ export function mapFieldErrors(fieldErrors: FieldError[]): {
     sslMode: 'sslMode',
     properties: 'properties',
     name: 'name',
+    engine: 'engine',
     host: 'host',
     port: 'port',
     username: 'username',

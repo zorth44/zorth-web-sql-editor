@@ -136,7 +136,7 @@ public class DataSourceService {
 
     private void apply(DataSourceRecord record,ConnectionRequest request,EncryptedCredential secret){
         record.setName(validator.trim(request instanceof CreateDataSourceRequest?((CreateDataSourceRequest)request).getName():((UpdateDataSourceRequest)request).getName()));
-        record.setEngine(request instanceof CreateDataSourceRequest?((CreateDataSourceRequest)request).getEngine():((UpdateDataSourceRequest)request).getEngine());
+        record.setEngine(request.getEngine());
         record.setHost(validator.trim(request.getHost())); record.setPort(request.getPort()); record.setUsername(validator.trim(request.getUsername()));
         record.setPasswordCiphertext(secret.getCiphertext()); record.setPasswordIv(secret.getIv()); record.setKeyVersion(secret.getKeyVersion());
         record.setDefaultDatabase(validator.blankToNull(request.getDefaultDatabase())); record.setSslMode(request.getSslMode());

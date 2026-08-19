@@ -15,9 +15,12 @@ import {
   X,
 } from 'lucide-vue-next'
 import { listDataSources } from '@/api/data-sources'
+import { listEngines } from '@/api/engines'
 import { cancelExecution, executeSql, exportExecution } from '@/api/executions'
 import { getHistory } from '@/api/history'
 import { safeErrorMessage } from '@/api/api-error'
+import { editorLanguageFor, engineById } from '@/data-sources/catalog'
+import { useQuery } from '@tanstack/vue-query'
 import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
 import HistoryPanel from '@/components/history/HistoryPanel.vue'
 import ScriptResultPanel from '@/components/result-grid/ScriptResultPanel.vue'
@@ -56,6 +59,12 @@ const monacoRef = ref<{
 const hasSelection = ref(false)
 
 const sources = ref<DataSourceListItem[]>([])
+const enginesQuery = useQuery({
+  queryKey: queryKeys.engines(),
+  queryFn: listEngines,
+  staleTime: 60_000,
+})
+const engines = computed(() => enginesQuery.data.value?.items || [])
 const selectedSource = ref<string | null>(null)
 const selectedDatabase = ref<string | null>(null)
 const side = ref<'database' | 'history'>('database')
@@ -80,6 +89,10 @@ const canExecute = computed(() => auth.session?.capabilities.includes('SQL_EXECU
 const canExport = computed(() => auth.session?.capabilities.includes('SQL_EXPORT') ?? false)
 const canHistory = computed(() => auth.session?.capabilities.includes('HISTORY_READ') ?? false)
 const active = computed(() => editor.active)
+const editorLanguage = computed(() => {
+  const engine = sources.value.find((item) => item.id === active.value?.dataSourceId)?.engine
+  return editorLanguageFor(engineById(engines.value, engine))
+})
 const suggestions = computed(() =>
   Array.from(new Set([...metadataSuggestions.value, ...sources.value.map((item) => item.name)])),
 )
@@ -434,6 +447,7 @@ onBeforeUnmount(() => {
           <ResourceBrowser
             v-if="side === 'database'"
             :sources="sources"
+            :engines="engines"
             :data-source-id="selectedSource"
             :database="selectedDatabase"
             :reload-token="resourceNonce"
@@ -535,6 +549,7 @@ onBeforeUnmount(() => {
                     :key="active.id"
                     ref="monacoRef"
                     :model-value="active.sql"
+                    :language="editorLanguage"
                     :suggestions="suggestions"
                     @update:model-value="editor.updateSql(active!.id, $event)"
                     @update:has-selection="hasSelection = $event"

@@ -21,12 +21,27 @@ The frontend SHALL consume the backend-filtered data-source collection without i
 - **WHEN** two returned records have the same name but different IDs
 - **THEN** the frontend SHALL render and operate on both records independently using their IDs
 
+### Requirement: Catalog-driven data-source form
+The create and edit forms SHALL load `GET /api/v1/engines` and SHALL render engine, connection, and JDBC controls from the selected engine descriptor instead of a MySQL-only template.
+
+#### Scenario: Load the catalog before create
+- **WHEN** the user opens the create data-source page
+- **THEN** the frontend SHALL fetch the engine catalog, default the type to the sole registered engine (MYSQL), and initialize port, SSL, and JDBC defaults from that descriptor
+
+#### Scenario: Render MYSQL fields from the descriptor
+- **WHEN** MYSQL is selected
+- **THEN** the form SHALL show a type select populated from catalog `displayName` values, connection fields for host/port/username/password/`defaultDatabase`/sslMode/timeout using descriptor labels, and only the MYSQL `propertyFields`
+
+#### Scenario: Submit the selected engine
+- **WHEN** the user creates, updates, or tests from the form
+- **THEN** the request SHALL send `engine` equal to the selected catalog id and SHALL NOT hard-code `'MYSQL'` in the mapper
+
 ### Requirement: Data-source list presentation
 The data-source list SHALL present the phase-one operational fields and actions.
 
 #### Scenario: Render a populated list
 - **WHEN** the list API returns items
-- **THEN** each row SHALL show name, MYSQL type, host and port, default database when present, last test status/time, updated time, and `updatedByName`
+- **THEN** each row SHALL show name, the engine `displayName` from the catalog (falling back to the raw `engine` id), host and port, default database when present, last test status/time, updated time, and `updatedByName`
 
 #### Scenario: Protect sensitive values
 - **WHEN** a list or detail response is rendered
@@ -82,7 +97,7 @@ The edit page SHALL load authoritative detail by ID rather than deriving a form 
 - **THEN** the password input SHALL remain empty and indicate that leaving it empty preserves the saved password
 
 ### Requirement: Data-source form validation
-The create/edit form SHALL validate the documented MYSQL connection and descriptive fields before sending a mutation.
+The create/edit form SHALL validate name, description, and the selected engine's catalogued connection and property fields before sending a mutation.
 
 #### Scenario: Validate core fields
 - **WHEN** the form is submitted
@@ -97,12 +112,12 @@ The create/edit form SHALL validate the documented MYSQL connection and descript
 - **THEN** the frontend SHALL allow submission because IDs, not names, are unique
 
 #### Scenario: Select connection options
-- **WHEN** the user edits engine, default database, SSL, or JDBC properties
-- **THEN** engine SHALL remain fixed to MYSQL, default database SHALL be manual text in phase one, SSL SHALL be one of DISABLED/PREFERRED/REQUIRED, and the form SHALL expose only `serverTimezone`, `characterSetResults`, `zeroDateTimeBehavior`, `tinyInt1isBit`, and `sendFractionalSeconds` with documented values
+- **WHEN** the user edits engine, default namespace, SSL, or JDBC properties
+- **THEN** engine SHALL be chosen from the catalog, default namespace SHALL be the `DEFAULT_NAMESPACE` field (`defaultDatabase`) as manual text, SSL SHALL be one of the selected engine's catalogued values (MYSQL: DISABLED/PREFERRED/REQUIRED), and the form SHALL expose only that engine's `propertyFields` with catalogued values
 
 #### Scenario: Exclude fixed or unsafe JDBC controls
 - **WHEN** the JDBC property controls are rendered or a request is mapped
-- **THEN** `useUnicode`, `allowPublicKeyRetrieval`, SSL flags, credentials, timeouts, and other undeclared properties SHALL NOT be user-configurable or submitted through `properties`
+- **THEN** keys absent from the selected engine's `propertyFields`, including `useUnicode`, `allowPublicKeyRetrieval`, SSL flags, credentials, timeouts, and other undeclared properties, SHALL NOT be user-configurable or submitted through `properties`
 
 #### Scenario: Map backend field errors
 - **WHEN** a write returns `VALIDATION_FAILED.details.fieldErrors`
@@ -143,11 +158,11 @@ The frontend SHALL distinguish testing a new form, an unsaved edit form, and a s
 
 #### Scenario: Test a new form
 - **WHEN** the user tests a valid new data-source form
-- **THEN** the frontend SHALL call `POST /api/v1/data-sources:test` with connection fields only, including the required password and form timeout
+- **THEN** the frontend SHALL call `POST /api/v1/data-sources:test` with connection fields and the selected `engine`, including the required password and form timeout
 
 #### Scenario: Test an unsaved edit form
 - **WHEN** the user tests edits before saving
-- **THEN** the frontend SHALL call `POST /api/v1/data-sources/{id}:test` with the current connection fields and SHALL allow an empty password to reuse the stored credential
+- **THEN** the frontend SHALL call `POST /api/v1/data-sources/{id}:test` with the current connection fields and selected `engine` and SHALL allow an empty password to reuse the stored credential
 
 #### Scenario: Test a saved list item
 - **WHEN** the user invokes test from a list row

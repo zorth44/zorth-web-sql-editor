@@ -53,8 +53,8 @@ public class DataSourceValidator {
         return engines.require(engineOf(request));
     }
     private String engineOf(ConnectionRequest request) {
-        if (request instanceof CreateDataSourceRequest) return ((CreateDataSourceRequest) request).getEngine();
-        if (request instanceof UpdateDataSourceRequest) return ((UpdateDataSourceRequest) request).getEngine();
+        if (StringUtils.hasText(request.getEngine())) return request.getEngine();
+        if (request instanceof CreateDataSourceRequest || request instanceof UpdateDataSourceRequest) return request.getEngine();
         return EngineId.MYSQL;
     }
     private boolean isSslMode(String mode) { return "DISABLED".equals(mode) || "PREFERRED".equals(mode) || "REQUIRED".equals(mode); }

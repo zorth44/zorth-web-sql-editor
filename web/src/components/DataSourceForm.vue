@@ -1,25 +1,63 @@
 <script setup lang="ts">
 import type { DataSourceFormModel } from '@/data-sources/model'
 import type { FormErrors } from '@/data-sources/validation'
+import type { EngineDescriptor, EngineField } from '@/types/contracts'
 const props = withDefaults(
   defineProps<{
     modelValue: DataSourceFormModel
     errors: FormErrors
     edit: boolean
+    engines: EngineDescriptor[]
+    descriptor: EngineDescriptor | null
     passwordConfigured?: boolean
     disabled?: boolean
   }>(),
-  { passwordConfigured: false, disabled: false },
+  { passwordConfigured: false, disabled: false, engines: () => [], descriptor: null },
 )
 const emit = defineEmits<{ 'update:modelValue': [value: DataSourceFormModel] }>()
 function update<K extends keyof DataSourceFormModel>(key: K, value: DataSourceFormModel[K]): void {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
-function property(key: keyof DataSourceFormModel['properties'], value: string): void {
+function fieldValue(field: EngineField): string {
+  const value = props.modelValue[field.name as keyof DataSourceFormModel]
+  if (value == null) return ''
+  if (typeof value === 'object') return ''
+  return String(value)
+}
+function updateField(field: EngineField, raw: string): void {
+  if (field.widget === 'NUMBER') update(field.name as 'port', Number(raw) as never)
+  else update(field.name as 'host', raw as never)
+}
+function propertyValue(name: string): string {
+  return props.modelValue.properties[name] || ''
+}
+function property(key: string, value: string): void {
   const properties = { ...props.modelValue.properties }
   if (value) properties[key] = value
   else delete properties[key]
   update('properties', properties)
+}
+function requiredMark(field: EngineField): string {
+  return field.required || (Boolean(field.requiredOnCreate) && !props.edit) ? ' *' : ''
+}
+function connectionInputAttrs(field: EngineField) {
+  return {
+    type: (field.widget === 'PASSWORD' ? 'password' : field.widget === 'NUMBER' ? 'number' : 'text') as
+      | 'password'
+      | 'number'
+      | 'text',
+    ...(field.min != null ? { min: field.min } : {}),
+    ...(field.max != null ? { max: field.max } : {}),
+    ...(field.maxLength != null ? { maxlength: field.maxLength } : {}),
+    ...(field.kind === 'DEFAULT_NAMESPACE' ? { placeholder: '手工输入，可留空' } : {}),
+  }
+}
+function propertyInputAttrs(field: EngineField) {
+  return {
+    ...(field.name === 'serverTimezone'
+      ? { placeholder: '例如 Asia/Shanghai', list: 'property-timezone-suggestions' }
+      : {}),
+  }
 }
 </script>
 <template>
@@ -44,117 +82,64 @@ function property(key: keyof DataSourceFormModel['properties'], value: string): 
         </div>
         <div>
           <label class="label" for="ds-engine">数据库类型</label
-          ><input id="ds-engine" class="field bg-subtle" value="MySQL" readonly />
+          ><select
+            id="ds-engine"
+            class="field"
+            :value="modelValue.engine"
+            :aria-invalid="Boolean(errors.engine)"
+            @change="update('engine', ($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="item in engines" :key="item.id" :value="item.id">
+              {{ item.displayName }}
+            </option>
+          </select>
+          <p v-if="errors.engine" class="mt-1 text-xs text-danger">{{ errors.engine }}</p>
         </div>
       </div>
     </section>
     <section>
       <h2 class="text-base font-semibold">连接配置</h2>
       <div class="mt-4 grid grid-cols-2 gap-5">
-        <div>
-          <label class="label" for="ds-host">Host *</label
-          ><input
-            id="ds-host"
-            class="field"
-            :value="modelValue.host"
-            placeholder="mysql.internal"
-            :aria-invalid="Boolean(errors.host)"
-            @input="update('host', ($event.target as HTMLInputElement).value)"
-          />
-          <p v-if="errors.host" class="mt-1 text-xs text-danger">{{ errors.host }}</p>
-        </div>
-        <div>
-          <label class="label" for="ds-port">Port *</label
-          ><input
-            id="ds-port"
-            class="field"
-            type="number"
-            min="1"
-            max="65535"
-            :value="modelValue.port"
-            :aria-invalid="Boolean(errors.port)"
-            @input="update('port', Number(($event.target as HTMLInputElement).value))"
-          />
-          <p v-if="errors.port" class="mt-1 text-xs text-danger">{{ errors.port }}</p>
-        </div>
-        <div>
-          <label class="label" for="ds-username">用户名 *</label
-          ><input
-            id="ds-username"
-            class="field"
-            :value="modelValue.username"
-            maxlength="128"
-            autocomplete="off"
-            :aria-invalid="Boolean(errors.username)"
-            @input="update('username', ($event.target as HTMLInputElement).value)"
-          />
-          <p v-if="errors.username" class="mt-1 text-xs text-danger">{{ errors.username }}</p>
-        </div>
-        <div>
-          <label class="label" for="ds-password">密码 {{ edit ? '' : '*' }}</label
-          ><input
-            id="ds-password"
-            class="field"
-            type="password"
-            :value="modelValue.password"
-            maxlength="1024"
-            autocomplete="new-password"
-            :aria-invalid="Boolean(errors.password)"
-            @input="update('password', ($event.target as HTMLInputElement).value)"
-          />
-          <p v-if="errors.password" class="mt-1 text-xs text-danger">{{ errors.password }}</p>
-          <p v-else-if="edit && passwordConfigured" class="mt-1 text-xs text-muted">
-            已配置密码；留空将保留现有密码。
-          </p>
-        </div>
-        <div>
-          <label class="label" for="ds-database">默认数据库</label
-          ><input
-            id="ds-database"
-            class="field"
-            :value="modelValue.defaultDatabase"
-            maxlength="64"
-            placeholder="手工输入，可留空"
-            @input="update('defaultDatabase', ($event.target as HTMLInputElement).value)"
-          />
-          <p v-if="errors.defaultDatabase" class="mt-1 text-xs text-danger">
-            {{ errors.defaultDatabase }}
-          </p>
-        </div>
-        <div>
-          <label class="label" for="ds-ssl">SSL 模式 *</label
-          ><select
-            id="ds-ssl"
-            class="field"
-            :value="modelValue.sslMode"
-            @change="
-              update(
-                'sslMode',
-                ($event.target as HTMLSelectElement).value as DataSourceFormModel['sslMode'],
-              )
-            "
+        <div v-for="field in descriptor?.connectionFields || []" :key="field.name">
+          <label class="label" :for="'ds-' + field.name"
+            >{{ field.label }}{{ requiredMark(field) }}</label
           >
-            <option value="DISABLED">禁用</option>
-            <option value="PREFERRED">优先</option>
-            <option value="REQUIRED">必需</option>
-          </select>
-        </div>
-        <div>
-          <label class="label" for="ds-timeout">连接超时（秒）*</label
-          ><input
-            id="ds-timeout"
+          <select
+            v-if="field.widget === 'SELECT'"
+            :id="'ds-' + field.name"
             class="field"
-            type="number"
-            min="1"
-            max="30"
-            :value="modelValue.connectTimeoutSeconds"
-            :aria-invalid="Boolean(errors.connectTimeoutSeconds)"
-            @input="
-              update('connectTimeoutSeconds', Number(($event.target as HTMLInputElement).value))
-            "
+            :value="fieldValue(field)"
+            @change="updateField(field, ($event.target as HTMLSelectElement).value)"
+          >
+            <option
+              v-for="option in field.options || []"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+          <input
+            v-else
+            :id="'ds-' + field.name"
+            class="field"
+            v-bind="connectionInputAttrs(field)"
+            :value="fieldValue(field)"
+            :autocomplete="field.kind === 'PASSWORD' ? 'new-password' : 'off'"
+            :aria-invalid="Boolean(errors[field.name as keyof FormErrors])"
+            @input="updateField(field, ($event.target as HTMLInputElement).value)"
           />
-          <p v-if="errors.connectTimeoutSeconds" class="mt-1 text-xs text-danger">
-            {{ errors.connectTimeoutSeconds }}
+          <p
+            v-if="errors[field.name as keyof FormErrors]"
+            class="mt-1 text-xs text-danger"
+          >
+            {{ errors[field.name as keyof FormErrors] }}
+          </p>
+          <p
+            v-else-if="field.kind === 'PASSWORD' && edit && passwordConfigured"
+            class="mt-1 text-xs text-muted"
+          >
+            已配置密码；留空将保留现有密码。
           </p>
         </div>
       </div>
@@ -162,74 +147,38 @@ function property(key: keyof DataSourceFormModel['properties'], value: string): 
     <section>
       <h2 class="text-base font-semibold">JDBC 白名单参数</h2>
       <div class="mt-4 grid grid-cols-2 gap-5">
-        <div>
-          <label class="label" for="property-timezone">serverTimezone</label
-          ><input
-            id="property-timezone"
+        <div v-for="field in descriptor?.propertyFields || []" :key="field.name">
+          <label class="label" :for="'property-' + field.name">{{ field.label }}</label>
+          <select
+            v-if="field.widget === 'SELECT'"
+            :id="'property-' + field.name"
             class="field"
-            list="property-timezone-suggestions"
-            :value="modelValue.properties.serverTimezone || ''"
-            placeholder="例如 Asia/Shanghai"
-            @input="property('serverTimezone', ($event.target as HTMLInputElement).value)"
-          /><datalist id="property-timezone-suggestions">
-            <option value="Asia/Shanghai"></option>
-            <option value="UTC"></option>
-          </datalist>
-        </div>
-        <div>
-          <label class="label" for="property-character-set">characterSetResults</label
-          ><select
-            id="property-character-set"
-            class="field"
-            :value="modelValue.properties.characterSetResults || ''"
-            @change="property('characterSetResults', ($event.target as HTMLSelectElement).value)"
+            :value="propertyValue(field.name)"
+            @change="property(field.name, ($event.target as HTMLSelectElement).value)"
           >
             <option value="">不设置</option>
-            <option value="utf8">utf8</option>
-            <option value="UTF-8">UTF-8</option>
+            <option
+              v-for="option in field.options || []"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
           </select>
-        </div>
-        <div>
-          <label class="label" for="property-zero">zeroDateTimeBehavior</label
-          ><select
-            id="property-zero"
+          <input
+            v-else
+            :id="'property-' + field.name"
             class="field"
-            :value="modelValue.properties.zeroDateTimeBehavior || ''"
-            @change="property('zeroDateTimeBehavior', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">不设置</option>
-            <option value="EXCEPTION">EXCEPTION</option>
-            <option value="CONVERT_TO_NULL">CONVERT_TO_NULL</option>
-            <option value="ROUND">ROUND</option>
-          </select>
-        </div>
-        <div>
-          <label class="label" for="property-tiny-int">tinyInt1isBit</label
-          ><select
-            id="property-tiny-int"
-            class="field"
-            :value="modelValue.properties.tinyInt1isBit || ''"
-            @change="property('tinyInt1isBit', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">不设置</option>
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
-        </div>
-        <div>
-          <label class="label" for="property-fractional">sendFractionalSeconds</label
-          ><select
-            id="property-fractional"
-            class="field"
-            :value="modelValue.properties.sendFractionalSeconds || ''"
-            @change="property('sendFractionalSeconds', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">不设置</option>
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
+            v-bind="propertyInputAttrs(field)"
+            :value="propertyValue(field.name)"
+            @input="property(field.name, ($event.target as HTMLInputElement).value)"
+          />
         </div>
       </div>
+      <datalist id="property-timezone-suggestions">
+        <option value="Asia/Shanghai"></option>
+        <option value="UTC"></option>
+      </datalist>
       <p v-if="errors.properties" class="mt-2 text-xs text-danger">{{ errors.properties }}</p>
     </section>
     <section>
