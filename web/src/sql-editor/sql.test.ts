@@ -30,6 +30,7 @@ describe('SQL selection', () => {
     expect(selectPreview('sales', 'order`item')).toContain('`sales`.`order``item`')
     expect(selectPreview('sales', 'order`item')).toContain('LIMIT 100')
     expect(selectTableData('sales', 't')).toBe('SELECT *\nFROM `sales`.`t`')
+    expect(selectTableData('sales', 't', '"')).toBe('SELECT *\nFROM "sales"."t"')
   })
   it('requires a database only for object access', () => {
     expect(likelyNeedsDatabase('select 1')).toBe(false)
@@ -60,6 +61,11 @@ describe('script scanning', () => {
   })
   it('treats a trailing line comment as terminated', () => {
     expect(scanSql('select 1; -- done').reliable).toBe(true)
+  })
+  it('does not split on semicolons inside dollar quotes', () => {
+    const script = scanSql('select $tag$ a;b $tag$; select 2')
+    expect(script.statements.map((item) => item.text)).toEqual(['select $tag$ a;b $tag$', 'select 2'])
+    expect(script.reliable).toBe(true)
   })
   it('detects statements that depend on connection session state', () => {
     expect(needsSessionAffinity('SET @x = 1')).toBe(true)

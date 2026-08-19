@@ -7,11 +7,15 @@ Define the target-database engine registry and how saved or unsaved connections 
 ## Requirements
 
 ### Requirement: Registered engine dispatch
-The SQL service SHALL resolve every target-database JDBC, metadata, statement-scan, connection-failure, and session-restore operation through a registered `EngineSupport` identified by the data source `engine` value. At startup the registry SHALL contain exactly `MYSQL` until a later change adds more engines.
+The SQL service SHALL resolve every target-database JDBC, metadata, statement-scan, connection-failure, and session-restore operation through a registered `EngineSupport` identified by the data source `engine` value. At startup the registry SHALL contain `MYSQL` and `POSTGRESQL` in that order.
 
 #### Scenario: Dispatch a saved MySQL data source
 - **WHEN** a visible data source with `engine=MYSQL` is tested, browsed, executed against, or used for export
 - **THEN** the service SHALL use the MYSQL engine implementation and SHALL NOT assemble a `jdbc:mysql://` URL or MySQL-only property/SSL flags in the data-source, pool, execution, metadata, or history orchestrators
+
+#### Scenario: Dispatch a saved PostgreSQL data source
+- **WHEN** a visible data source with `engine=POSTGRESQL` is tested, browsed, executed against, or used for export
+- **THEN** the service SHALL use the POSTGRESQL engine implementation
 
 #### Scenario: Reject an unregistered engine on write
 - **WHEN** a create or update submits `engine` other than a registered id
@@ -27,6 +31,10 @@ Each `EngineSupport` SHALL expose an `EngineDescriptor` used by the engine catal
 #### Scenario: MYSQL descriptor matches runtime allow-list
 - **WHEN** the MYSQL engine reports its descriptor
 - **THEN** `propertyFields` names SHALL be exactly the keys accepted by MYSQL property validation, and `connectionFields` SHALL cover the structured connection fields the engine already consumes
+
+#### Scenario: POSTGRESQL descriptor matches runtime allow-list
+- **WHEN** the POSTGRESQL engine reports its descriptor
+- **THEN** `propertyFields` names SHALL be exactly the keys accepted by POSTGRESQL property validation, `connectionFields` SHALL include `defaultDatabase` as required, and `resourceTree` first level SHALL be `NAMESPACE` with `listEndpoint=databases`
 
 #### Scenario: Registry lists descriptors without target I/O
 - **WHEN** the registry is asked for descriptors

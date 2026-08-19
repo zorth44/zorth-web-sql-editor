@@ -88,4 +88,45 @@ class MetadataServiceTest {
         assertThat(page.getItems().get(0).getName()).isEqualTo("order_item");
         assertThat(page.getItems().get(0).getType()).isEqualTo("TABLE");
     }
+
+    @Test
+    void listsPostgresSchemasAsNamespacesAndBindsTablesToSchema() throws Exception {
+        TargetConnectionProvider targets = mock(TargetConnectionProvider.class);
+        Connection connection = mock(Connection.class);
+        DatabaseMetaData metadata = mock(DatabaseMetaData.class);
+        ResultSet schemas = mock(ResultSet.class);
+        ResultSet tables = mock(ResultSet.class);
+        java.sql.Statement restore = mock(java.sql.Statement.class);
+        AuthContext auth = new AuthContext("u", "user", "User", "product-a", "A", Instant.now().plusSeconds(60));
+        SavedDataSource source = new SavedDataSource("ds", "Orders", 1, "orders",
+            new ConnectionConfiguration("POSTGRESQL", "db", 5432, "u", "secret", "orders", "DISABLED", 10, Collections.emptyMap()));
+        com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport postgres =
+            new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport();
+        when(targets.require(auth, "ds")).thenReturn(source);
+        when(targets.engine(source)).thenReturn(postgres);
+        when(targets.borrow(source)).thenReturn(connection);
+        when(connection.getMetaData()).thenReturn(metadata);
+        when(connection.getAutoCommit()).thenReturn(true);
+        when(connection.createStatement()).thenReturn(restore);
+        when(metadata.getSchemas()).thenReturn(schemas);
+        when(schemas.next()).thenReturn(true, true, true, false, true, true, true, false);
+        when(schemas.getString("TABLE_SCHEM")).thenReturn("public", "pg_catalog", "sales", "public", "pg_catalog", "sales");
+        when(metadata.getTables(isNull(), eq("sales"), eq("%"), any(String[].class))).thenReturn(tables);
+        when(tables.next()).thenReturn(true, false);
+        when(tables.getString("TABLE_NAME")).thenReturn("order_item");
+        when(tables.getString("TABLE_TYPE")).thenReturn("TABLE");
+        when(tables.getString("REMARKS")).thenReturn(null);
+        SqlEditorProperties p = new SqlEditorProperties();
+        p.getCursor().setSigningKey(Base64.getEncoder().encodeToString(new byte[32]));
+        MetadataService service = new MetadataService(targets, new MetadataCursorCodec(new ObjectMapper(), p));
+        CursorPage<DatabaseItem> databases = service.databases(auth, "ds", "", 100, null, false);
+        assertThat(databases.getItems()).extracting(DatabaseItem::getName).containsExactly("public", "sales");
+        assertThat(databases.getItems()).extracting(DatabaseItem::getKind).containsExactly("NAMESPACE", "NAMESPACE");
+        CursorPage<TableItem> page = service.tables(auth, "ds", "sales", "", "TABLE,VIEW", 200, null);
+        assertThat(page.getItems()).hasSize(1);
+        assertThat(page.getItems().get(0).getDatabase()).isEqualTo("sales");
+        assertThat(page.getItems().get(0).getName()).isEqualTo("order_item");
+        verify(connection).setSchema("sales");
+        verify(connection, never()).setCatalog(any());
+    }
 }

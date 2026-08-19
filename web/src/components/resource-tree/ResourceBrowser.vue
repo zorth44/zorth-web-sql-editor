@@ -6,7 +6,7 @@ import { getTableDetail, listDatabases, listTables } from '@/api/metadata'
 import { quoteIdentifier, selectPreview } from '@/sql-editor/sql'
 import { safeErrorMessage } from '@/api/api-error'
 import type { DataSourceListItem, DatabaseItem, EngineDescriptor, TableDetail, TableItem } from '@/types/contracts'
-import { namespaceLevel, objectLevels } from '@/data-sources/catalog'
+import { namespaceLevel, objectLevels, identifierQuoteFor } from '@/data-sources/catalog'
 
 const props = defineProps<{
   sources: DataSourceListItem[]
@@ -293,11 +293,23 @@ async function copyName(name: string): Promise<void> {
   menu.value = null
 }
 function generateSelect(dataSourceId: string, database: string, table: string): void {
-  emit('insert', selectPreview(database, table), dataSourceId, database)
+  const source = props.sources.find((item) => item.id === dataSourceId)
+  emit(
+    'insert',
+    selectPreview(database, table, identifierQuoteFor(source ? descriptorOf(source) : undefined)),
+    dataSourceId,
+    database,
+  )
   menu.value = null
 }
 function insertName(dataSourceId: string, database: string, table: string): void {
-  emit('insert', quoteIdentifier(table), dataSourceId, database)
+  const source = props.sources.find((item) => item.id === dataSourceId)
+  emit(
+    'insert',
+    quoteIdentifier(table, identifierQuoteFor(source ? descriptorOf(source) : undefined)),
+    dataSourceId,
+    database,
+  )
   menu.value = null
 }
 function openMenu(

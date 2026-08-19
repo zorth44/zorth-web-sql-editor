@@ -5,7 +5,7 @@ import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
 import { initialDataSources } from '@/mocks/fixtures'
 import { saveToken } from '@/auth/token-storage'
 import type { DataSourceListItem, EngineDescriptor } from '@/types/contracts'
-import { mysqlEngineDescriptor } from '@/mocks/engines'
+import { mysqlEngineDescriptor, postgresEngineDescriptor } from '@/mocks/engines'
 
 const sources = initialDataSources as DataSourceListItem[]
 
@@ -193,6 +193,20 @@ describe('resource navigator', () => {
     expect(wrapper.text()).toContain('表')
     expect(wrapper.text()).toContain('视图')
     expect(wrapper.text()).not.toContain('分区')
+    wrapper.unmount()
+  })
+
+  it('labels PostgreSQL NAMESPACE filters as schemas', async () => {
+    const pgSource = { ...sources[0], engine: 'POSTGRESQL' } as DataSourceListItem
+    const wrapper = await renderBrowser({
+      sources: [pgSource],
+      engines: [postgresEngineDescriptor],
+      dataSourceId: 'ds-orders-a',
+      database: 'orders',
+    })
+    expect(
+      wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').attributes('placeholder'),
+    ).toBe('筛选模式')
     wrapper.unmount()
   })
 })

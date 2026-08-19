@@ -29,7 +29,7 @@ public class ShortLivedConnectionTester {
             long remaining=Math.max(1, TimeUnit.NANOSECONDS.toMillis(deadline-System.nanoTime()));
             if (System.nanoTime() >= deadline) break;
             Properties properties=target.copyProperties();
-            properties.setProperty("connectTimeout", String.valueOf(Math.min(remaining, 30000)));
+            engine.applyConnectTimeout(properties, Math.min(remaining, 30000));
             try (Connection connection=DriverManager.getConnection(engine.jdbcUrlWithoutNamespace(url), properties)) {
                 engine.verifyDefaultNamespace(connection, configuration.getDefaultDatabase());
                 DatabaseMetaData metadata=connection.getMetaData();

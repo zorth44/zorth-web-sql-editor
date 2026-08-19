@@ -10,6 +10,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 public interface EngineSupport {
     String id();
@@ -37,4 +38,12 @@ public interface EngineSupport {
     String requireSingle(String sql);
     List<String> split(String sql);
     String quoteIdentifier(String value);
+
+    default void applyConnectTimeout(Properties properties, long timeoutMillis) {
+        properties.setProperty("connectTimeout", String.valueOf(Math.max(1L, timeoutMillis)));
+    }
+
+    default int streamingFetchSize() {
+        return Integer.MIN_VALUE;
+    }
 }

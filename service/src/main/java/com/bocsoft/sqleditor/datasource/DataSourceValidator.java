@@ -48,6 +48,13 @@ public class DataSourceValidator {
         if (!isSslMode(request.getSslMode())) throw ApiException.validation("sslMode", "INVALID", "SSL 模式不合法");
         if (requirePassword && !StringUtils.hasLength(request.getPassword())) throw ApiException.validation("password", "REQUIRED", "请输入密码");
         engine(request).validateProperties(request.getProperties());
+        EngineSupport selected = engine(request);
+        if (selected.defaultNamespaceRequired() && !StringUtils.hasText(request.getDefaultDatabase())) {
+            throw ApiException.validation("defaultDatabase", "REQUIRED", "请输入默认数据库");
+        }
+        if (StringUtils.hasText(request.getDefaultDatabase())) {
+            selected.validateIdentifier("defaultDatabase", request.getDefaultDatabase());
+        }
     }
     private EngineSupport engine(ConnectionRequest request) {
         return engines.require(engineOf(request));

@@ -37,7 +37,11 @@ The SQL service SHALL validate strict request DTOs and return `400 VALIDATION_FA
 
 #### Scenario: Validate core fields
 - **WHEN** a create or update is submitted
-- **THEN** the service SHALL require `engine` to be a registered engine id (currently only `MYSQL`), a trimmed 1–100 character name, a protocol-free DNS/IPv4/IPv6 host of at most 255 characters, port 1–65535, a trimmed 1–128 character username, timeout 1–30 seconds, default database of at most 64 characters, description of at most 500 characters, and a password of at most 1024 characters
+- **THEN** the service SHALL require `engine` to be a registered engine id (`MYSQL` or `POSTGRESQL`), a trimmed 1–100 character name, a protocol-free DNS/IPv4/IPv6 host of at most 255 characters, port 1–65535, a trimmed 1–128 character username, timeout 1–30 seconds, default database within the selected engine's identifier limit, description of at most 500 characters, and a password of at most 1024 characters
+
+#### Scenario: Require PostgreSQL default database
+- **WHEN** a POSTGRESQL create or update omits `defaultDatabase`
+- **THEN** the service SHALL return `400 VALIDATION_FAILED` with a `defaultDatabase` field error
 
 #### Scenario: Reject an unregistered engine
 - **WHEN** a create or update submits `engine` that is absent from the engine registry
@@ -130,8 +134,8 @@ The SQL service SHALL delete only the current product's matching ID and version 
 Unsaved connection-test request bodies MAY include `engine`. When present it SHALL be a registered engine id; when absent the service SHALL keep the previous MYSQL default.
 
 #### Scenario: Accept a registered engine on unsaved test
-- **WHEN** `POST /api/v1/data-sources:test` or `POST /api/v1/data-sources/{id}:test` with a body includes `engine=MYSQL`
-- **THEN** the service SHALL accept the field and test using the MYSQL engine
+- **WHEN** `POST /api/v1/data-sources:test` or `POST /api/v1/data-sources/{id}:test` with a body includes `engine=MYSQL` or `engine=POSTGRESQL`
+- **THEN** the service SHALL accept the field and test using that engine
 
 #### Scenario: Reject an unregistered engine on unsaved test
 - **WHEN** a test body includes `engine` that is absent from the registry

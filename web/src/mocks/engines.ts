@@ -6,6 +6,7 @@ export const mysqlEngineDescriptor: EngineDescriptor = {
   family: 'MYSQL_WIRE',
   defaultPort: 3306,
   editorLanguage: 'mysql',
+  identifierQuote: '`',
   capabilities: {
     defaultNamespaceRequired: false,
     canSwitchNamespaceOnConnection: true,
@@ -135,4 +136,129 @@ export const mysqlEngineDescriptor: EngineDescriptor = {
   ],
 }
 
-export const mockEngineCatalog: EngineCatalog = { items: [mysqlEngineDescriptor] }
+export const postgresEngineDescriptor: EngineDescriptor = {
+  id: 'POSTGRESQL',
+  displayName: 'PostgreSQL',
+  family: 'POSTGRES_WIRE',
+  defaultPort: 5432,
+  editorLanguage: 'pgsql',
+  identifierQuote: '"',
+  capabilities: {
+    defaultNamespaceRequired: true,
+    canSwitchNamespaceOnConnection: true,
+  },
+  connectionFields: [
+    {
+      name: 'host',
+      kind: 'HOST',
+      widget: 'TEXT',
+      label: 'Host',
+      required: true,
+      maxLength: 255,
+    },
+    {
+      name: 'port',
+      kind: 'PORT',
+      widget: 'NUMBER',
+      label: 'Port',
+      required: true,
+      min: 1,
+      max: 65535,
+      defaultValue: '5432',
+    },
+    {
+      name: 'username',
+      kind: 'USERNAME',
+      widget: 'TEXT',
+      label: '用户名',
+      required: true,
+      maxLength: 128,
+    },
+    {
+      name: 'password',
+      kind: 'PASSWORD',
+      widget: 'PASSWORD',
+      label: '密码',
+      required: false,
+      requiredOnCreate: true,
+      maxLength: 1024,
+    },
+    {
+      name: 'defaultDatabase',
+      kind: 'DEFAULT_NAMESPACE',
+      widget: 'TEXT',
+      label: '默认数据库',
+      required: true,
+      maxLength: 63,
+    },
+    {
+      name: 'sslMode',
+      kind: 'SSL_MODE',
+      widget: 'SELECT',
+      label: 'SSL 模式',
+      required: true,
+      defaultValue: 'PREFERRED',
+      options: [
+        { value: 'DISABLED', label: '禁用' },
+        { value: 'PREFERRED', label: '优先' },
+        { value: 'REQUIRED', label: '必需' },
+      ],
+    },
+    {
+      name: 'connectTimeoutSeconds',
+      kind: 'TIMEOUT',
+      widget: 'NUMBER',
+      label: '连接超时（秒）',
+      required: true,
+      min: 1,
+      max: 30,
+      defaultValue: '10',
+    },
+  ],
+  propertyFields: [
+    {
+      name: 'ApplicationName',
+      widget: 'TEXT',
+      label: 'ApplicationName',
+      required: false,
+      defaultValue: 'zorth-sql-editor',
+    },
+    {
+      name: 'stringtype',
+      widget: 'SELECT',
+      label: 'stringtype',
+      required: false,
+      options: [
+        { value: 'unspecified', label: 'unspecified' },
+        { value: 'varchar', label: 'varchar' },
+      ],
+    },
+    {
+      name: 'tcpKeepAlive',
+      widget: 'SELECT',
+      label: 'tcpKeepAlive',
+      required: false,
+      options: [
+        { value: 'true', label: 'true' },
+        { value: 'false', label: 'false' },
+      ],
+    },
+    {
+      name: 'reWriteBatchedInserts',
+      widget: 'SELECT',
+      label: 'reWriteBatchedInserts',
+      required: false,
+      options: [
+        { value: 'true', label: 'true' },
+        { value: 'false', label: 'false' },
+      ],
+    },
+  ],
+  resourceTree: [
+    { kind: 'NAMESPACE', label: '模式', filterLabel: '筛选模式', listEndpoint: 'databases' },
+    { kind: 'TABLE', label: '表', filterLabel: '筛选表名', parentKind: 'NAMESPACE' },
+    { kind: 'VIEW', label: '视图', parentKind: 'NAMESPACE' },
+  ],
+}
+
+export const mockEngineCatalog: EngineCatalog = { items: [mysqlEngineDescriptor, postgresEngineDescriptor] }

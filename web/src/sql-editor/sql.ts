@@ -14,7 +14,7 @@ export interface SqlScript {
    */
   reliable: boolean
 }
-type State = 'normal' | 'single' | 'double' | 'backtick' | 'line' | 'block'
+type State = 'normal' | 'single' | 'double' | 'backtick' | 'line' | 'block' | 'dollar'
 
 export function splitSql(source: string): SqlSegment[] {
   return scanSql(source).statements
@@ -24,6 +24,7 @@ export function scanSql(source: string): SqlScript {
   const segments: SqlSegment[] = []
   let state: State = 'normal'
   let start = 0
+  let dollarTag = ''
   const add = (end: number) => {
     const raw = source.slice(start, end)
     const left = raw.search(/\S/)
@@ -38,7 +39,14 @@ export function scanSql(source: string): SqlScript {
       if (char === "'") state = 'single'
       else if (char === '"') state = 'double'
       else if (char === '`') state = 'backtick'
-      else if (char === '#') state = 'line'
+      else if (char === '$') {
+        const tag = dollarQuoteTag(source, i)
+        if (tag) {
+          dollarTag = tag
+          state = 'dollar'
+          i += tag.length - 1
+        }
+      } else if (char === '#') state = 'line'
       else if (char === '-' && next === '-' && /\s|$/.test(source[i + 2] || '')) {
         state = 'line'
         i += 1
@@ -60,6 +68,10 @@ export function scanSql(source: string): SqlScript {
     } else if (state === 'backtick') {
       if (char === '`' && next === '`') i += 1
       else if (char === '`') state = 'normal'
+    } else if (state === 'dollar' && source.startsWith(dollarTag, i)) {
+      i += dollarTag.length - 1
+      dollarTag = ''
+      state = 'normal'
     } else if (state === 'line' && (char === '\n' || char === '\r')) state = 'normal'
     else if (state === 'block' && char === '*' && next === '/') {
       state = 'normal'
@@ -81,14 +93,25 @@ export function statementAt(source: string, offset: number): SqlSegment | null {
     null
   )
 }
-export function quoteIdentifier(value: string): string {
-  return `\`${value.replaceAll('`', '``')}\``
+export function quoteIdentifier(value: string, quote = '`'): string {
+  return `${quote}${value.split(quote).join(quote + quote)}${quote}`
 }
-export function selectPreview(database: string, table: string): string {
-  return `${selectTableData(database, table)}\nLIMIT 100;`
+export function selectPreview(database: string, table: string, quote = '`'): string {
+  return `${selectTableData(database, table, quote)}\nLIMIT 100;`
 }
-export function selectTableData(database: string, table: string): string {
-  return `SELECT *\nFROM ${quoteIdentifier(database)}.${quoteIdentifier(table)}`
+export function selectTableData(database: string, table: string, quote = '`'): string {
+  return `SELECT *\nFROM ${quoteIdentifier(database, quote)}.${quoteIdentifier(table, quote)}`
+}
+function dollarQuoteTag(source: string, index: number): string | null {
+  if (source[index] !== '$') return null
+  if (source[index + 1] === '$') return '$$'
+  let end = index + 1
+  const first = source[end]
+  if (!first || !/[A-Za-z_]/.test(first)) return null
+  end += 1
+  while (end < source.length && /[A-Za-z0-9_]/.test(source[end] || '')) end += 1
+  if (source[end] !== '$') return null
+  return source.slice(index, end + 1)
 }
 function stripLeadingNoise(sql: string): string {
   return sql

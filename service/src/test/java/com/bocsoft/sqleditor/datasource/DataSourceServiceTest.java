@@ -41,7 +41,8 @@ class DataSourceServiceTest {
         p.getCredentials().setCurrentVersion("v1");
         p.getCredentials().setKeys(Collections.singletonMap("v1", Base64.getEncoder().encodeToString(new byte[32])));
         p.getCursor().setSigningKey(Base64.getEncoder().encodeToString(new byte[32]));
-        EngineRegistry engines = new EngineRegistry(Collections.<EngineSupport>singletonList(new MysqlEngineSupport()));
+        EngineRegistry engines = new EngineRegistry(java.util.Arrays.<EngineSupport>asList(
+            new MysqlEngineSupport(), new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport()));
         validator = new DataSourceValidator(engines);
         DataSourceResponseMapper responses = new DataSourceResponseMapper(json);
         service = new DataSourceService(mapper, validator, responses, new CredentialCipher(p), new CursorCodec(json, p), json,
@@ -66,7 +67,7 @@ class DataSourceServiceTest {
 
     @Test void rejectsUnregisteredEngineOnCreate() {
         CreateDataSourceRequest request = request();
-        request.setEngine("POSTGRESQL");
+        request.setEngine("HIVE");
         assertThatThrownBy(() -> service.create(auth, request)).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
         });
@@ -85,6 +86,18 @@ class DataSourceServiceTest {
         assertThat(validator.connection(request, "secret", true).getEngine()).isEqualTo(EngineId.MYSQL);
     }
 
+    @Test void postgresqlCreateRequiresDefaultDatabase() {
+        CreateDataSourceRequest request = request();
+        request.setEngine(EngineId.POSTGRESQL);
+        request.setPort(5432);
+        request.setDefaultDatabase(null);
+        request.setProperties(Collections.singletonMap("ApplicationName", "zorth-sql-editor"));
+        assertThatThrownBy(() -> service.create(auth, request)).isInstanceOfSatisfying(ApiException.class, e -> {
+            assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
+        });
+        verifyNoInteractions(mapper);
+    }
+
     @Test void unsavedConnectionTestUsesSubmittedEngine() {
         ConnectionRequest request = new ConnectionRequest();
         request.setEngine(EngineId.MYSQL);
@@ -100,7 +113,7 @@ class DataSourceServiceTest {
 
     @Test void unsavedConnectionTestRejectsUnregisteredEngine() {
         ConnectionRequest request = new ConnectionRequest();
-        request.setEngine("POSTGRESQL");
+        request.setEngine("HIVE");
         request.setHost("mysql.internal");
         request.setPort(3306);
         request.setUsername("user");

@@ -19,7 +19,7 @@ import { listEngines } from '@/api/engines'
 import { cancelExecution, executeSql, exportExecution } from '@/api/executions'
 import { getHistory } from '@/api/history'
 import { safeErrorMessage } from '@/api/api-error'
-import { editorLanguageFor, engineById } from '@/data-sources/catalog'
+import { editorLanguageFor, engineById, identifierQuoteFor } from '@/data-sources/catalog'
 import { useQuery } from '@tanstack/vue-query'
 import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
 import HistoryPanel from '@/components/history/HistoryPanel.vue'
@@ -183,7 +183,14 @@ async function loadTableData(id: string, force = false) {
     editor.finish(id, undefined, '没有 SQL 执行权限')
     return
   }
-  await executeOnTab(id, selectTableData(tab.database, tab.table))
+  await executeOnTab(
+    id,
+    selectTableData(
+      tab.database,
+      tab.table,
+      identifierQuoteFor(engineById(engines.value, sources.value.find((item) => item.id === tab.dataSourceId)?.engine)),
+    ),
+  )
 }
 async function executeOnTab(tabId: string, statement: string) {
   await executeStatements(tabId, [statement.trim()])

@@ -13,7 +13,7 @@ class EngineRegistryTest {
     private final EngineRegistry registry = new EngineRegistry(Collections.<EngineSupport>singletonList(new MysqlEngineSupport()));
 
     @Test void requireRejectsUnregisteredEngine() {
-        assertThatThrownBy(() -> registry.require("POSTGRESQL")).isInstanceOfSatisfying(ApiException.class, e -> {
+        assertThatThrownBy(() -> registry.require("HIVE")).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
         });
     }

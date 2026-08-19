@@ -38,8 +38,10 @@ export function validateDataSourceForm(
   if (usernameLength < 1 || usernameLength > 128) errors.username = '用户名长度必须为 1–128 个字符'
   if (mode === 'create' && !form.password) errors.password = '新增数据源必须输入密码'
   else if (form.password.length > 1024) errors.password = '密码最多 1024 个字符'
-  const namespaceMax = fieldOf(descriptor, 'defaultDatabase')?.maxLength ?? 64
-  if (form.defaultDatabase.trim().length > namespaceMax)
+  const namespaceField = fieldOf(descriptor, 'defaultDatabase')
+  const namespaceMax = namespaceField?.maxLength ?? 64
+  if (namespaceField?.required && !form.defaultDatabase.trim()) errors.defaultDatabase = '请输入默认数据库'
+  else if (form.defaultDatabase.trim().length > namespaceMax)
     errors.defaultDatabase = `默认数据库最多 ${namespaceMax} 个字符`
   const timeoutField = fieldOf(descriptor, 'connectTimeoutSeconds')
   const timeoutMin = timeoutField?.min ?? 1

@@ -322,7 +322,7 @@ GET /api/v1/session
 GET /api/v1/engines
 ```
 
-登录即可调用，不要求 `DATA_SOURCE_MANAGE`，也不打开目标库连接。返回当前已注册引擎的描述（字段、JDBC 属性、资源树、编辑器语言），供表单和资源树渲染。当前只注册 MYSQL。响应不含密码、完整 JDBC URL、CIDR 策略或加密材料。
+登录即可调用，不要求 `DATA_SOURCE_MANAGE`，也不打开目标库连接。返回当前已注册引擎的描述（字段、JDBC 属性、资源树、编辑器语言），供表单和资源树渲染。当前注册 MYSQL 与 POSTGRESQL。响应不含密码、完整 JDBC URL、CIDR 策略或加密材料。
 
 ```json
 {
@@ -333,6 +333,7 @@ GET /api/v1/engines
       "family": "MYSQL_WIRE",
       "defaultPort": 3306,
       "editorLanguage": "mysql",
+      "identifierQuote": "`",
       "capabilities": {
         "defaultNamespaceRequired": false,
         "canSwitchNamespaceOnConnection": true
@@ -359,7 +360,7 @@ GET /api/v1/engines
 }
 ```
 
-`connectionFields[].name` 必须是现有请求字段；`DEFAULT_NAMESPACE` 对应 `defaultDatabase`，不新增持久化 JSON 字段。`resourceTree` 第一层 `NAMESPACE` 的 `listEndpoint=databases` 表示沿用 `GET /api/v1/data-sources/{id}/databases`，路径和查询参数不改名。
+`connectionFields[].name` 必须是现有请求字段；`DEFAULT_NAMESPACE` 对应 `defaultDatabase`，不新增持久化 JSON 字段。`resourceTree` 第一层 `NAMESPACE` 的 `listEndpoint=databases` 表示沿用 `GET /api/v1/data-sources/{id}/databases`，路径和查询参数不改名。MYSQL 的 NAMESPACE 是 catalog；POSTGRESQL 的 NAMESPACE 是钉死库里的 schema，`defaultDatabase` 仍是 JDBC URL 里的数据库名且必填。目录第二项为 POSTGRESQL：`family=POSTGRES_WIRE`、`defaultPort=5432`、`editorLanguage=pgsql`、`identifierQuote="`、NAMESPACE 文案「模式」。
 
 ### 8.1 列表
 
@@ -590,7 +591,7 @@ POST /api/v1/data-sources/{id}:test
 
 ### 9.2 JDBC URL
 
-后端按数据源 `engine` 交给已注册的引擎，根据结构化字段生成 URL，不接受用户传入完整 JDBC URL。当前只注册 MYSQL。Host 为 IPv6 时自动加方括号。
+后端按数据源 `engine` 交给已注册的引擎，根据结构化字段生成 URL，不接受用户传入完整 JDBC URL。当前注册 MYSQL（`jdbc:mysql://`）与 POSTGRESQL（`jdbc:postgresql://`）。Host 为 IPv6 时自动加方括号。POSTGRESQL 必须填写 `defaultDatabase`（钉死的数据库）；树上的 schema 不进 URL。
 
 用户 `properties` 只允许下列键，大小写按 Connector/J 规范；其他键或不在允许集合中的值统一返回 `400 VALIDATION_FAILED`：
 
@@ -675,9 +676,9 @@ sql-editor:
 GET /api/v1/data-sources/{id}/databases?keyword=&pageSize=100&pageToken=&includeSystem=false
 ```
 
-该路径是引擎目录里 `NAMESPACE` 的适配接口：产品层叫 NAMESPACE，MYSQL 实现仍列出 catalog/schema。路径、查询参数和 JSON 字段 `name` 都不改名；每项增加 `kind=NAMESPACE`。表和表结构接口继续用查询参数/字段 `database` 表示父 NAMESPACE 名。
+该路径是引擎目录里 `NAMESPACE` 的适配接口：产品层叫 NAMESPACE，MYSQL 列出 catalog，POSTGRESQL 列出钉死数据库里的 schema。路径、查询参数和 JSON 字段 `name` 都不改名；每项增加 `kind=NAMESPACE`。表和表结构接口继续用查询参数/字段 `database` 表示父 NAMESPACE 名。
 
-`pageSize` 默认 100，上限 200。数据来源可使用 `DatabaseMetaData#getCatalogs()` 或 `INFORMATION_SCHEMA.SCHEMATA`。是否在导航中展示系统库由 `includeSystem` 和配置决定，默认隐藏 `information_schema`、`performance_schema`、`mysql` 和 `sys`。
+`pageSize` 默认 100，上限 200。MYSQL 可使用 `DatabaseMetaData#getCatalogs()`；POSTGRESQL 使用 `getSchemas()`。是否在导航中展示系统库由 `includeSystem` 和配置决定。MYSQL 默认隐藏 `information_schema`、`performance_schema`、`mysql` 和 `sys`；POSTGRESQL 默认隐藏 `information_schema` 以及 `pg_` 前缀 schema。
 
 隐藏系统库只影响元数据导航。用户在 SQL 编辑器里仍可查询这些库，最终可见性以 MySQL 账号为准；`SELECT INTO OUTFILE` 等同样不额外拦截。
 

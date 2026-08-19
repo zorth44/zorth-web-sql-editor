@@ -2,6 +2,9 @@ import type { DataSourceFormModel } from '@/data-sources/model'
 import type { EngineDescriptor, ResourceTreeLevel, SslMode } from '@/types/contracts'
 
 export const MYSQL_EDITOR_LANGUAGE = 'mysql' as const
+export const PG_EDITOR_LANGUAGE = 'pgsql' as const
+
+const REGISTERED_EDITOR_LANGUAGES = new Set<string>([MYSQL_EDITOR_LANGUAGE, PG_EDITOR_LANGUAGE])
 
 export function engineById(
   items: EngineDescriptor[] | undefined,
@@ -19,9 +22,16 @@ export function engineDisplayName(
 }
 
 export function editorLanguageFor(descriptor: EngineDescriptor | undefined): string {
-  return descriptor?.editorLanguage === MYSQL_EDITOR_LANGUAGE
-    ? MYSQL_EDITOR_LANGUAGE
-    : MYSQL_EDITOR_LANGUAGE
+  const language = descriptor?.editorLanguage
+  return language && REGISTERED_EDITOR_LANGUAGES.has(language) ? language : MYSQL_EDITOR_LANGUAGE
+}
+
+export function identifierQuoteFor(descriptor: EngineDescriptor | undefined): string {
+  return descriptor?.identifierQuote === '"' ? '"' : '`'
+}
+
+export function formatterLanguageFor(language: string): 'mysql' | 'postgresql' {
+  return language === PG_EDITOR_LANGUAGE ? 'postgresql' : 'mysql'
 }
 
 export function namespaceLevel(descriptor: EngineDescriptor | undefined): ResourceTreeLevel | undefined {

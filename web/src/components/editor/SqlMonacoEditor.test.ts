@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 vi.mock('@/components/editor/monaco-env', () => ({}))
 vi.mock('monaco-editor/features/register.all', () => ({}))
 vi.mock('monaco-editor/languages/definitions/mysql/register', () => ({}))
+vi.mock('monaco-editor/languages/definitions/pgsql/register', () => ({}))
 
 type Action = { id: string; run: () => void }
 const actions = new Map<string, Action>()
@@ -25,6 +26,10 @@ vi.mock('monaco-editor/editor', () => ({
   },
   editor: {
     setTheme: () => {},
+    setModelLanguage: (model: { language?: string }, language: string) => {
+      if (model) model.language = language
+      fake.createdLanguage = language
+    },
     create: (_el: unknown, options: { language?: string }) => {
       fake.createdLanguage = options.language || 'mysql'
       return {
@@ -37,6 +42,7 @@ vi.mock('monaco-editor/editor', () => ({
         getValueInRange: () => fake.selection,
         getOffsetAt: () => fake.cursorOffset,
         getWordUntilPosition: () => ({ startColumn: 1, endColumn: 1 }),
+        language: fake.createdLanguage,
       }),
       getSelection: () => ({}),
       getPosition: () => ({ lineNumber: 1, column: 1 }),
@@ -115,8 +121,14 @@ describe('sql monaco editor', () => {
     const unbound = await render()
     expect(fake.createdLanguage).toBe('mysql')
     unbound.unmount()
-    const unknown = await render('pgsql')
+    const unknown = await render('hive')
     expect(fake.createdLanguage).toBe('mysql')
     unknown.unmount()
+  })
+
+  it('creates Monaco as pgsql for PostgreSQL', async () => {
+    const wrapper = await render('pgsql')
+    expect(fake.createdLanguage).toBe('pgsql')
+    wrapper.unmount()
   })
 })

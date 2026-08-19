@@ -5,7 +5,8 @@ import * as monaco from 'monaco-editor/editor'
 import { useThemeStore } from '@/stores/theme'
 import 'monaco-editor/features/register.all'
 import 'monaco-editor/languages/definitions/mysql/register'
-import { MYSQL_EDITOR_LANGUAGE } from '@/data-sources/catalog'
+import 'monaco-editor/languages/definitions/pgsql/register'
+import { MYSQL_EDITOR_LANGUAGE, PG_EDITOR_LANGUAGE, formatterLanguageFor } from '@/data-sources/catalog'
 import { format } from 'sql-formatter'
 import { statementAt } from '@/sql-editor/sql'
 
@@ -25,8 +26,10 @@ let completion: monaco.IDisposable | undefined
 function monacoTheme(): string {
   return theme.scheme === 'dark' ? 'vs-dark' : 'vs'
 }
-function resolvedLanguage(): typeof MYSQL_EDITOR_LANGUAGE {
-  return MYSQL_EDITOR_LANGUAGE
+function resolvedLanguage(): string {
+  return props.language === PG_EDITOR_LANGUAGE || props.language === MYSQL_EDITOR_LANGUAGE
+    ? props.language
+    : MYSQL_EDITOR_LANGUAGE
 }
 
 function selectedText(): string {
@@ -80,7 +83,7 @@ function getRunnableScript(): string {
 function formatSql(): void {
   if (!editor) return
   try {
-    editor.setValue(format(editor.getValue(), { language: resolvedLanguage() }))
+    editor.setValue(format(editor.getValue(), { language: formatterLanguageFor(resolvedLanguage()) }))
   } catch {
     emit('notice', '当前 SQL 无法格式化')
   }
@@ -171,6 +174,14 @@ watch(
   },
 )
 watch(() => props.suggestions, installCompletion, { deep: true })
+watch(
+  () => props.language,
+  () => {
+    const model = editor?.getModel()
+    if (model) monaco.editor.setModelLanguage(model, resolvedLanguage())
+    installCompletion()
+  },
+)
 watch(
   () => theme.scheme,
   () => monaco.editor.setTheme(monacoTheme()),

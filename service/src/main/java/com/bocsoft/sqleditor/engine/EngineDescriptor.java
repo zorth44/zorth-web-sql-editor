@@ -10,19 +10,21 @@ public final class EngineDescriptor {
     private final String family;
     private final int defaultPort;
     private final String editorLanguage;
+    private final String identifierQuote;
     private final EngineCapabilities capabilities;
     private final List<EngineField> connectionFields;
     private final List<EngineField> propertyFields;
     private final List<ResourceTreeLevel> resourceTree;
 
     public EngineDescriptor(String id, String displayName, String family, int defaultPort, String editorLanguage,
-                            EngineCapabilities capabilities, List<EngineField> connectionFields,
+                            String identifierQuote, EngineCapabilities capabilities, List<EngineField> connectionFields,
                             List<EngineField> propertyFields, List<ResourceTreeLevel> resourceTree) {
         this.id = id;
         this.displayName = displayName;
         this.family = family;
         this.defaultPort = defaultPort;
         this.editorLanguage = editorLanguage;
+        this.identifierQuote = identifierQuote;
         this.capabilities = capabilities;
         this.connectionFields = Collections.unmodifiableList(new ArrayList<EngineField>(connectionFields));
         this.propertyFields = Collections.unmodifiableList(new ArrayList<EngineField>(propertyFields));
@@ -34,6 +36,7 @@ public final class EngineDescriptor {
     public String getFamily() { return family; }
     public int getDefaultPort() { return defaultPort; }
     public String getEditorLanguage() { return editorLanguage; }
+    public String getIdentifierQuote() { return identifierQuote; }
     public EngineCapabilities getCapabilities() { return capabilities; }
     public List<EngineField> getConnectionFields() { return connectionFields; }
     public List<EngineField> getPropertyFields() { return propertyFields; }

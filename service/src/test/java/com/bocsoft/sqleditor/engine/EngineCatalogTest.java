@@ -28,11 +28,11 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 
 class EngineCatalogTest {
     private final EngineRegistry registry = new EngineRegistry(
-        Collections.<EngineSupport>singletonList(new MysqlEngineSupport()));
+        java.util.Arrays.asList(new MysqlEngineSupport(), new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport()));
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
 
-    @Test void authenticatedCatalogReturnsExactlyMysql() throws Exception {
+    @Test void authenticatedCatalogReturnsMysqlThenPostgresql() throws Exception {
         AuthContext context = new AuthContext("u", "user", "User", "p", "Product", Instant.now().plusSeconds(60));
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(context, null, Collections.emptyList()));
@@ -42,15 +42,26 @@ class EngineCatalogTest {
             .build();
         mvc.perform(get("/api/v1/engines").accept(MediaType.APPLICATION_JSON))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items.length()").value(2))
             .andExpect(jsonPath("$.items[0].id").value("MYSQL"))
             .andExpect(jsonPath("$.items[0].family").value("MYSQL_WIRE"))
             .andExpect(jsonPath("$.items[0].defaultPort").value(3306))
             .andExpect(jsonPath("$.items[0].editorLanguage").value("mysql"))
+            .andExpect(jsonPath("$.items[0].identifierQuote").value("`"))
             .andExpect(jsonPath("$.items[0].connectionFields[4].name").value("defaultDatabase"))
             .andExpect(jsonPath("$.items[0].connectionFields[4].kind").value("DEFAULT_NAMESPACE"))
             .andExpect(jsonPath("$.items[0].resourceTree[0].kind").value("NAMESPACE"))
             .andExpect(jsonPath("$.items[0].resourceTree[0].listEndpoint").value("databases"))
+            .andExpect(jsonPath("$.items[1].id").value("POSTGRESQL"))
+            .andExpect(jsonPath("$.items[1].family").value("POSTGRES_WIRE"))
+            .andExpect(jsonPath("$.items[1].defaultPort").value(5432))
+            .andExpect(jsonPath("$.items[1].editorLanguage").value("pgsql"))
+            .andExpect(jsonPath("$.items[1].identifierQuote").value("\""))
+            .andExpect(jsonPath("$.items[1].capabilities.defaultNamespaceRequired").value(true))
+            .andExpect(jsonPath("$.items[1].connectionFields[4].required").value(true))
+            .andExpect(jsonPath("$.items[1].resourceTree[0].kind").value("NAMESPACE"))
+            .andExpect(jsonPath("$.items[1].resourceTree[0].label").value("模式"))
+            .andExpect(jsonPath("$.items[1].resourceTree[0].listEndpoint").value("databases"))
             .andExpect(jsonPath("$.items[0].password").doesNotExist())
             .andExpect(jsonPath("$.items[0].jdbcUrl").doesNotExist());
     }

@@ -26,6 +26,12 @@ class ArchitectureTest {
         .should().dependOnClassesThat().resideInAPackage("..engine.mysql..");
 
     @ArchTest
+    static final ArchRule orchestratorsDoNotDependOnPostgresEngine = noClasses()
+        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..auth..", "..common..")
+        .and().resideOutsideOfPackage("..engine.postgres..")
+        .should().dependOnClassesThat().resideInAPackage("..engine.postgres..");
+
+    @ArchTest
     static final ArchRule engineDoesNotDependOnControllers = noClasses()
         .that().resideInAPackage("..engine..")
         .and().haveSimpleNameNotEndingWith("Controller")

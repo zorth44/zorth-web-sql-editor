@@ -6,7 +6,7 @@ import {
   mapEditTestRequest,
   mapUpdateRequest,
 } from '@/data-sources/model'
-import { mysqlEngineDescriptor } from '@/mocks/engines'
+import { mysqlEngineDescriptor, postgresEngineDescriptor } from '@/mocks/engines'
 import { mapFieldErrors, validateDataSourceForm } from '@/data-sources/validation'
 
 function validForm() {
@@ -58,6 +58,20 @@ describe('data-source request mappers', () => {
       description: expect.any(String),
     })
     expect(validateDataSourceForm(validForm(), 'create')).toEqual({})
+    expect(
+      validateDataSourceForm(
+        { ...validForm(), engine: 'POSTGRESQL', defaultDatabase: '' },
+        'create',
+        postgresEngineDescriptor,
+      ),
+    ).toHaveProperty('defaultDatabase')
+    expect(
+      validateDataSourceForm(
+        { ...validForm(), engine: 'POSTGRESQL', defaultDatabase: 'orders', properties: { ApplicationName: 'zorth-sql-editor' } },
+        'create',
+        postgresEngineDescriptor,
+      ),
+    ).toEqual({})
   })
   it('accepts only the authoritative JDBC allow-list and valid IANA zones', () => {
     const allowed = {

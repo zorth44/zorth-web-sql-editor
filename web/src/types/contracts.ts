@@ -291,6 +291,7 @@ export interface EngineDescriptor {
   family: string
   defaultPort: number
   editorLanguage: string
+  identifierQuote: string
   capabilities: EngineCapabilities
   connectionFields: EngineField[]
   propertyFields: EngineField[]

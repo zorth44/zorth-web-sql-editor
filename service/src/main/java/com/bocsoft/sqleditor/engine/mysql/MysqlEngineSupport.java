@@ -18,8 +18,10 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+@Order(1)
 @Component
 public class MysqlEngineSupport implements EngineSupport {
     private final MysqlJdbc jdbc = new MysqlJdbc();
@@ -35,7 +37,7 @@ public class MysqlEngineSupport implements EngineSupport {
 
     @Override public EngineDescriptor descriptor() {
         return new EngineDescriptor(
-            id(), "MySQL", family(), 3306, "mysql",
+            id(), "MySQL", family(), 3306, "mysql", "`",
             new EngineCapabilities(defaultNamespaceRequired(), canSwitchNamespaceOnConnection()),
             Arrays.asList(
                 EngineField.connection("host", "HOST", "TEXT", "Host", true, null, null, Integer.valueOf(255), null, null),
