@@ -154,7 +154,7 @@ The frontend SHALL send a full update containing the loaded configuration versio
 
 #### Scenario: Replace the password
 - **WHEN** a user enters a non-empty edit password
-- **THEN** the PUT request SHALL send that password once and SHALL clear it from local form state after completion
+- **THEN** the PUT request SHALL send that password once and SHALL clear it from local form state after the update completes, not after a preceding connection test
 
 #### Scenario: Update succeeds
 - **WHEN** the API returns an updated detail response
@@ -170,6 +170,10 @@ The frontend SHALL distinguish testing a new form, an unsaved edit form, and a s
 #### Scenario: Test a new form
 - **WHEN** the user tests a valid new data-source form
 - **THEN** the frontend SHALL call `POST /api/v1/data-sources:test` with connection fields and the selected `engine`, including the required password and form timeout
+
+#### Scenario: Keep the create password after testing
+- **WHEN** a create-form connection test settles
+- **THEN** the frontend SHALL keep the entered password in the form so a subsequent save does not require re-entry
 
 #### Scenario: Test an unsaved edit form
 - **WHEN** the user tests edits before saving
@@ -232,9 +236,17 @@ Database passwords MUST remain transient and absent from rendered/cached/persist
 - **WHEN** list/detail data enters Vue Query or components
 - **THEN** it SHALL contain only `passwordConfigured` and SHALL NOT synthesize or display a password value
 
-#### Scenario: Finish a password-bearing request
-- **WHEN** a create, update, or connection-test request settles
-- **THEN** the frontend SHALL clear transient password request/form values as soon as the active workflow no longer needs them
+#### Scenario: Finish a successful write
+- **WHEN** a create or update request succeeds
+- **THEN** the frontend SHALL clear the password from local form state before leaving the page
+
+#### Scenario: Leave the form
+- **WHEN** the user navigates away from the create or edit form
+- **THEN** the frontend SHALL clear any remaining password from local form state
+
+#### Scenario: Keep password after an in-progress request
+- **WHEN** a connection-test request or a failed create/update request settles while the user remains on the form
+- **THEN** the frontend SHALL retain the entered password because save still needs it
 
 #### Scenario: Inspect browser persistence
 - **WHEN** a user creates, edits, tests, logs out, or receives 401

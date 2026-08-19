@@ -132,10 +132,7 @@ const saveMutation = useMutation({
     notices.push('success', edit.value ? '数据源已更新' : '数据源已创建')
     await router.push('/data-sources')
   },
-  onError: (error) => {
-    scrubPassword()
-    handleApiError(error)
-  },
+  onError: handleApiError,
 })
 const testMutation = useMutation({
   mutationFn: () =>
@@ -145,12 +142,8 @@ const testMutation = useMutation({
   retry: false,
   onSuccess: (result) => {
     testResult.value = result
-    scrubPassword()
   },
-  onError: (error) => {
-    scrubPassword()
-    handleApiError(error)
-  },
+  onError: handleApiError,
 })
 function save(): void {
   if (!validate() || busy.value || (edit.value && !detailQuery.data.value)) return
