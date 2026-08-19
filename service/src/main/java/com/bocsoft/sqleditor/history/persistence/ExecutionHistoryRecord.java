@@ -8,7 +8,7 @@ public class ExecutionHistoryRecord {
     private String operation; private String statementText; private String statementHash;
     private String statementType; private String status; private String resultKind;
     private Long returnedRows; private Long affectedRows; private boolean truncated; private Long durationMs;
-    private Integer mysqlErrorCode; private String sqlState; private String errorMessage;
+    private Integer vendorErrorCode; private String sqlState; private String errorMessage;
     private String requestId; private String clientIp; private Instant startedAt; private Instant finishedAt;
     public String getId(){return id;} public void setId(String v){id=v;}
     public String getUserId(){return userId;} public void setUserId(String v){userId=v;}
@@ -27,7 +27,7 @@ public class ExecutionHistoryRecord {
     public Long getAffectedRows(){return affectedRows;} public void setAffectedRows(Long v){affectedRows=v;}
     public boolean isTruncated(){return truncated;} public void setTruncated(boolean v){truncated=v;}
     public Long getDurationMs(){return durationMs;} public void setDurationMs(Long v){durationMs=v;}
-    public Integer getMysqlErrorCode(){return mysqlErrorCode;} public void setMysqlErrorCode(Integer v){mysqlErrorCode=v;}
+    public Integer getVendorErrorCode(){return vendorErrorCode;} public void setVendorErrorCode(Integer v){vendorErrorCode=v;}
     public String getSqlState(){return sqlState;} public void setSqlState(String v){sqlState=v;}
     public String getErrorMessage(){return errorMessage;} public void setErrorMessage(String v){errorMessage=v;}
     public String getRequestId(){return requestId;} public void setRequestId(String v){requestId=v;}

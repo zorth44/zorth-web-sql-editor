@@ -1,5 +1,6 @@
 package com.bocsoft.sqleditor.datasource.connection;
 
+import com.bocsoft.sqleditor.engine.EngineSupport;
 import java.sql.Connection;
 import java.sql.SQLException;
 
@@ -10,11 +11,11 @@ public final class ConnectionUse {
 
     public interface Evict { void evict(Connection connection); }
 
-    public static <T> T execute(Connection connection, String defaultCatalog, Work<T> work) throws SQLException {
-        return execute(connection, defaultCatalog, null, work);
+    public static <T> T execute(Connection connection, String defaultCatalog, EngineSupport engine, Work<T> work) throws SQLException {
+        return execute(connection, defaultCatalog, engine, null, work);
     }
 
-    public static <T> T execute(Connection connection, String defaultCatalog, Evict evict, Work<T> work) throws SQLException {
+    public static <T> T execute(Connection connection, String defaultCatalog, EngineSupport engine, Evict evict, Work<T> work) throws SQLException {
         T result = null;
         SQLException workFailure = null;
         RuntimeException runtimeFailure = null;
@@ -26,7 +27,7 @@ public final class ConnectionUse {
             runtimeFailure = e;
         } finally {
             try {
-                resetAndClose(connection, defaultCatalog, evict);
+                resetAndClose(connection, defaultCatalog, engine, evict);
             } catch (SQLException resetFailure) {
                 if (workFailure != null) workFailure.setNextException(resetFailure);
                 else if (runtimeFailure != null) runtimeFailure.addSuppressed(resetFailure);
@@ -37,11 +38,11 @@ public final class ConnectionUse {
         return result;
     }
 
-    public static void resetAndClose(Connection connection, String defaultCatalog) throws SQLException {
-        resetAndClose(connection, defaultCatalog, null);
+    public static void resetAndClose(Connection connection, String defaultCatalog, EngineSupport engine) throws SQLException {
+        resetAndClose(connection, defaultCatalog, engine, null);
     }
 
-    public static void resetAndClose(Connection connection, String defaultCatalog, Evict evict) throws SQLException {
+    public static void resetAndClose(Connection connection, String defaultCatalog, EngineSupport engine, Evict evict) throws SQLException {
         SQLException failure = null;
         try {
             if (!connection.getAutoCommit()) connection.rollback();
@@ -50,15 +51,9 @@ public final class ConnectionUse {
             connection.setAutoCommit(true);
         } catch (SQLException e) { if (failure == null) failure = e; }
         boolean discard = false;
-        if (hasText(defaultCatalog)) {
-            try {
-                connection.setCatalog(defaultCatalog);
-            } catch (SQLException e) { if (failure == null) failure = e; }
-        } else {
-            try {
-                discard = hasText(connection.getCatalog());
-            } catch (SQLException e) { if (failure == null) failure = e; }
-        }
+        try {
+            discard = engine.restoreSession(connection, defaultCatalog);
+        } catch (SQLException e) { if (failure == null) failure = e; }
         if (!discard) {
             try {
                 connection.clearWarnings();
@@ -74,9 +69,5 @@ public final class ConnectionUse {
             } catch (SQLException e) { if (failure == null) failure = e; }
         }
         if (failure != null) throw failure;
-    }
-
-    private static boolean hasText(String value) {
-        return value != null && !value.trim().isEmpty();
     }
 }

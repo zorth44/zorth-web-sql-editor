@@ -372,7 +372,7 @@ export const handlers = [
       return error(422, 'SQL_EXECUTION_FAILED', "Table 'orders.mock_error' doesn't exist", {
         executionId: body.executionId,
         sqlState: '42S02',
-        mysqlErrorCode: 1146,
+        vendorErrorCode: 1146,
       })
     }
     if (upper.includes('SLEEP')) {
@@ -472,7 +472,7 @@ export const handlers = [
           ...item,
           statement: item.statementSummary,
           sqlState: null,
-          mysqlErrorCode: null,
+          vendorErrorCode: null,
           errorMessage: null,
           connectionAvailable: true,
         })

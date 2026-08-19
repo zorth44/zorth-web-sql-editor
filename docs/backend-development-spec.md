@@ -269,7 +269,7 @@ GET /api/v1/session
 | `affected_rows` | bigint null | 影响行数 |
 | `truncated` | boolean | 是否截断 |
 | `duration_ms` | bigint null | 执行耗时 |
-| `mysql_error_code` | int null | MySQL 错误码 |
+| `vendor_error_code` | int null | 目标库驱动错误码 |
 | `sql_state` | varchar(10) null | SQLState |
 | `error_message` | varchar(1000) null | 脱敏错误 |
 | `request_id` | varchar(64) | 请求追踪 ID |
@@ -544,7 +544,7 @@ POST /api/v1/data-sources/{id}:test
 
 ### 9.2 JDBC URL
 
-后端根据结构化字段生成 URL，不接受用户传入完整 JDBC URL。Host 为 IPv6 时自动加方括号。
+后端按数据源 `engine` 交给已注册的引擎，根据结构化字段生成 URL，不接受用户传入完整 JDBC URL。当前只注册 MYSQL。Host 为 IPv6 时自动加方括号。
 
 用户 `properties` 只允许下列键，大小写按 Connector/J 规范；其他键或不在允许集合中的值统一返回 `400 VALIDATION_FAILED`：
 
@@ -849,7 +849,7 @@ SQL 错误使用适当 HTTP 状态和统一 Body：
   "details": {
     "executionId": "f44b...",
     "sqlState": "42S02",
-    "mysqlErrorCode": 1146
+    "vendorErrorCode": 1146
   }
 }
 ```
@@ -940,7 +940,7 @@ GET /api/v1/sql/history/{id}
 | 503 | `AUTH_SERVICE_UNAVAILABLE` | 授权服务不可用 |
 | 504 | `SQL_EXECUTION_TIMEOUT` | 执行超时 |
 
-MySQL 权限不足属于 `SQL_EXECUTION_FAILED`，通过 `sqlState/mysqlErrorCode` 给前端展示原始数据库错误。
+目标库权限不足属于 `SQL_EXECUTION_FAILED`，通过 `sqlState/vendorErrorCode` 给前端展示原始数据库错误。
 
 ## 16. 并发、事务与一致性
 
@@ -978,7 +978,11 @@ com.bocsoft.sqleditor
     DynamicPoolManager
   metadata/
     MetadataController
-    MysqlMetadataService
+    MetadataService
+    engine/
+      EngineSupport
+      EngineRegistry
+      mysql/MysqlEngineSupport
   execution/
     SqlExecutionController
     SqlExecutionService

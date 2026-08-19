@@ -10,4 +10,5 @@ public final class SavedDataSource {
     }
     public String getId(){return id;} public String getName(){return name;} public long getVersion(){return version;}
     public String getDefaultDatabase(){return defaultDatabase;} public ConnectionConfiguration getConfiguration(){return configuration;}
+    public String getEngine(){return configuration.getEngine();}
 }

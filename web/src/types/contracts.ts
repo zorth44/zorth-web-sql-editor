@@ -239,7 +239,7 @@ export interface HistorySummary {
 export interface HistoryDetail extends HistorySummary {
   statement: string
   sqlState: string | null
-  mysqlErrorCode: number | null
+  vendorErrorCode: number | null
   errorMessage: string | null
   connectionAvailable: boolean
 }

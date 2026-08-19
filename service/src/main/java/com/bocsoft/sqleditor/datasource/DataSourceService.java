@@ -132,7 +132,7 @@ public class DataSourceService {
 
     DataSourceRecord require(AuthContext auth,String id){ DataSourceRecord r=mapper.findVisible(id,auth.getProductId()); if(r==null)throw ApiException.notFound(); return r; }
     String decrypt(DataSourceRecord r){ return cipher.decrypt(r.getPasswordCiphertext(),r.getPasswordIv(),r.getKeyVersion()); }
-    ConnectionConfiguration configuration(DataSourceRecord r,String password){ return new ConnectionConfiguration(r.getHost(),r.getPort(),r.getUsername(),password,r.getDefaultDatabase(),r.getSslMode(),r.getConnectTimeoutSeconds(),responses.readProperties(r.getPropertiesJson())); }
+    ConnectionConfiguration configuration(DataSourceRecord r,String password){ return new ConnectionConfiguration(r.getEngine(),r.getHost(),r.getPort(),r.getUsername(),password,r.getDefaultDatabase(),r.getSslMode(),r.getConnectTimeoutSeconds(),responses.readProperties(r.getPropertiesJson())); }
 
     private void apply(DataSourceRecord record,ConnectionRequest request,EncryptedCredential secret){
         record.setName(validator.trim(request instanceof CreateDataSourceRequest?((CreateDataSourceRequest)request).getName():((UpdateDataSourceRequest)request).getName()));

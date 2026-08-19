@@ -227,8 +227,15 @@ The frontend SHALL distinguish result sets, update counts, and DDL messages, SHA
 - **THEN** the UI SHALL visibly distinguish NULL from empty, preserve numeric strings, collapse long text with detail access, and show binary type/size without raw bytes
 
 #### Scenario: Render an execution error
-- **WHEN** execution fails with SQLState/MySQL code or a stable 404/409/422/429/504 code
-- **THEN** the frontend SHALL show the safe mapped message and database codes while excluding stack, JDBC URL, credentials, and internal network details
+- **WHEN** execution fails with SQLState/`vendorErrorCode` or a stable 404/409/422/429/504 code
+- **THEN** the frontend SHALL show the safe mapped message and database codes while excluding stack, JDBC URL, credentials, internal network details, and any `mysqlErrorCode` field
+
+### Requirement: Vendor-neutral error code types
+Frontend contracts, mocks, and history detail rendering SHALL use `vendorErrorCode` and SHALL NOT read or display `mysqlErrorCode`.
+
+#### Scenario: Type and mock the history and execution error payload
+- **WHEN** TypeScript contracts or MSW handlers describe a failed execution or history detail
+- **THEN** they SHALL expose `vendorErrorCode: number | null` and SHALL NOT include `mysqlErrorCode`
 
 ### Requirement: Query export workflow
 The frontend SHALL offer CSV export only for a successful query result and SHALL send only its execution ID and requested row limit.
