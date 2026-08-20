@@ -18,6 +18,7 @@ import com.bocsoft.sqleditor.datasource.persistence.DataSourceRecord;
 import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineRegistry;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -41,8 +42,9 @@ class DataSourceServiceTest {
         p.getCredentials().setCurrentVersion("v1");
         p.getCredentials().setKeys(Collections.singletonMap("v1", Base64.getEncoder().encodeToString(new byte[32])));
         p.getCursor().setSigningKey(Base64.getEncoder().encodeToString(new byte[32]));
+        MysqlEngineSupport mysql = new MysqlEngineSupport();
         EngineRegistry engines = new EngineRegistry(java.util.Arrays.<EngineSupport>asList(
-            new MysqlEngineSupport(), new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport()));
+            mysql, new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport(), new Gbase8aEngineSupport(mysql)));
         validator = new DataSourceValidator(engines);
         DataSourceResponseMapper responses = new DataSourceResponseMapper(json);
         service = new DataSourceService(mapper, validator, responses, new CredentialCipher(p), new CursorCodec(json, p), json,
@@ -96,6 +98,19 @@ class DataSourceServiceTest {
             assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
         });
         verifyNoInteractions(mapper);
+    }
+
+    @Test void gbase8aCreateAllowsMissingDefaultDatabase() throws Exception {
+        when(mapper.insert(any())).thenReturn(1);
+        CreateDataSourceRequest request = request();
+        request.setEngine(EngineId.GBASE_8A);
+        request.setPort(5258);
+        request.setDefaultDatabase(null);
+        Object response = service.create(auth, request);
+        ArgumentCaptor<DataSourceRecord> record = ArgumentCaptor.forClass(DataSourceRecord.class);
+        verify(mapper).insert(record.capture());
+        assertThat(record.getValue().getEngine()).isEqualTo(EngineId.GBASE_8A);
+        assertThat(json.writeValueAsString(response)).contains("GBASE_8A");
     }
 
     @Test void unsavedConnectionTestUsesSubmittedEngine() {

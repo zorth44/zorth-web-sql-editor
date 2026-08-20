@@ -16,6 +16,9 @@ class EngineRegistryTest {
         assertThatThrownBy(() -> registry.require("HIVE")).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
         });
+        assertThatThrownBy(() -> registry.require("GBASE_8C")).isInstanceOfSatisfying(ApiException.class, e -> {
+            assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
+        });
     }
 
     @Test void requireSavedFailsClosedForUnknownPersistedEngine() {

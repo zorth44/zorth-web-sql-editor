@@ -4,7 +4,7 @@
 >
 > 状态：评审稿 v0.3
 >
-> 适用范围：目标库支持 MySQL 与 PostgreSQL。第一阶段交付数据源管理，第二阶段交付 SQL 编辑器。
+> 适用范围：目标库支持 MySQL、PostgreSQL 与 GBase 8a（挂 MySQL 协议族）。第一阶段交付数据源管理，第二阶段交付 SQL 编辑器。
 >
 > 参考界面：Bytebase 3.20.x SQL Editor 的信息架构与交互方式
 
@@ -40,7 +40,7 @@
 - SQL 审批、危险操作拦截、SQL Review、数据脱敏和审计中心。
 - 事务面板、跨请求手动提交或回滚。
 - SQL 草稿、工作表分享、收藏和团队协作。
-- Hive / GBase、批量跨库查询和可视化执行计划。
+- Hive / GBase 8c / GBase 8s、批量跨库查询和可视化执行计划。
 - 表数据在线编辑。
 
 ## 2. 技术选型
@@ -53,7 +53,7 @@
 | 路由       | Vue Router 4                          | 登录、数据源和编辑器路由                                                                | 1，编辑器路由在阶段 2 |
 | 请求缓存   | TanStack Vue Query                    | 服务端状态、分页、重试和缓存失效                                                        | 1                     |
 | 本地状态   | Pinia                                 | 编辑器页签、布局尺寸、当前连接等临时状态                                                | 1                     |
-| SQL 编辑器 | Monaco Editor                         | 语言来自引擎目录（MYSQL=`mysql`，POSTGRESQL=`pgsql`）；快捷键、查找、格式化和补全；封装为 Vue 组件 | 2                     |
+| SQL 编辑器 | Monaco Editor                         | 语言来自引擎目录（MYSQL 与 GBASE_8A=`mysql`，POSTGRESQL=`pgsql`）；快捷键、查找、格式化和补全；封装为 Vue 组件 | 2                     |
 | 可调整布局 | splitpanes                            | 左侧资源树、编辑区和结果区可拖动                                                        | 2                     |
 | 大表格     | TanStack Vue Table + Vue Virtual      | 结果列和行虚拟滚动                                                                      | 2                     |
 | 样式       | Tailwind CSS + CSS Variables          | 参考 Bytebase 信息架构，同时保留品牌主题变量                                            | 1                     |
@@ -288,7 +288,7 @@ URL 仅包含非敏感 ID 和数据库名。打开 URL 时后端重新鉴权，�
 
 第二阶段支持：
 
-- 按绑定数据源引擎目录设置语言：MYSQL 为 `mysql`，POSTGRESQL 为 `pgsql`。
+- 按绑定数据源引擎目录设置语言：MYSQL 与 GBASE_8A 为 `mysql`，POSTGRESQL 为 `pgsql`。
 - 查找、替换、撤销、重做。
 - SQL 格式化。
 - 基于当前数据库元数据的库、表、字段补全。

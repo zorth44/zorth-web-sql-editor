@@ -112,6 +112,20 @@ describe('data-source form create experience', () => {
     expect(wrapper.get('[data-testid="advanced-jdbc"]').attributes('aria-expanded')).toBe('true')
     expect(wrapper.get('#property-ApplicationName').isVisible()).toBe(true)
     expect(wrapper.find('#property-serverTimezone').exists()).toBe(false)
+    await wrapper.get('#ds-engine-GBASE_8A').setValue()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="engine-type-GBASE_8A"]').text()).toContain('GBase 8a')
+    expect(wrapper.get('[data-testid="engine-type-GBASE_8A"]').classes()).toContain(
+      'engine-type-card-selected',
+    )
+    expect((wrapper.get('#ds-port').element as HTMLInputElement).value).toBe('5258')
+    expect(wrapper.get('label[for="ds-defaultDatabase"]').text()).toBe('默认数据库')
+    expect((wrapper.get('#ds-defaultDatabase').element as HTMLInputElement).placeholder).toBe(
+      '手工输入，可留空',
+    )
+    expect(wrapper.text()).not.toContain('资源树里列出的是该库下的模式')
+    expect(wrapper.get('#property-serverTimezone').isVisible()).toBe(true)
+    expect(wrapper.find('#property-ApplicationName').exists()).toBe(false)
     wrapper.unmount()
   })
 })

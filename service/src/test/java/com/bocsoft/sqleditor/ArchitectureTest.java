@@ -32,6 +32,12 @@ class ArchitectureTest {
         .should().dependOnClassesThat().resideInAPackage("..engine.postgres..");
 
     @ArchTest
+    static final ArchRule orchestratorsDoNotDependOnGbase8aEngine = noClasses()
+        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..auth..", "..common..")
+        .and().resideOutsideOfPackage("..engine.gbase8a..")
+        .should().dependOnClassesThat().resideInAPackage("..engine.gbase8a..");
+
+    @ArchTest
     static final ArchRule engineDoesNotDependOnControllers = noClasses()
         .that().resideInAPackage("..engine..")
         .and().haveSimpleNameNotEndingWith("Controller")

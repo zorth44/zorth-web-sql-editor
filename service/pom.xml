@@ -148,6 +148,9 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <includeSystemScope>true</includeSystemScope>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -178,4 +181,24 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>gbase-official-jdbc</id>
+      <activation>
+        <file>
+          <exists>${project.basedir}/third-party/gbase/gbase-connector-java.jar</exists>
+        </file>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>com.gbase</groupId>
+          <artifactId>gbase-connector-java</artifactId>
+          <version>official</version>
+          <scope>system</scope>
+          <systemPath>${project.basedir}/third-party/gbase/gbase-connector-java.jar</systemPath>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 </project>

@@ -261,6 +261,16 @@ export const postgresEngineDescriptor: EngineDescriptor = {
   ],
 }
 
+export const gbase8aEngineDescriptor: EngineDescriptor = {
+  ...mysqlEngineDescriptor,
+  id: 'GBASE_8A',
+  displayName: 'GBase 8a',
+  defaultPort: 5258,
+  connectionFields: mysqlEngineDescriptor.connectionFields.map((field) =>
+    field.name === 'port' ? { ...field, defaultValue: '5258' } : field,
+  ),
+}
+
 export const mockEngineCatalog: EngineCatalog = {
-  items: [mysqlEngineDescriptor, postgresEngineDescriptor],
+  items: [mysqlEngineDescriptor, postgresEngineDescriptor, gbase8aEngineDescriptor],
 }

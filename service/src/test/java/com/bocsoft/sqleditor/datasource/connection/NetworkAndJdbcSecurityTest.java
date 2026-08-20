@@ -7,6 +7,7 @@ import com.bocsoft.sqleditor.common.ApiException;
 import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineRegistry;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport;
 import java.net.InetAddress;
@@ -20,8 +21,9 @@ import org.junit.jupiter.api.Test;
 class NetworkAndJdbcSecurityTest {
     private final MysqlEngineSupport mysql = new MysqlEngineSupport();
     private final PostgresEngineSupport postgres = new PostgresEngineSupport();
+    private final Gbase8aEngineSupport gbase8a = new Gbase8aEngineSupport(mysql);
     private final EngineRegistry engines = new EngineRegistry(
-        java.util.Arrays.<EngineSupport>asList(mysql, postgres));
+        java.util.Arrays.<EngineSupport>asList(mysql, postgres, gbase8a));
 
     @Test void handlesIpv4AndIpv6CidrBoundaries()throws Exception{
         CidrBlock v4=CidrBlock.parse("10.0.0.0/8");
@@ -74,6 +76,18 @@ class NetworkAndJdbcSecurityTest {
         Properties properties = target.copyProperties();
         assertThat(properties.getProperty("sslmode")).isEqualTo("require");
         assertThat(properties.getProperty("allowMultiQueries")).isNull();
+        assertThat(properties.getProperty("password")).isEqualTo("secret");
+    }
+
+    @Test void buildsGbase8aMysqlFamilyIpv6Url() throws Exception {
+        NetworkPolicy network = new NetworkPolicy(Collections.singletonList("2001:db8::/32"), Collections.<String>emptyList(), host -> new InetAddress[]{InetAddress.getByName("2001:db8::5")});
+        JdbcConfigurationBuilder builder = new JdbcConfigurationBuilder(network, engines);
+        JdbcTarget target = builder.build(new ConnectionConfiguration(EngineId.GBASE_8A, "db", 5258, "user", "secret", "orders", "REQUIRED", 10, Collections.singletonMap("serverTimezone", "Asia/Shanghai")));
+        assertThat(target.getUrls().get(0)).contains("jdbc:gbase://[2001:db8:").endsWith("/orders");
+        assertThat(gbase8a.jdbcUrlWithoutNamespace(target.getUrls().get(0))).endsWith("/");
+        Properties properties = target.copyProperties();
+        assertThat(properties.getProperty("allowMultiQueries")).isEqualTo("false");
+        assertThat(properties.getProperty("requireSSL")).isEqualTo("true");
         assertThat(properties.getProperty("password")).isEqualTo("secret");
     }
 }

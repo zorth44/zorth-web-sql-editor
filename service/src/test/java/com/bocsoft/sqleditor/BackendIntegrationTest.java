@@ -111,6 +111,21 @@ class BackendIntegrationTest {
         executeSelect(id,database,"SELECT * FROM `"+database+"`.`sql_data_source`");
     }
 
+    @Test void gbase8aRegistersWithoutOpeningMysqlLiveJdbc()throws Exception{
+        mvc.perform(get("/api/v1/engines").header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(3))
+            .andExpect(jsonPath("$.items[2].id").value("GBASE_8A"))
+            .andExpect(jsonPath("$.items[2].family").value("MYSQL_WIRE"))
+            .andExpect(jsonPath("$.items[2].defaultPort").value(5258))
+            .andExpect(jsonPath("$.items[2].resourceTree[0].label").value("数据库"));
+        JsonNode created=json.readTree(mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer token-a")
+            .contentType(MediaType.APPLICATION_JSON).content(gbase8aPayload("GBase 8a 源")))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        assertThat(created.path("engine").asText()).isEqualTo("GBASE_8A");
+        assertThat(created.path("defaultDatabase").isMissingNode() || created.path("defaultDatabase").isNull()).isTrue();
+    }
+
     private void executeSelect(String dataSourceId,String database,String sql)throws Exception{
         String executionId=java.util.UUID.randomUUID().toString();
         MvcResult started=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
@@ -127,6 +142,7 @@ class BackendIntegrationTest {
     private JsonNode createWithoutDefaultDatabase(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payloadWithoutDefaultDatabase(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private static String payload(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
     private static String payloadWithoutDefaultDatabase(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
+    private static String gbase8aPayload(String name){return "{\"name\":\""+name+"\",\"engine\":\"GBASE_8A\",\"host\":\"127.0.0.1\",\"port\":5258,\"username\":\"gbase\",\"password\":\"secret\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"gbase8a\"}";}
     private static String connectionPayload(String password){return "{\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"}}";}
     private static String connectionPayloadDatabase(String password,String database){return connectionPayload(password).replace("\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\"","\"defaultDatabase\":\""+database+"\"");}
     private static String connectionPayloadPort(String password,int port){return connectionPayload(password).replace("\"port\":"+MYSQL.getMappedPort(3306),"\"port\":"+port);}

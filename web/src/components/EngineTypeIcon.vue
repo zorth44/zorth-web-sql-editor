@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import mysqlLogo from '@/assets/engines/mysql.svg'
 import postgresqlLogo from '@/assets/engines/postgresql.svg'
+import gbase8aLogo from '@/assets/engines/gbase-8a.svg'
 
 withDefaults(defineProps<{ engine: string; size?: number }>(), { size: 48 })
 </script>
@@ -8,6 +9,7 @@ withDefaults(defineProps<{ engine: string; size?: number }>(), { size: 48 })
   <span class="engine-type-icon" aria-hidden="true">
     <img v-if="engine === 'MYSQL'" :src="mysqlLogo" width="88" height="56" alt="" />
     <img v-else-if="engine === 'POSTGRESQL'" :src="postgresqlLogo" width="56" height="56" alt="" />
+    <img v-else-if="engine === 'GBASE_8A'" :src="gbase8aLogo" width="88" height="56" alt="" />
     <svg v-else viewBox="0 0 48 48" :width="size" :height="size">
       <rect width="48" height="48" rx="12" fill="#0F766E" />
       <ellipse cx="24" cy="16.5" rx="12" ry="5" fill="#5EEAD4" />

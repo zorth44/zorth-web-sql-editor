@@ -6,7 +6,7 @@ import {
   mapEditTestRequest,
   mapUpdateRequest,
 } from '@/data-sources/model'
-import { mysqlEngineDescriptor, postgresEngineDescriptor } from '@/mocks/engines'
+import { mysqlEngineDescriptor, postgresEngineDescriptor, gbase8aEngineDescriptor } from '@/mocks/engines'
 import { mapFieldErrors, validateDataSourceForm } from '@/data-sources/validation'
 
 function validForm() {
@@ -70,6 +70,13 @@ describe('data-source request mappers', () => {
         { ...validForm(), engine: 'POSTGRESQL', defaultDatabase: 'orders', properties: { ApplicationName: 'zorth-sql-editor' } },
         'create',
         postgresEngineDescriptor,
+      ),
+    ).toEqual({})
+    expect(
+      validateDataSourceForm(
+        { ...validForm(), engine: 'GBASE_8A', defaultDatabase: '', properties: { serverTimezone: 'UTC' } },
+        'create',
+        gbase8aEngineDescriptor,
       ),
     ).toEqual({})
   })
