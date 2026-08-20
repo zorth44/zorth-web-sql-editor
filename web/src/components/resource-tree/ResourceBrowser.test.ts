@@ -1,9 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
 import { initialDataSources } from '@/mocks/fixtures'
 import { saveToken } from '@/auth/token-storage'
+import * as metadataApi from '@/api/metadata'
 import type { DataSourceListItem, EngineDescriptor } from '@/types/contracts'
 import { mysqlEngineDescriptor, postgresEngineDescriptor } from '@/mocks/engines'
 
@@ -208,5 +209,58 @@ describe('resource navigator', () => {
       wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').attributes('placeholder'),
     ).toBe('筛选模式')
     wrapper.unmount()
+  })
+
+  it('renders a distinct engine icon for each data source type', async () => {
+    const wrapper = await renderBrowser({
+      sources: [
+        { ...sources[0], engine: 'MYSQL' },
+        { ...sources[1], engine: 'POSTGRESQL' },
+        { ...sources[2], engine: 'GBASE_8A' },
+      ],
+    })
+    expect(
+      wrapper
+        .get('[data-testid="navigator-source-ds-orders-a"] [data-engine-icon="MYSQL"]')
+        .attributes('data-engine-variant'),
+    ).toBe('tree')
+    expect(
+      wrapper
+        .get('[data-testid="navigator-source-ds-orders-b"] [data-engine-icon="POSTGRESQL"]')
+        .attributes('data-engine-variant'),
+    ).toBe('tree')
+    expect(
+      wrapper
+        .get('[data-testid="navigator-source-ds-in-use"] [data-engine-icon="GBASE_8A"]')
+        .attributes('data-engine-variant'),
+    ).toBe('tree')
+    wrapper.unmount()
+  })
+
+  it('shows a spinner while databases are loading', async () => {
+    let resolveDatabases!: (value: Awaited<ReturnType<typeof metadataApi.listDatabases>>) => void
+    const spy = vi.spyOn(metadataApi, 'listDatabases').mockReturnValue(
+      new Promise((resolve) => {
+        resolveDatabases = resolve
+      }),
+    )
+    try {
+      const wrapper = await renderBrowser({})
+      await wrapper.get('[aria-label="展开 订单测试库 mysql-a.internal:3306"]').trigger('click')
+      await flushPromises()
+      const spinner = wrapper.get('[data-testid="navigator-loading-ds-orders-a"]')
+      expect(spinner.find('.tree-expand-spinner').exists()).toBe(true)
+      expect(wrapper.text()).not.toContain('正在加载数据库')
+      expect(wrapper.find('[data-testid="navigator-db-filter-ds-orders-a"]').exists()).toBe(false)
+      resolveDatabases({ items: [{ name: 'orders', kind: 'NAMESPACE' }], nextPageToken: null })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="navigator-loading-ds-orders-a"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="navigator-database-ds-orders-a-orders"]').exists()).toBe(
+        true,
+      )
+      wrapper.unmount()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

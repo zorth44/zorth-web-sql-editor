@@ -470,6 +470,50 @@ textarea {
 .tree-icon {
   @apply h-3.5 w-3.5 shrink-0;
 }
+.tree-engine-icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  place-items: center;
+}
+.tree-engine-icon img,
+.tree-engine-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+.tree-icon-badge {
+  position: relative;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  place-items: center;
+}
+.tree-status-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--color-panel);
+}
+.tree-expand-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--color-brand) 28%, transparent);
+  border-top-color: var(--color-brand);
+  animation: tree-node-spin 0.7s linear infinite;
+}
+@keyframes tree-node-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .tree-empty {
   @apply py-1 pr-2 text-[11px] text-muted;
 }

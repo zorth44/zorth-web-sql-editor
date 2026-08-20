@@ -5,7 +5,14 @@ import { ChevronRight, Menu, RefreshCw, Search } from 'lucide-vue-next'
 import { getTableDetail, listDatabases, listTables } from '@/api/metadata'
 import { quoteIdentifier, selectPreview } from '@/sql-editor/sql'
 import { safeErrorMessage } from '@/api/api-error'
-import type { DataSourceListItem, DatabaseItem, EngineDescriptor, TableDetail, TableItem } from '@/types/contracts'
+import EngineTypeIcon from '@/components/EngineTypeIcon.vue'
+import type {
+  DataSourceListItem,
+  DatabaseItem,
+  EngineDescriptor,
+  TableDetail,
+  TableItem,
+} from '@/types/contracts'
 import { namespaceLevel, objectLevels, identifierQuoteFor } from '@/data-sources/catalog'
 
 const props = defineProps<{
@@ -155,6 +162,23 @@ function statusFill(status: DataSourceListItem['lastTestStatus']): string {
   if (status === 'SUCCESS') return '#22c55e'
   if (status === 'FAILED') return '#ef4444'
   return '#94a3b8'
+}
+function isLoadingSource(dataSourceId: string): boolean {
+  return Boolean(loadingDatabases.value[dataSourceId])
+}
+function isInitialSourceLoad(dataSourceId: string): boolean {
+  return (
+    isLoadingSource(dataSourceId) &&
+    !databasesBySource.value[dataSourceId] &&
+    !databaseError.value[dataSourceId]
+  )
+}
+function isLoadingTables(dataSourceId: string, database: string): boolean {
+  return Boolean(loadingTables.value[dbKey(dataSourceId, database)])
+}
+function isInitialTableLoad(dataSourceId: string, database: string): boolean {
+  const key = dbKey(dataSourceId, database)
+  return isLoadingTables(dataSourceId, database) && !tablesByDb.value[key] && !tableError.value[key]
 }
 function isChildOfDatabase(dataSourceId: string, database: string): boolean {
   const current = activeNode.value
@@ -405,15 +429,30 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
           <button
             class="tree-chevron"
             :aria-label="
-              (expandedSources[source.id] ? '折叠 ' : '展开 ') +
+              (isLoadingSource(source.id)
+                ? '正在加载 '
+                : expandedSources[source.id]
+                  ? '折叠 '
+                  : '展开 ') +
               source.name +
               ' ' +
               sourceEndpoint(source)
             "
             :aria-expanded="Boolean(expandedSources[source.id])"
+            :aria-busy="isLoadingSource(source.id)"
+            :data-testid="isLoadingSource(source.id) ? `navigator-loading-${source.id}` : undefined"
             @click="toggleSource(source.id)"
           >
-            <ChevronRight :size="12" :class="expandedSources[source.id] ? 'rotate-90' : ''" />
+            <span
+              v-if="isLoadingSource(source.id)"
+              class="tree-expand-spinner"
+              aria-hidden="true"
+            />
+            <ChevronRight
+              v-else
+              :size="12"
+              :class="expandedSources[source.id] ? 'rotate-90' : ''"
+            />
           </button>
           <button
             class="tree-label"
@@ -421,24 +460,24 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
             :aria-label="`${source.name} ${sourceEndpoint(source)}`"
             @click="selectSource(source.id)"
           >
-            <svg class="tree-icon" viewBox="0 0 16 16" aria-hidden="true">
-              <ellipse cx="8" cy="4.2" rx="5.6" ry="2.1" fill="#0f766e" />
-              <path
-                fill="#0f766e"
-                d="M2.4 4.2v7.4c0 1.16 2.5 2.1 5.6 2.1s5.6-.94 5.6-2.1V4.2c0 1.16-2.5 2.1-5.6 2.1S2.4 5.36 2.4 4.2Z"
+            <span class="tree-icon-badge">
+              <EngineTypeIcon variant="tree" :engine="source.engine" />
+              <span
+                class="tree-status-dot"
+                :style="{ background: statusFill(source.lastTestStatus) }"
               />
-              <ellipse cx="8" cy="4.2" rx="5.6" ry="2.1" fill="#14b8a6" />
-              <circle cx="11.4" cy="11.2" r="2.05" :fill="statusFill(source.lastTestStatus)" />
-            </svg>
+            </span>
             <span class="truncate">{{ source.name }}</span>
             <span class="truncate text-[10px] text-muted">{{ sourceEndpoint(source) }}</span>
           </button>
         </div>
-        <div v-if="expandedSources[source.id]">
+        <div v-if="expandedSources[source.id] && !isInitialSourceLoad(source.id)">
           <div
             class="tree-filter tree-row-depth-1"
             role="search"
-            :aria-label="'筛选 ' + source.name + ' 的' + (namespaceMeta(source)?.label || '数据库') + '和表'"
+            :aria-label="
+              '筛选 ' + source.name + ' 的' + (namespaceMeta(source)?.label || '数据库') + '和表'
+            "
           >
             <Search class="shrink-0" :size="12" aria-hidden="true" />
             <input
@@ -460,10 +499,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
               @input="setTableQuery(source.id, $event)"
             />
           </div>
-          <p v-if="loadingDatabases[source.id]" class="px-3 py-1.5 text-xs text-muted">
-            正在加载{{ namespaceMeta(source)?.label || '数据库' }}…
-          </p>
-          <p v-else-if="databaseError[source.id]" class="px-3 py-1.5 text-xs text-danger">
+          <p v-if="databaseError[source.id]" class="px-3 py-1.5 text-xs text-danger">
             {{ databaseError[source.id] }}
           </p>
           <p v-else-if="!databasesOf(source.id).length" class="tree-empty tree-row-depth-1">
@@ -484,12 +520,28 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
               <button
                 class="tree-chevron"
                 :aria-label="
-                  (expandedDbs[dbKey(source.id, item.name)] ? '折叠 ' : '展开 ') + item.name
+                  (isLoadingTables(source.id, item.name)
+                    ? '正在加载 '
+                    : expandedDbs[dbKey(source.id, item.name)]
+                      ? '折叠 '
+                      : '展开 ') + item.name
                 "
                 :aria-expanded="Boolean(expandedDbs[dbKey(source.id, item.name)])"
+                :aria-busy="isLoadingTables(source.id, item.name)"
+                :data-testid="
+                  isLoadingTables(source.id, item.name)
+                    ? `navigator-loading-tables-${source.id}-${item.name}`
+                    : undefined
+                "
                 @click="toggleDatabase(source.id, item.name)"
               >
+                <span
+                  v-if="isLoadingTables(source.id, item.name)"
+                  class="tree-expand-spinner"
+                  aria-hidden="true"
+                />
                 <ChevronRight
+                  v-else
                   :size="12"
                   :class="expandedDbs[dbKey(source.id, item.name)] ? 'rotate-90' : ''"
                 />
@@ -507,15 +559,14 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
                 <span class="truncate">{{ item.name }}</span>
               </button>
             </div>
-            <div v-if="expandedDbs[dbKey(source.id, item.name)]">
+            <div
+              v-if="
+                expandedDbs[dbKey(source.id, item.name)] &&
+                !isInitialTableLoad(source.id, item.name)
+              "
+            >
               <p
-                v-if="loadingTables[dbKey(source.id, item.name)]"
-                class="px-3 py-1.5 text-xs text-muted"
-              >
-                加载表…
-              </p>
-              <p
-                v-else-if="tableError[dbKey(source.id, item.name)]"
+                v-if="tableError[dbKey(source.id, item.name)]"
                 class="px-3 py-1.5 text-xs text-danger"
               >
                 {{ tableError[dbKey(source.id, item.name)] }}
