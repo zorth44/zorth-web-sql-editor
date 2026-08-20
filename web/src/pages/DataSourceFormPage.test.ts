@@ -66,10 +66,52 @@ describe('data-source form password retention', () => {
     await buttonByText(wrapper, '测试连接').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('连接成功')
-    expect((wrapper.get('#ds-password').element as HTMLInputElement).value).toBe('replacement-secret')
+    expect((wrapper.get('#ds-password').element as HTMLInputElement).value).toBe(
+      'replacement-secret',
+    )
     await buttonByText(wrapper, '保存').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/data-sources')
+    wrapper.unmount()
+  })
+})
+
+describe('data-source form create experience', () => {
+  beforeEach(() => queryClient.clear())
+
+  it('picks the engine from icon cards and keeps JDBC properties collapsed', async () => {
+    const { wrapper } = await renderFormPage('/data-sources/new')
+    expect(wrapper.get('[data-testid="engine-type-MYSQL"]').classes()).toContain(
+      'engine-type-card-selected',
+    )
+    expect(wrapper.get('label[for="ds-defaultDatabase"]').text()).toBe('默认数据库')
+    expect((wrapper.get('#ds-defaultDatabase').element as HTMLInputElement).placeholder).toBe(
+      '手工输入，可留空',
+    )
+    expect(wrapper.get('[data-testid="engine-type-POSTGRESQL"]').text()).toContain('PostgreSQL')
+    expect(wrapper.get('[data-testid="advanced-jdbc"]').attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('[data-testid="advanced-jdbc-fields"]').isVisible()).toBe(false)
+    expect(wrapper.get('#property-serverTimezone').isVisible()).toBe(false)
+
+    await wrapper.get('#ds-engine-POSTGRESQL').setValue()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="engine-type-POSTGRESQL"]').classes()).toContain(
+      'engine-type-card-selected',
+    )
+    expect((wrapper.get('#ds-port').element as HTMLInputElement).value).toBe('5432')
+    expect(wrapper.get('label[for="ds-defaultDatabase"]').text()).toContain('数据库名')
+    expect(wrapper.get('label[for="ds-defaultDatabase"]').text()).toContain('*')
+    expect((wrapper.get('#ds-defaultDatabase').element as HTMLInputElement).placeholder).toBe(
+      '请输入要连接的数据库',
+    )
+    expect(wrapper.get('#ds-defaultDatabase').attributes('placeholder')).not.toContain('可留空')
+    expect(wrapper.text()).toContain('资源树里列出的是该库下的模式')
+    expect(wrapper.get('[data-testid="advanced-jdbc-fields"]').isVisible()).toBe(false)
+
+    await wrapper.get('[data-testid="advanced-jdbc"]').trigger('click')
+    expect(wrapper.get('[data-testid="advanced-jdbc"]').attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('#property-ApplicationName').isVisible()).toBe(true)
+    expect(wrapper.find('#property-serverTimezone').exists()).toBe(false)
     wrapper.unmount()
   })
 })

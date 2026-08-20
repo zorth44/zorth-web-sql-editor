@@ -187,7 +187,7 @@ export const postgresEngineDescriptor: EngineDescriptor = {
       name: 'defaultDatabase',
       kind: 'DEFAULT_NAMESPACE',
       widget: 'TEXT',
-      label: '默认数据库',
+      label: '数据库名',
       required: true,
       maxLength: 63,
     },
@@ -261,4 +261,6 @@ export const postgresEngineDescriptor: EngineDescriptor = {
   ],
 }
 
-export const mockEngineCatalog: EngineCatalog = { items: [mysqlEngineDescriptor, postgresEngineDescriptor] }
+export const mockEngineCatalog: EngineCatalog = {
+  items: [mysqlEngineDescriptor, postgresEngineDescriptor],
+}

@@ -32,7 +32,11 @@ export function validateDataSourceForm(
   const portField = fieldOf(descriptor, 'port')
   const portMin = portField?.min ?? 1
   const portMax = portField?.max ?? 65535
-  if (!Number.isInteger(Number(form.port)) || Number(form.port) < portMin || Number(form.port) > portMax)
+  if (
+    !Number.isInteger(Number(form.port)) ||
+    Number(form.port) < portMin ||
+    Number(form.port) > portMax
+  )
     errors.port = `端口必须在 ${portMin}–${portMax} 之间`
   const usernameLength = form.username.trim().length
   if (usernameLength < 1 || usernameLength > 128) errors.username = '用户名长度必须为 1–128 个字符'
@@ -40,9 +44,11 @@ export function validateDataSourceForm(
   else if (form.password.length > 1024) errors.password = '密码最多 1024 个字符'
   const namespaceField = fieldOf(descriptor, 'defaultDatabase')
   const namespaceMax = namespaceField?.maxLength ?? 64
-  if (namespaceField?.required && !form.defaultDatabase.trim()) errors.defaultDatabase = '请输入默认数据库'
+  const namespaceLabel = namespaceField?.label || '默认数据库'
+  if (namespaceField?.required && !form.defaultDatabase.trim())
+    errors.defaultDatabase = `请输入${namespaceLabel}`
   else if (form.defaultDatabase.trim().length > namespaceMax)
-    errors.defaultDatabase = `默认数据库最多 ${namespaceMax} 个字符`
+    errors.defaultDatabase = `${namespaceLabel}最多 ${namespaceMax} 个字符`
   const timeoutField = fieldOf(descriptor, 'connectTimeoutSeconds')
   const timeoutMin = timeoutField?.min ?? 1
   const timeoutMax = timeoutField?.max ?? 30

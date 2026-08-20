@@ -27,6 +27,7 @@ class PostgresJdbcTest {
         assertThat(postgres.descriptor().getIdentifierQuote()).isEqualTo("\"");
         assertThat(postgres.descriptor().getCapabilities().isDefaultNamespaceRequired()).isTrue();
         assertThat(postgres.descriptor().getConnectionFields().get(4).getName()).isEqualTo("defaultDatabase");
+        assertThat(postgres.descriptor().getConnectionFields().get(4).getLabel()).isEqualTo("数据库名");
         assertThat(postgres.descriptor().getConnectionFields().get(4).isRequired()).isTrue();
         assertThat(postgres.descriptor().getResourceTree().get(0).getKind()).isEqualTo("NAMESPACE");
         assertThat(postgres.descriptor().getResourceTree().get(0).getLabel()).isEqualTo("模式");

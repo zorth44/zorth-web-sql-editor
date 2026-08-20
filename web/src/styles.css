@@ -266,6 +266,103 @@ textarea {
   line-height: 1.6;
   color: var(--color-muted);
 }
+.engine-type-icon {
+  display: grid;
+  height: 56px;
+  width: 88px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 10px;
+  background: #fff;
+  padding: 6px 8px;
+  box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.08);
+}
+.engine-type-icon img,
+.engine-type-icon svg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.engine-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 160px));
+  gap: 12px;
+}
+.engine-type-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-panel);
+  padding: 16px 12px 14px;
+  cursor: pointer;
+  text-align: center;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.engine-type-card-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: var(--color-brand);
+}
+.engine-type-card:hover {
+  background: var(--color-hover);
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-line));
+}
+.engine-type-card-selected {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+  box-shadow: 0 0 0 1px var(--color-brand);
+}
+.engine-type-card:has(input:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--color-brand) 35%, transparent);
+  outline-offset: 2px;
+}
+.engine-type-card-name {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.advanced-toggle {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.advanced-toggle:hover .advanced-toggle-title {
+  color: var(--color-brand);
+}
+.advanced-toggle-copy {
+  min-width: 0;
+  flex: 1;
+}
+.advanced-toggle-title {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.advanced-toggle-hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-muted);
+  font-weight: 400;
+}
 .table-viewer {
   @apply flex min-h-0 flex-1 flex-col;
 }

@@ -45,7 +45,7 @@ public class PostgresEngineSupport implements EngineSupport {
                 EngineField.connection("port", "PORT", "NUMBER", "Port", true, Integer.valueOf(1), Integer.valueOf(65535), null, "5432", null),
                 EngineField.connection("username", "USERNAME", "TEXT", "用户名", true, null, null, Integer.valueOf(128), null, null),
                 EngineField.password("password", "密码", 1024),
-                EngineField.connection("defaultDatabase", "DEFAULT_NAMESPACE", "TEXT", "默认数据库", true, null, null, Integer.valueOf(63), null, null),
+                EngineField.connection("defaultDatabase", "DEFAULT_NAMESPACE", "TEXT", "数据库名", true, null, null, Integer.valueOf(63), null, null),
                 EngineField.connection("sslMode", "SSL_MODE", "SELECT", "SSL 模式", true, null, null, null, "PREFERRED",
                     EngineField.labeled("DISABLED", "禁用", "PREFERRED", "优先", "REQUIRED", "必需")),
                 EngineField.connection("connectTimeoutSeconds", "TIMEOUT", "NUMBER", "连接超时（秒）", true, Integer.valueOf(1), Integer.valueOf(30), null, "10", null)

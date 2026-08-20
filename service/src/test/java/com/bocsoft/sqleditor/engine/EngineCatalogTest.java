@@ -59,6 +59,7 @@ class EngineCatalogTest {
             .andExpect(jsonPath("$.items[1].identifierQuote").value("\""))
             .andExpect(jsonPath("$.items[1].capabilities.defaultNamespaceRequired").value(true))
             .andExpect(jsonPath("$.items[1].connectionFields[4].required").value(true))
+            .andExpect(jsonPath("$.items[1].connectionFields[4].label").value("数据库名"))
             .andExpect(jsonPath("$.items[1].resourceTree[0].kind").value("NAMESPACE"))
             .andExpect(jsonPath("$.items[1].resourceTree[0].label").value("模式"))
             .andExpect(jsonPath("$.items[1].resourceTree[0].listEndpoint").value("databases"))

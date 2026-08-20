@@ -50,7 +50,7 @@ public class DataSourceValidator {
         engine(request).validateProperties(request.getProperties());
         EngineSupport selected = engine(request);
         if (selected.defaultNamespaceRequired() && !StringUtils.hasText(request.getDefaultDatabase())) {
-            throw ApiException.validation("defaultDatabase", "REQUIRED", "请输入默认数据库");
+            throw ApiException.validation("defaultDatabase", "REQUIRED", "请输入数据库名");
         }
         if (StringUtils.hasText(request.getDefaultDatabase())) {
             selected.validateIdentifier("defaultDatabase", request.getDefaultDatabase());
