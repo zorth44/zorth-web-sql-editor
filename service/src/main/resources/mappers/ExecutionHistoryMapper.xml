@@ -5,7 +5,7 @@
     <id property="id" column="id"/><result property="userId" column="user_id"/><result property="username" column="username"/>
     <result property="productId" column="product_id"/><result property="dataSourceId" column="data_source_id"/>
     <result property="dataSourceName" column="data_source_name"/><result property="databaseName" column="database_name"/>
-    <result property="operation" column="operation"/><result property="statementText" column="statement_text"/>
+    <result property="operation" column="operation"/><result property="source" column="source"/><result property="statementText" column="statement_text"/>
     <result property="statementHash" column="statement_hash"/><result property="statementType" column="statement_type"/>
     <result property="status" column="status"/><result property="resultKind" column="result_kind"/>
     <result property="returnedRows" column="returned_rows"/><result property="affectedRows" column="affected_rows"/>
@@ -15,9 +15,9 @@
     <result property="clientIp" column="client_ip"/><result property="startedAt" column="started_at"/>
     <result property="finishedAt" column="finished_at"/>
   </resultMap>
-  <sql id="columns">id,user_id,username,product_id,data_source_id,data_source_name,database_name,operation,statement_text,statement_hash,statement_type,status,result_kind,returned_rows,affected_rows,truncated,duration_ms,vendor_error_code,sql_state,error_message,request_id,client_ip,started_at,finished_at</sql>
+  <sql id="columns">id,user_id,username,product_id,data_source_id,data_source_name,database_name,operation,source,statement_text,statement_hash,statement_type,status,result_kind,returned_rows,affected_rows,truncated,duration_ms,vendor_error_code,sql_state,error_message,request_id,client_ip,started_at,finished_at</sql>
   <insert id="insert">INSERT INTO sql_execution_history (<include refid="columns"/>) VALUES
-    (#{id},#{userId},#{username},#{productId},#{dataSourceId},#{dataSourceName},#{databaseName},#{operation},#{statementText},#{statementHash},#{statementType},#{status},#{resultKind},#{returnedRows},#{affectedRows},#{truncated},#{durationMs},#{vendorErrorCode},#{sqlState},#{errorMessage},#{requestId},#{clientIp},#{startedAt},#{finishedAt})
+    (#{id},#{userId},#{username},#{productId},#{dataSourceId},#{dataSourceName},#{databaseName},#{operation},#{source},#{statementText},#{statementHash},#{statementType},#{status},#{resultKind},#{returnedRows},#{affectedRows},#{truncated},#{durationMs},#{vendorErrorCode},#{sqlState},#{errorMessage},#{requestId},#{clientIp},#{startedAt},#{finishedAt})
   </insert>
   <select id="exists" resultType="int">SELECT COUNT(*) FROM sql_execution_history WHERE id=#{id}</select>
   <update id="finish">UPDATE sql_execution_history SET status=#{status},result_kind=#{resultKind},returned_rows=#{returnedRows},affected_rows=#{affectedRows},truncated=#{truncated},duration_ms=#{durationMs},vendor_error_code=#{vendorErrorCode},sql_state=#{sqlState},error_message=#{errorMessage},finished_at=#{finishedAt} WHERE id=#{id} AND status='RUNNING'</update>

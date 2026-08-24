@@ -22,6 +22,7 @@ class ConnectionUseTest {
         assertThat(result).isEqualTo("ok");
         verify(connection).rollback();
         verify(connection).setAutoCommit(true);
+        verify(connection).setReadOnly(false);
         verify(connection).setCatalog("orders");
         verify(connection).clearWarnings();
         verify(connection).close();

@@ -208,16 +208,21 @@ export interface SqlExecutionRequest {
   database: string | null
   statement: string
   rowLimit?: number
+  readOnly?: boolean
+  timeoutSeconds?: number
+  source?: 'WEB_SQL_EDITOR' | 'AI_AGENT'
 }
 
 export type ExecutionStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'TIMEOUT'
 export type StatementType = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'REPLACE' | 'DDL' | 'OTHER'
+export type ExecutionSource = 'WEB_SQL_EDITOR' | 'AI_AGENT'
 export interface HistorySummary {
   id: string
   dataSourceId: string
   dataSourceName: string
   database: string | null
   operation: 'EXECUTE' | 'EXPORT'
+  source: ExecutionSource
   statementSummary: string
   statementType: StatementType
   status: ExecutionStatus

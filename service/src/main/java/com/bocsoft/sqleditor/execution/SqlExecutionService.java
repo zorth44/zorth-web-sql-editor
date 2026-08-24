@@ -46,7 +46,21 @@ public class SqlExecutionService {
         this.metrics = metrics;
     }
 
-    public SqlExecutionResponse execute(AuthContext auth, SqlExecutionRequest request, String requestId) {
+    public int effectiveTimeoutSeconds(SqlExecutionRequest request) {
+        Integer requested = request.getTimeoutSeconds();
+        int configured = limits.getTimeoutSeconds();
+        if (requested == null) return configured;
+        if (requested < 1 || requested > configured) {
+            throw ApiException.validation("timeoutSeconds", "OUT_OF_RANGE", "超时秒数必须在 1 到配置上限之间");
+        }
+        return requested;
+    }
+
+    public long asyncTimeoutMs(SqlExecutionRequest request) {
+        return (effectiveTimeoutSeconds(request) + 5L) * 1000L;
+    }
+
+    public SqlExecutionResponse execute(AuthContext auth, SqlExecutionRequest request, String requestId, String clientIp) {
         String id = uuid(request.getExecutionId());
         SavedDataSource source = targets.require(auth, request.getDataSourceId());
         EngineSupport engine = targets.engine(source);
@@ -59,6 +73,12 @@ public class SqlExecutionService {
         String database = cleanDatabase(engine, request.getDatabase());
         StatementType type = classifier.classify(sql);
         if (database == null && requiresDatabase(type, sql)) throw ApiException.validation("database", "REQUIRED", "请选择数据库");
+        int timeoutSeconds = effectiveTimeoutSeconds(request);
+        String executionSource = ExecutionSource.normalize(request.getSource());
+        boolean readOnly = Boolean.TRUE.equals(request.getReadOnly());
+        if (readOnly && type != StatementType.SELECT) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "READ_ONLY_VIOLATION", "只读模式只允许查询语句");
+        }
         if (registry.contains(id) || history.exists(id)) throw new ApiException(HttpStatus.CONFLICT, "EXECUTION_ID_CONFLICT", "执行 ID 已被使用");
         registry.acquire(id, auth.getUserId(), source.getId());
         ExecutionHistoryRecord record = null;
@@ -66,16 +86,22 @@ public class SqlExecutionService {
         Connection connection = null;
         Statement statement = null;
         try {
-            record = history.start(id, auth, source, database, "EXECUTE", sql, type, requestId);
+            record = history.start(id, auth, source, database, "EXECUTE", sql, type, requestId, executionSource, clientIp);
             connection = targets.borrow(source);
+            if (readOnly) connection.setReadOnly(true);
             connection.setAutoCommit(true);
             engine.applyNamespace(connection, database);
             statement = connection.createStatement();
             registry.bind(id, statement);
-            statement.setQueryTimeout(limits.getTimeoutSeconds());
+            statement.setQueryTimeout(timeoutSeconds);
             statement.setMaxRows(rowLimit + 1);
             boolean hasResult = statement.execute(sql);
             long duration = elapsed(started);
+            if (readOnly && !hasResult) {
+                history.failure(record, "FAILED", duration, new SQLException("只读模式下不能执行写操作"));
+                metrics.execution("failed", type.name(), duration);
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "READ_ONLY_VIOLATION", "只读模式只允许查询语句", details(id, null));
+            }
             SqlExecutionResponse response;
             if (hasResult) {
                 try (ResultSet rs = statement.getResultSet()) {
@@ -92,6 +118,8 @@ public class SqlExecutionService {
             }
             metrics.execution("success", type.name(), duration);
             return response;
+        } catch (ApiException e) {
+            throw e;
         } catch (SQLTimeoutException e) {
             long d = elapsed(started);
             if (record != null) history.failure(record, "TIMEOUT", d, e);
@@ -151,8 +179,8 @@ public class SqlExecutionService {
     private Map<String, Object> details(String id, SQLException e) {
         Map<String, Object> d = new LinkedHashMap<String, Object>();
         d.put("executionId", id);
-        if (e.getSQLState() != null) d.put("sqlState", e.getSQLState());
-        if (e.getErrorCode() != 0) d.put("vendorErrorCode", e.getErrorCode());
+        if (e != null && e.getSQLState() != null) d.put("sqlState", e.getSQLState());
+        if (e != null && e.getErrorCode() != 0) d.put("vendorErrorCode", e.getErrorCode());
         return d;
     }
 }

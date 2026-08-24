@@ -31,3 +31,5 @@ sql-editor:
   history:
     retention-days: ${SQL_EDITOR_HISTORY_RETENTION_DAYS:90}
     stale-running-minutes: ${SQL_EDITOR_STALE_RUNNING_MINUTES:5}
+  http:
+    trusted-proxy-cidrs: ${SQL_EDITOR_TRUSTED_PROXY_CIDRS:}

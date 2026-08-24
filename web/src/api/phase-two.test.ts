@@ -32,6 +32,7 @@ describe('phase-two API contracts', () => {
     expect(await csv.blob.text()).toContain("'=SUM")
     const list = await listHistory({ keyword: 'select 1' })
     expect(list.items[0]?.id).toBe(executionId)
+    expect(list.items[0]?.source).toBe('WEB_SQL_EDITOR')
     expect((await getHistory(executionId)).connectionAvailable).toBe(true)
   })
 })

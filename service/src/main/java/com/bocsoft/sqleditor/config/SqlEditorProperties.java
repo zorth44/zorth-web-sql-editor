@@ -23,6 +23,7 @@ public class SqlEditorProperties {
     @Valid private final Execution execution = new Execution();
     @Valid private final Export export = new Export();
     @Valid private final History history = new History();
+    @Valid private final Http http = new Http();
 
     public Auth getAuth() { return auth; }
     public Credentials getCredentials() { return credentials; }
@@ -32,6 +33,7 @@ public class SqlEditorProperties {
     public Execution getExecution() { return execution; }
     public Export getExport() { return export; }
     public History getHistory() { return history; }
+    public Http getHttp() { return http; }
 
     @PostConstruct
     public void validateConfiguration() {
@@ -54,11 +56,12 @@ public class SqlEditorProperties {
         validateSingleKey(cursor.signingKey, "Cursor signing key");
         validateCidrs(network.allowedCidrs);
         validateCidrs(network.deniedCidrs);
+        validateCidrs(http.trustedProxyCidrs);
     }
 
     private void validateKeyMaterial(Map<String,String> values,String label,boolean exactly32){for(Map.Entry<String,String> entry:values.entrySet()){byte[] decoded;try{decoded=java.util.Base64.getDecoder().decode(entry.getValue());}catch(IllegalArgumentException exception){throw new IllegalStateException(label+" is not valid Base64");}if(exactly32&&decoded.length!=32)throw new IllegalStateException(label+" must be exactly 256 bits");}}
     private void validateSingleKey(String value,String label){if(value==null||value.trim().isEmpty())return;byte[] decoded;try{decoded=java.util.Base64.getDecoder().decode(value);}catch(IllegalArgumentException exception){throw new IllegalStateException(label+" is not valid Base64");}if(decoded.length<32)throw new IllegalStateException(label+" must be at least 256 bits");}
-    private void validateCidrs(List<String> values){for(String value:values){try{parseCidr(value);}catch(RuntimeException exception){throw new IllegalStateException("Invalid target-network CIDR configuration");}}}
+    private void validateCidrs(List<String> values){if(values==null)return;for(String value:values){if(value==null||value.trim().isEmpty())continue;try{parseCidr(value);}catch(RuntimeException exception){throw new IllegalStateException("Invalid target-network CIDR configuration");}}}
     private void parseCidr(String value){if(value==null)throw new IllegalArgumentException();String[] parts=value.trim().split("/",-1);if(parts.length!=2)throw new IllegalArgumentException();try{java.net.InetAddress address=java.net.InetAddress.getByName(parts[0]);int prefix=Integer.parseInt(parts[1]);if(prefix<0||prefix>address.getAddress().length*8)throw new IllegalArgumentException();}catch(java.net.UnknownHostException exception){throw new IllegalArgumentException(exception);}}
 
     public static class Auth {
@@ -168,5 +171,11 @@ public class SqlEditorProperties {
         @Min(0) private int retentionDays=90; @Min(1) private int staleRunningMinutes=5;
         public int getRetentionDays(){return retentionDays;} public void setRetentionDays(int v){retentionDays=v;}
         public int getStaleRunningMinutes(){return staleRunningMinutes;} public void setStaleRunningMinutes(int v){staleRunningMinutes=v;}
+    }
+
+    public static class Http {
+        private List<String> trustedProxyCidrs = new ArrayList<String>();
+        public List<String> getTrustedProxyCidrs() { return trustedProxyCidrs; }
+        public void setTrustedProxyCidrs(List<String> v) { trustedProxyCidrs = v; }
     }
 }

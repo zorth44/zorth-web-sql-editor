@@ -260,6 +260,7 @@ GET /api/v1/session
 | `data_source_name` | varchar(100) | 名称快照 |
 | `database_name` | varchar(64) | 数据库 |
 | `operation` | varchar(20) | `EXECUTE` 或 `EXPORT` |
+| `source` | varchar(20) | `WEB_SQL_EDITOR` 或 `AI_AGENT`，缺省 `WEB_SQL_EDITOR` |
 | `statement_text` | mediumtext | SQL 原文 |
 | `statement_hash` | char(64) | SHA-256 |
 | `statement_type` | varchar(32) | SELECT/INSERT/UPDATE/DELETE/DDL/OTHER |
@@ -273,7 +274,7 @@ GET /api/v1/session
 | `sql_state` | varchar(10) null | SQLState |
 | `error_message` | varchar(1000) null | 脱敏错误 |
 | `request_id` | varchar(64) | 请求追踪 ID |
-| `client_ip` | varchar(64) null | 可选；仅故障定位 |
+| `client_ip` | varchar(64) null | 故障定位；仅在对端属于 `sql-editor.http.trusted-proxy-cidrs` 时读取转发头，否则记直连地址 |
 | `started_at` | datetime(3) | UTC 开始时间 |
 | `finished_at` | datetime(3) null | UTC 结束时间 |
 
@@ -737,7 +738,9 @@ GET /api/v1/data-sources/{id}/table-detail?database=orders&table=order_item
 ### 12.1 执行语义
 
 - 支持目标账号允许的查询、DML、DDL 和其他单条 MySQL Statement。
-- 不做危险语句识别、审批或额外拦截。`SELECT INTO OUTFILE`、`LOAD DATA` 等能否执行，只取决于 MySQL 账号。
+- 默认不做危险语句识别、审批或额外拦截。`SELECT INTO OUTFILE`、`LOAD DATA` 等能否执行，只取决于 MySQL 账号。
+- 请求可带 `readOnly: true`。此时在占用并发、写历史、打开目标连接之前，只放行分类为 `SELECT` 的语句（含 `WITH` / `SHOW` / `EXPLAIN` / `DESC` / `DESCRIBE`），其余返回 `422 READ_ONLY_VIOLATION`。放行后对连接调用 `setReadOnly(true)`；若 JDBC 仍返回 update count，同样按 `READ_ONLY_VIOLATION` 失败。这是 Agent 通道的服务端只读边界，不是完整 SQL 解析器：`SELECT ... INTO OUTFILE` 仍可能被放行。
+- 省略或 `readOnly: false` 时编辑器行为不变，仍可跑 DML/DDL。
 - `autoCommit=true`。DML 成功即提交；MySQL DDL 通常会隐式提交。
 - 一次请求只允许一条语句，Connector 设置 `allowMultiQueries=false`。
 - 前端把脚本切分后逐条串行提交，每条语句一个请求和一个 `executionId`；后端用同一规则做权威校验。无法可靠识别或存在第二条语句时返回 `400 MULTI_STATEMENT_NOT_SUPPORTED`。这条兜底不因前端支持脚本而放宽。
@@ -772,12 +775,14 @@ sql-editor:
     max-concurrent-global: 50
     max-statement-bytes: 1048576
     executor-pool-size: 50
+  http:
+    trusted-proxy-cidrs: []
 ```
 
 - 前端可请求 `rowLimit`，范围 1–100,000；缺省 1,000。
-- JDBC 使用 `Statement#setQueryTimeout(60)` 和 `setMaxRows(rowLimit + 1)`，读取多一行判断是否截断。
+- JDBC 使用 `Statement#setQueryTimeout(T)` 和 `setMaxRows(rowLimit + 1)`，读取多一行判断是否截断。`T` 为请求里的 `timeoutSeconds`，缺省即配置值（默认 60）；合法范围是 1 到配置上限。本次 `WebAsyncTask` 超时为 `T + 5` 秒。导出仍只用配置超时，不接受按请求覆盖。
 - 同时统计序列化后的近似字节数，超过 100 MB 时停止读取并标记截断。
-- DML/DDL 同样受 60 秒超时约束，但不应用返回行数限制。
+- DML/DDL 同样受有效超时约束，但不应用返回行数限制。
 - 这些都是应用保护，不保证降低目标数据库的扫描成本。
 
 ### 12.4 执行线程模型
@@ -786,7 +791,7 @@ sql-editor:
 
 ```text
 HTTP 请求（Tomcat / 异步分派）
-        │ WebAsyncTask / DeferredResult，超时 60 秒
+        │ WebAsyncTask / DeferredResult，超时 T+5 秒
         ▼
 执行线程池（大小 = max-concurrent-global）
         │ 借连接、创建 Statement、登记 ExecutionRegistry
@@ -818,9 +823,18 @@ Content-Type: application/json
   "dataSourceId": "15d7...",
   "database": "orders",
   "statement": "select * from order_item limit 100",
-  "rowLimit": 1000
+  "rowLimit": 1000,
+  "readOnly": false,
+  "timeoutSeconds": 60,
+  "source": "WEB_SQL_EDITOR"
 }
 ```
+
+可选字段：
+
+- `readOnly`：缺省 `false`。`true` 时强制只读，见 §12.1。
+- `timeoutSeconds`：缺省为配置 `sql-editor.execution.timeout-seconds`。小于 1 或大于该上限返回 `400 VALIDATION_FAILED`。
+- `source`：`WEB_SQL_EDITOR` 或 `AI_AGENT`，缺省 `WEB_SQL_EDITOR`。只写入历史，不当鉴权，也不隐含 `readOnly`。
 
 `executionId` 规则：
 
@@ -831,12 +845,13 @@ Content-Type: application/json
 后端处理顺序：
 
 1. 校验 Token，并确认数据源 `product_id` 与当前产品一致；不一致则 404。
-2. 校验执行 ID、SQL 大小、单语句规则、database 必填规则和并发配额。
-3. 先插入 `RUNNING` 历史记录（唯一约束冲突则返回 `EXECUTION_ID_CONFLICT`）。
-4. 在执行线程池中注册 `executionId -> userId/Statement/Future`。
-5. 设置数据库 Catalog 并执行 SQL。
-6. 返回结果或标准错误，同时更新历史状态。
-7. 重置连接会话并归还连接池，从运行注册表移除资源。
+2. 校验执行 ID、SQL 大小、单语句规则、database 必填规则、`timeoutSeconds` / `source`，以及 `readOnly` 时的语句类型。只读拒绝发生在占用并发和写历史之前。
+3. 校验并发配额。
+4. 先插入 `RUNNING` 历史记录（唯一约束冲突则返回 `EXECUTION_ID_CONFLICT`），写入 `source` 和 `client_ip`。
+5. 在执行线程池中注册 `executionId -> userId/Statement/Future`。
+6. 设置数据库 Catalog 并执行 SQL。
+7. 返回结果或标准错误，同时更新历史状态。
+8. 重置连接会话并归还连接池，从运行注册表移除资源。
 
 查询响应：
 
@@ -959,8 +974,8 @@ GET /api/v1/sql/history?keyword=&dataSourceId=&database=&status=&statementType=&
 - 强制 `user_id = currentUserId`，不允许读取同产品其他用户历史。
 - `pageSize` 默认 30，上限 100。`keyword` 最长 200 字符，LIKE 必须转义 `%` 和 `_`。
 - 游标包含 `started_at + id`，不要使用大 Offset 分页。
-- 列表只返回 SQL 摘要；原文在详情接口返回。
-- 记录 `client_ip` 时只信任网关设置的转发头，并配置可信代理；不要直接读任意 `X-Forwarded-For`。
+- 列表只返回 SQL 摘要；原文在详情接口返回。列表和详情返回 `source`，不返回 `client_ip`。
+- 记录 `client_ip` 时只信任网关设置的转发头，并配置 `sql-editor.http.trusted-proxy-cidrs`；对端不在该列表时只记 `getRemoteAddr()`，不要直接读任意 `X-Forwarded-For`。
 
 ### 14.2 历史详情
 
@@ -994,6 +1009,7 @@ GET /api/v1/sql/history/{id}
 | 409 | `EXECUTION_ALREADY_FINISHED` | 取消已结束且属于自己的任务 |
 | 413 | `STATEMENT_TOO_LARGE` | SQL 超过 1 MB |
 | 429 | `EXECUTION_LIMIT_EXCEEDED` | 并发超限 |
+| 422 | `READ_ONLY_VIOLATION` | `readOnly=true` 时语句不是只读查询 |
 | 422 | `SQL_EXECUTION_FAILED` | MySQL 语法、权限或执行错误 |
 | 503 | `AUTH_SERVICE_UNAVAILABLE` | 授权服务不可用 |
 | 504 | `SQL_EXECUTION_TIMEOUT` | 执行超时 |

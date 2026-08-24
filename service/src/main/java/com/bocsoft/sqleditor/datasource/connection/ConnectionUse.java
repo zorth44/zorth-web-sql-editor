@@ -50,6 +50,9 @@ public final class ConnectionUse {
         try {
             connection.setAutoCommit(true);
         } catch (SQLException e) { if (failure == null) failure = e; }
+        try {
+            connection.setReadOnly(false);
+        } catch (SQLException e) { if (failure == null) failure = e; }
         boolean discard = false;
         try {
             discard = engine.restoreSession(connection, defaultCatalog);

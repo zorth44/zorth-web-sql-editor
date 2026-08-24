@@ -5,7 +5,7 @@ import java.time.Instant;
 public class ExecutionHistoryRecord {
     private String id; private String userId; private String username; private String productId;
     private String dataSourceId; private String dataSourceName; private String databaseName;
-    private String operation; private String statementText; private String statementHash;
+    private String operation; private String source; private String statementText; private String statementHash;
     private String statementType; private String status; private String resultKind;
     private Long returnedRows; private Long affectedRows; private boolean truncated; private Long durationMs;
     private Integer vendorErrorCode; private String sqlState; private String errorMessage;
@@ -18,6 +18,7 @@ public class ExecutionHistoryRecord {
     public String getDataSourceName(){return dataSourceName;} public void setDataSourceName(String v){dataSourceName=v;}
     public String getDatabaseName(){return databaseName;} public void setDatabaseName(String v){databaseName=v;}
     public String getOperation(){return operation;} public void setOperation(String v){operation=v;}
+    public String getSource(){return source;} public void setSource(String v){source=v;}
     public String getStatementText(){return statementText;} public void setStatementText(String v){statementText=v;}
     public String getStatementHash(){return statementHash;} public void setStatementHash(String v){statementHash=v;}
     public String getStatementType(){return statementType;} public void setStatementType(String v){statementType=v;}

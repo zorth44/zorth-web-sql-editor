@@ -138,6 +138,69 @@ class BackendIntegrationTest {
             .andExpect(jsonPath("$.code").doesNotExist());
     }
 
+    @Test void agentReadOnlySourceTimeoutAndClientIp()throws Exception{
+        JsonNode created=create("token-a","Agent 只读源");
+        String id=created.path("id").asText();
+        String database=MYSQL.getDatabaseName();
+        String insertId=java.util.UUID.randomUUID().toString();
+        MvcResult rejected=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a")
+            .header("X-Forwarded-For","203.0.113.9").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+insertId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"INSERT INTO t VALUES (1)\",\"readOnly\":true}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(rejected)).andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("READ_ONLY_VIOLATION"));
+        assertThat(jdbc.queryForObject("select count(*) from sql_execution_history where id=?",Integer.class,insertId)).isZero();
+
+        String selectId=java.util.UUID.randomUUID().toString();
+        MvcResult selected=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a")
+            .header("X-Forwarded-For","203.0.113.9").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+selectId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\",\"readOnly\":true,\"source\":\"AI_AGENT\",\"timeoutSeconds\":10}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(selected)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET"));
+        mvc.perform(get("/api/v1/sql/history/"+selectId).header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.source").value("AI_AGENT"))
+            .andExpect(jsonPath("$.clientIp").doesNotExist())
+            .andExpect(jsonPath("$.client_ip").doesNotExist());
+        assertThat(jdbc.queryForObject("select source from sql_execution_history where id=?",String.class,selectId)).isEqualTo("AI_AGENT");
+        String storedIp=jdbc.queryForObject("select client_ip from sql_execution_history where id=?",String.class,selectId);
+        assertThat(storedIp).isNotBlank().isNotEqualTo("203.0.113.9");
+
+        String withId=java.util.UUID.randomUUID().toString();
+        MvcResult withCte=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+withId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"WITH x AS (SELECT 1 AS n) SELECT n FROM x\",\"readOnly\":true}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(withCte)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET"));
+
+        String showId=java.util.UUID.randomUUID().toString();
+        MvcResult shown=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+showId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SHOW TABLES\",\"readOnly\":true}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(shown)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET"));
+
+        jdbc.update("create table if not exists zorth_agent_ro_probe (id int primary key)");
+        String writeId=java.util.UUID.randomUUID().toString();
+        MvcResult written=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+writeId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"INSERT INTO zorth_agent_ro_probe(id) VALUES (1)\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(written)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("UPDATE_COUNT"));
+        mvc.perform(get("/api/v1/sql/history/"+writeId).header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.source").value("WEB_SQL_EDITOR"));
+
+        String badTimeout=java.util.UUID.randomUUID().toString();
+        mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+badTimeout+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\",\"timeoutSeconds\":61}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.details.fieldErrors[0].field").value("timeoutSeconds"));
+        String badSource=java.util.UUID.randomUUID().toString();
+        MvcResult invalidSource=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+badSource+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\",\"source\":\"BROWSER\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(invalidSource)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+java.util.UUID.randomUUID()+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\",\"agent\":true}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.details.fieldErrors[0].field").value("agent"));
+    }
+
     private JsonNode create(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payload(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andExpect(header().string("Location",org.hamcrest.Matchers.startsWith("/api/v1/data-sources/"))).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private JsonNode createWithoutDefaultDatabase(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payloadWithoutDefaultDatabase(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private static String payload(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
