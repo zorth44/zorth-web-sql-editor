@@ -50,3 +50,7 @@ pnpm dev
 若要连接真实 GBase 8a，先按 `service/third-party/gbase/README.md` 放入官方 `gbase-connector-java.jar`，再重新启动 SQL service。未放入时 MYSQL / PostgreSQL 不受影响，GBase 8a 测试连接会失败。
 
 Vite 开发代理会把 `/sql-api` 和 `/auth-api` 分别转发到两个本地服务，从而保持浏览器同源。生产不得配置 `VITE_DEV_*_PROXY_TARGET`，应由真实网关提供同源路径。
+
+## 5. 可选：对接 AI Platform Database Agent
+
+SQL service 占 `8080` 时，把 AI 放到 `8081`，白名单只放确认过的 `dataSourceId`，Agent 请求透传同一个 Bearer Token 并带上 `database`。完整步骤在 sibling 仓库 `zorth-ai-service/docs/local-web-sql.md`。
