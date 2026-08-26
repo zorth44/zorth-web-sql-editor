@@ -25,6 +25,7 @@ const emit = defineEmits<{
 }>()
 
 const draft = ref('')
+const composer = ref<HTMLTextAreaElement | null>(null)
 const scroller = ref<HTMLElement | null>(null)
 
 const contextLabel = computed(() => {
@@ -41,27 +42,48 @@ function hasSql(message: CopilotMessage): boolean {
   return segmentsOf(message).some((segment) => segment.type === 'sql')
 }
 
+function composingKey(event: KeyboardEvent): boolean {
+  return event.isComposing || event.key === 'Process' || event.keyCode === 229
+}
+
+function clearDraft(): void {
+  draft.value = ''
+  if (composer.value) composer.value.value = ''
+}
+
+function scrollMessages(): void {
+  const el = scroller.value
+  if (el && typeof el.scrollTo === 'function') {
+    el.scrollTo({ top: el.scrollHeight })
+  }
+}
+
 async function submit(): Promise<void> {
   const text = draft.value.trim()
   if (!text || !props.available || props.inflight) return
-  draft.value = ''
+  clearDraft()
   emit('send', text)
   await nextTick()
-  scroller.value?.scrollTo({ top: scroller.value.scrollHeight })
+  // IME compositionend / v-model input can restore the value after keydown.
+  clearDraft()
+  scrollMessages()
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    void submit()
-  }
+  if (event.key !== 'Enter' || event.shiftKey || composingKey(event)) return
+  event.preventDefault()
+  void submit()
+}
+
+function onCompositionEnd(): void {
+  if (props.inflight) clearDraft()
 }
 
 watch(
   () => props.messages.map((message) => `${message.content}:${message.tools?.length}:${message.streaming}`),
   async () => {
     await nextTick()
-    scroller.value?.scrollTo({ top: scroller.value.scrollHeight })
+    scrollMessages()
   },
 )
 </script>
@@ -162,14 +184,17 @@ watch(
     </div>
     <form class="copilot-composer" @submit.prevent="submit">
       <textarea
+        ref="composer"
         v-model="draft"
         class="copilot-input"
         data-testid="copilot-input"
         rows="3"
-        :disabled="!available || inflight"
+        :disabled="!available"
+        :readonly="inflight"
         :placeholder="available ? '描述你想查询或修改的数据…' : disabledReason"
         :aria-label="available ? 'Copilot 输入' : disabledReason"
         @keydown="onKeydown"
+        @compositionend="onCompositionEnd"
       />
       <div class="copilot-composer-actions">
         <button

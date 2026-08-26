@@ -59,6 +59,48 @@ describe('copilot panel', () => {
     wrapper.unmount()
   })
 
+  it('sends and clears the composer on Enter', async () => {
+    const wrapper = render()
+    const input = wrapper.get('[data-testid="copilot-input"]')
+    await input.setValue('列出订单')
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('send')?.at(-1)).toEqual(['列出订单'])
+    expect((input.element as HTMLTextAreaElement).value).toBe('')
+    wrapper.unmount()
+  })
+
+  it('uses readonly instead of disabled while a reply is in flight', () => {
+    const wrapper = render({ inflight: true })
+    const input = wrapper.get('[data-testid="copilot-input"]')
+    expect(input.attributes('disabled')).toBeUndefined()
+    expect(input.attributes('readonly')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('keeps composing IME Enter from sending', async () => {
+    const wrapper = render()
+    const input = wrapper.get('[data-testid="copilot-input"]')
+    await input.setValue('lie')
+    await input.trigger('keydown', { key: 'Enter', isComposing: true })
+    expect(wrapper.emitted('send')).toBeUndefined()
+    expect((input.element as HTMLTextAreaElement).value).toBe('lie')
+    wrapper.unmount()
+  })
+
+  it('does not let compositionend restore the sent prompt', async () => {
+    const wrapper = render()
+    const input = wrapper.get('[data-testid="copilot-input"]')
+    const el = input.element as HTMLTextAreaElement
+    await input.setValue('列出订单')
+    await input.trigger('keydown', { key: 'Enter' })
+    await wrapper.setProps({ inflight: true })
+    el.value = '列出订单'
+    await input.trigger('compositionend')
+    expect(wrapper.emitted('send')).toHaveLength(1)
+    expect(el.value).toBe('')
+    wrapper.unmount()
+  })
+
   it('shows live tool progress while the assistant is streaming', () => {
     const wrapper = render({}, [
       {
