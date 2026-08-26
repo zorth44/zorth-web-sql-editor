@@ -63,4 +63,38 @@ test.describe('sql editor copilot', () => {
     await expect(page.getByText('9007199254740993')).toBeVisible()
     await expect(page.getByText(/doesn't exist/)).toHaveCount(0)
   })
+
+  test('keeps the thread across a follow-up, tab close, resume, and delete', async ({ page }) => {
+    await login(page)
+    await page.getByTestId('copilot-toggle').click()
+    const panel = page.getByTestId('copilot-panel')
+    await panel.getByTestId('copilot-input').fill('列出订单')
+    await panel.getByTestId('copilot-send').click()
+    await expect(panel.getByTestId('copilot-sql')).toContainText('SELECT id, amount FROM order_item')
+
+    await panel.getByTestId('copilot-input').fill('加上时间过滤')
+    await panel.getByTestId('copilot-send').click()
+    await expect(panel.getByTestId('copilot-messages')).toContainText('接着「列出订单」')
+    await expect(panel.getByTestId('copilot-sql').last()).toContainText('created_at')
+
+    await page.getByLabel('新建页签').click()
+    await page.getByRole('tab', { name: /Query 1/ }).locator('.tab-close').click()
+    await expect(panel.getByTestId('copilot-messages')).toContainText('列出订单')
+
+    await panel.getByTestId('copilot-new').click()
+    await expect(panel.getByTestId('copilot-history')).toContainText('列出订单')
+    await expect(panel.getByTestId('copilot-history')).toContainText('ds-orders-a')
+    await panel.locator('[data-testid^="copilot-history-item-"]').click()
+    await expect(panel.getByTestId('copilot-messages')).toContainText('加上时间过滤')
+    await expect(page.getByRole('tab', { selected: true })).toContainText('订单测试库')
+    await expect(page.getByRole('tab', { selected: true })).toContainText('orders')
+
+    await panel.getByTestId('copilot-new').click()
+    await page.getByLabel('删除 列出订单').click()
+    await page.getByRole('button', { name: '删除', exact: true }).click()
+    await expect(panel.getByTestId('copilot-history-empty')).toBeVisible()
+
+    await page.getByLabel('执行历史').click()
+    await expect(page.getByText('暂无执行历史')).toBeVisible()
+  })
 })

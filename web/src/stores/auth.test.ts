@@ -5,6 +5,7 @@ import { appEnv } from '@/env'
 import { server } from '@/mocks/server'
 import { queryClient } from '@/query/client'
 import { useAuthStore } from '@/stores/auth'
+import { useCopilotStore } from '@/stores/copilot'
 import { TOKEN_KEY } from '@/auth/token-storage'
 import { canManageDataSources, isSessionValid } from '@/api/session'
 
@@ -37,6 +38,22 @@ describe('auth store and Session', () => {
     expect(store.session).toBeNull()
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
     expect(sessionStorage.getItem(TOKEN_KEY)).toBeNull()
+  })
+
+  it('resets copilot state on logout', async () => {
+    const copilot = useCopilotStore()
+    copilot.show()
+    copilot.messages = [
+      { id: 'u1', role: 'user', content: '列出订单' },
+      { id: 'a1', role: 'assistant', content: 'ok' },
+    ]
+    copilot.conversationId = 'c-1'
+    const store = useAuthStore()
+    await store.submitLogin('normal', 'secret', true)
+    await store.logout()
+    expect(copilot.open).toBe(false)
+    expect(copilot.messages).toEqual([])
+    expect(copilot.conversationId).toBeNull()
   })
 
   it('evaluates expiry and management capability', () => {

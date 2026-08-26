@@ -989,13 +989,45 @@ html.dark .result-ctx-item svg {
   border-left: 1px solid var(--color-line);
 }
 .copilot-head {
-  @apply flex h-10 shrink-0 items-center gap-1.5 border-b border-line px-3 text-sm;
+  @apply flex h-10 shrink-0 items-center gap-1 border-b border-line px-2 text-sm;
+}
+.copilot-head-btn {
+  @apply inline-flex h-7 shrink-0 items-center gap-0.5 rounded px-1.5 text-[11px] text-muted hover:bg-wash hover:text-ink disabled:opacity-40;
 }
 .copilot-context {
   @apply shrink-0 truncate border-b border-line bg-subtle px-3 py-1.5 text-[11px] text-muted;
 }
-.copilot-context-sep {
-  @apply px-1;
+.copilot-notice,
+.copilot-hint-bar {
+  @apply shrink-0 border-b border-line px-3 py-1.5 text-[11px] text-muted;
+}
+.copilot-notice {
+  @apply text-danger;
+}
+.copilot-history {
+  @apply max-h-36 shrink-0 overflow-y-auto border-b border-line;
+}
+.copilot-history-list {
+  @apply m-0 list-none p-0;
+}
+.copilot-history-empty {
+  @apply px-3 py-2 text-[11px] text-muted;
+}
+.copilot-history-item {
+  @apply flex items-center gap-0.5 border-b border-line last:border-b-0;
+}
+.copilot-history-open {
+  @apply flex min-w-0 flex-1 flex-col items-start px-3 py-1.5 text-left text-[11px] hover:bg-wash;
+}
+.copilot-history-current {
+  @apply bg-brand-soft;
+}
+.copilot-history-title {
+  @apply w-full truncate text-ink;
+}
+.copilot-history-meta,
+.copilot-history-time {
+  @apply w-full truncate text-[10px] text-muted;
 }
 .copilot-messages {
   @apply flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3;

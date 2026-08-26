@@ -11,6 +11,7 @@ import {
 import { queryClient, queryKeys } from '@/query/client'
 import type { BoundAccount, Session } from '@/types/contracts'
 import { useEditorStore } from '@/stores/editor'
+import { useCopilotStore } from '@/stores/copilot'
 
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<Session | null>(null)
@@ -75,6 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
     accounts.value = []
     bindingRequired.value = false
     useEditorStore().clearAll()
+    useCopilotStore().reset()
     queryClient.clear()
   }
 

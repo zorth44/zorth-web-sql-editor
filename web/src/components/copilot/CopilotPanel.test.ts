@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { describe, expect, it } from 'vitest'
 import CopilotPanel from '@/components/copilot/CopilotPanel.vue'
 import type { CopilotMessage } from '@/stores/copilot'
@@ -9,7 +10,11 @@ const assistant: CopilotMessage = {
   content: '可以用：\n```sql\nSELECT 1;\n```',
 }
 
-function render(extra: Record<string, unknown> = {}, messages: CopilotMessage[] = []) {
+function render(
+  extra: Record<string, unknown> = {},
+  messages: CopilotMessage[] = [],
+  mountOptions: Record<string, unknown> = {},
+) {
   return mount(CopilotPanel, {
     props: {
       available: true,
@@ -22,6 +27,7 @@ function render(extra: Record<string, unknown> = {}, messages: CopilotMessage[] 
       canInsertAndRun: true,
       ...extra,
     },
+    ...mountOptions,
   })
 }
 
@@ -113,6 +119,89 @@ describe('copilot panel', () => {
     ])
     expect(wrapper.get('[data-testid="copilot-tools"]').text()).toContain('正在列出数据表')
     expect(wrapper.find('[data-testid="copilot-caret"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('emits new conversation from the header', async () => {
+    const wrapper = render()
+    expect(wrapper.get('[data-testid="copilot-new"]').text()).toContain('新对话')
+    expect(wrapper.get('[data-testid="copilot-history-toggle"]').text()).toContain('历史')
+    await wrapper.get('[data-testid="copilot-new"]').trigger('click')
+    expect(wrapper.emitted('new-conversation')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('explains an empty history list in the empty panel', () => {
+    const wrapper = render()
+    expect(wrapper.get('[data-testid="copilot-history-empty"]').text()).toContain('还没有历史对话')
+    wrapper.unmount()
+  })
+
+  it('shows recent conversations in the empty state and opens one', async () => {
+    const wrapper = render({
+      sources: [{ id: 'ds-orders-a', name: '订单测试库' }],
+      conversations: [
+        {
+          id: 'c-1',
+          title: '列出订单',
+          updatedAt: '2026-08-26T08:00:00Z',
+          datasourceId: 'ds-orders-a',
+          database: 'orders',
+        },
+      ],
+    })
+    expect(wrapper.get('[data-testid="copilot-history"]').text()).toContain('列出订单')
+    expect(wrapper.get('[data-testid="copilot-history"]').text()).toContain('订单测试库 / orders')
+    expect(wrapper.get('[data-testid="copilot-history"]').text()).toContain('ds-orders-a')
+    await wrapper.get('[data-testid="copilot-history-item-c-1"]').trigger('click')
+    expect(wrapper.emitted('open-conversation')?.at(-1)).toEqual(['c-1'])
+    wrapper.unmount()
+  })
+
+  it('hides the list while chatting until history is opened', async () => {
+    const wrapper = render(
+      {
+        conversations: [
+          {
+            id: 'c-1',
+            title: '列出订单',
+            updatedAt: '2026-08-26T08:00:00Z',
+            datasourceId: 'ds-orders-a',
+            database: 'orders',
+          },
+        ],
+      },
+      [assistant],
+    )
+    expect(wrapper.find('[data-testid="copilot-history"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="copilot-history-toggle"]').trigger('click')
+    expect(wrapper.get('[data-testid="copilot-history"]').text()).toContain('列出订单')
+    wrapper.unmount()
+  })
+
+  it('confirms deleting a conversation', async () => {
+    const wrapper = render(
+      {
+        conversations: [
+          {
+            id: 'c-1',
+            title: '列出订单',
+            updatedAt: '2026-08-26T08:00:00Z',
+            datasourceId: 'ds-orders-a',
+            database: 'orders',
+          },
+        ],
+      },
+      [],
+      { attachTo: document.body },
+    )
+    await wrapper.get('[data-testid="copilot-history-delete-c-1"]').trigger('click')
+    await nextTick()
+    const confirm = document.body.querySelector('button.btn-danger') as HTMLButtonElement
+    expect(confirm).toBeTruthy()
+    confirm.click()
+    await nextTick()
+    expect(wrapper.emitted('delete-conversation')?.at(-1)).toEqual(['c-1'])
     wrapper.unmount()
   })
 })

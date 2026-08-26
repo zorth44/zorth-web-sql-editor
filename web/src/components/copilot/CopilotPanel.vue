@@ -1,38 +1,89 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Sparkles, Square, X } from 'lucide-vue-next'
+import { History, Plus, Sparkles, Square, Trash2, X } from 'lucide-vue-next'
 import { renderAssistantMarkdown } from '@/sql-editor/copilot-markdown'
 import { toolStatusText } from '@/sql-editor/copilot-tools'
 import { splitAssistantContent } from '@/sql-editor/sql-fences'
+import type { AgentConversationSummary } from '@/api/ai-agent'
 import type { CopilotMessage } from '@/stores/copilot'
+import type { DataSourceListItem } from '@/types/contracts'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
-const props = defineProps<{
-  available: boolean
-  disabledReason: string
-  dataSourceName: string
-  database: string
-  dialect: string
-  messages: CopilotMessage[]
-  inflight: boolean
-  canInsertAndRun: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    available: boolean
+    disabledReason: string
+    dataSourceName: string
+    dataSourceId?: string
+    database: string
+    dialect: string
+    sources?: Pick<DataSourceListItem, 'id' | 'name'>[]
+    messages: CopilotMessage[]
+    conversations?: AgentConversationSummary[]
+    conversationId?: string | null
+    conversationDatasourceId?: string | null
+    conversationDatabase?: string | null
+    notice?: string | null
+    inflight: boolean
+    canInsertAndRun: boolean
+  }>(),
+  {
+    dataSourceId: '',
+    sources: () => [],
+    conversations: () => [],
+    conversationId: null,
+    conversationDatasourceId: null,
+    conversationDatabase: null,
+    notice: null,
+  },
+)
 const emit = defineEmits<{
   send: [text: string]
   cancel: []
   close: []
   insert: [sql: string, replaceSql?: string]
   'insert-and-run': [sql: string, replaceSql?: string]
+  'new-conversation': []
+  'open-conversation': [id: string]
+  'delete-conversation': [id: string]
 }>()
 
 const draft = ref('')
 const composer = ref<HTMLTextAreaElement | null>(null)
 const scroller = ref<HTMLElement | null>(null)
+const historyOpen = ref(false)
+const pendingDeleteId = ref<string | null>(null)
 
 const contextLabel = computed(() => {
   if (props.dataSourceName && props.database) return `${props.dataSourceName} / ${props.database}`
   if (props.dataSourceName) return props.dataSourceName
   return '未选择连接'
 })
+
+const connectionHint = computed(() => {
+  if (!props.conversationId) return ''
+  const sameSource =
+    !props.conversationDatasourceId || props.conversationDatasourceId === props.dataSourceId
+  const sameDb = !props.conversationDatabase || props.conversationDatabase === props.database
+  if (sameSource && sameDb) return ''
+  if (props.dataSourceName && props.database) {
+    return `当前页签已换成 ${props.dataSourceName} / ${props.database}，下一条会按这个连接提问`
+  }
+  return '当前页签连接已切换，下一条会按新连接提问'
+})
+
+const showHistory = computed(() => historyOpen.value || !props.messages.length)
+
+function formatTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 function segmentsOf(message: CopilotMessage) {
   return splitAssistantContent(message.content)
@@ -79,6 +130,35 @@ function onCompositionEnd(): void {
   if (props.inflight) clearDraft()
 }
 
+function confirmDelete(): void {
+  const id = pendingDeleteId.value
+  pendingDeleteId.value = null
+  if (id) emit('delete-conversation', id)
+}
+
+function requestDelete(id: string): void {
+  pendingDeleteId.value = id
+}
+
+function openItem(id: string): void {
+  historyOpen.value = false
+  emit('open-conversation', id)
+}
+
+function sourceName(id: string | null | undefined): string {
+  if (!id) return ''
+  return props.sources.find((item) => item.id === id)?.name || ''
+}
+
+function connectionLabel(item: AgentConversationSummary): string {
+  const name = sourceName(item.datasourceId)
+  const database = item.database || ''
+  if (name && database) return `${name} / ${database}`
+  if (name) return name
+  if (item.datasourceId && database) return `${item.datasourceId} / ${database}`
+  return item.datasourceId || database
+}
+
 watch(
   () => props.messages.map((message) => `${message.content}:${message.tools?.length}:${message.streaming}`),
   async () => {
@@ -93,7 +173,27 @@ watch(
       <Sparkles :size="14" class="text-brand" />
       <strong>Copilot</strong>
       <button
-        class="icon-btn ml-auto"
+        class="copilot-head-btn ml-auto"
+        type="button"
+        title="新对话"
+        data-testid="copilot-new"
+        :disabled="inflight"
+        @click="emit('new-conversation')"
+      >
+        <Plus :size="12" />新对话
+      </button>
+      <button
+        class="copilot-head-btn"
+        type="button"
+        title="历史对话"
+        data-testid="copilot-history-toggle"
+        :class="{ 'activity-btn-active': historyOpen }"
+        @click="historyOpen = !historyOpen"
+      >
+        <History :size="12" />历史
+      </button>
+      <button
+        class="icon-btn"
         type="button"
         title="关闭"
         aria-label="关闭 Copilot"
@@ -111,6 +211,46 @@ watch(
       <span v-if="dialect" class="copilot-context-sep">·</span>
       {{ dialect }}
     </p>
+    <p v-if="notice" class="copilot-notice" data-testid="copilot-notice">{{ notice }}</p>
+    <p v-if="connectionHint" class="copilot-hint-bar" data-testid="copilot-connection-hint">
+      {{ connectionHint }}
+    </p>
+    <div v-if="showHistory" class="copilot-history" data-testid="copilot-history">
+      <ul v-if="conversations.length" class="copilot-history-list">
+        <li v-for="item in conversations" :key="item.id" class="copilot-history-item">
+          <button
+            class="copilot-history-open"
+            type="button"
+            :class="{ 'copilot-history-current': item.id === conversationId }"
+            :data-testid="`copilot-history-item-${item.id}`"
+            @click="openItem(item.id)"
+          >
+            <span class="copilot-history-title">{{ item.title || '未命名对话' }}</span>
+            <span v-if="connectionLabel(item)" class="copilot-history-meta">{{
+              connectionLabel(item)
+            }}</span>
+            <span class="copilot-history-time">
+              <template v-if="item.datasourceId">{{ item.datasourceId }} · </template
+              >{{ formatTime(item.updatedAt) }}
+            </span>
+          </button>
+          <button
+            class="icon-btn"
+            type="button"
+            title="删除对话"
+            :aria-label="`删除 ${item.title || '对话'}`"
+            :data-testid="`copilot-history-delete-${item.id}`"
+            :disabled="inflight"
+            @click="requestDelete(item.id)"
+          >
+            <Trash2 :size="12" />
+          </button>
+        </li>
+      </ul>
+      <p v-else class="copilot-history-empty" data-testid="copilot-history-empty">
+        还没有历史对话。发送成功后会出现在这里。
+      </p>
+    </div>
     <div ref="scroller" class="copilot-messages" data-testid="copilot-messages">
       <p v-if="!messages.length && !inflight" class="copilot-empty">
         用自然语言描述你想写的 SQL。回复里的代码块可以插入当前页签。
@@ -135,13 +275,12 @@ watch(
           </ol>
           <p v-if="message.error" class="copilot-error">{{ message.error }}</p>
           <template v-for="(segment, index) in segmentsOf(message)" :key="index">
-            <!-- eslint-disable-next-line vue/no-v-html -- sanitized by renderAssistantMarkdown -->
             <div
               v-if="segment.type === 'text'"
               class="copilot-md"
               data-testid="copilot-md"
               v-html="renderAssistantMarkdown(segment.text)"
-            />
+            /><!-- eslint-disable-line vue/no-v-html -- sanitized by renderAssistantMarkdown -->
             <div v-else class="copilot-sql" data-testid="copilot-sql">
               <pre>{{ segment.sql }}</pre>
               <div v-if="!message.streaming" class="copilot-sql-actions">
@@ -217,5 +356,14 @@ watch(
         </button>
       </div>
     </form>
+    <ConfirmDialog
+      :open="Boolean(pendingDeleteId)"
+      title="删除对话"
+      confirm-label="删除"
+      @close="pendingDeleteId = null"
+      @confirm="confirmDelete"
+    >
+      删除后无法恢复这条 Copilot 对话。
+    </ConfirmDialog>
   </aside>
 </template>

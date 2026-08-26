@@ -26,6 +26,31 @@ function rpcId(request: Request, suffix: ':test' | ':cancel'): string {
 }
 const mockHistory: HistorySummary[] = []
 const cancelledExecutions = new Set<string>()
+
+interface MockAgentMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  tools?: { id: string; toolName: string; status: 'STARTED' | 'SUCCESS' | 'FAILURE' }[]
+  createdAt: string
+}
+
+interface MockAgentConversation {
+  id: string
+  userId: string
+  title: string
+  datasourceId: string | null
+  database: string | null
+  updatedAt: string
+  messages: MockAgentMessage[]
+}
+
+let agentConversations: MockAgentConversation[] = []
+
+export function resetAgentConversations(): void {
+  agentConversations = []
+}
+
 const error = (status: number, code: string, message: string, details?: ApiErrorBody['details']) =>
   HttpResponse.json<ApiErrorBody>(
     { requestId: crypto.randomUUID(), code, message, ...(details ? { details } : {}) },
@@ -39,7 +64,38 @@ function authorized(request: Request): Response | null {
   return null
 }
 
-function agentReply(body: AgentRequest): { content: string; conversationId: string } | Response {
+function mockUserId(request: Request): string {
+  const token = request.headers.get('Authorization')?.slice('Bearer '.length) || ''
+  return token === 'other-token' ? '1002' : '1001'
+}
+
+function clipTitle(text: string): string {
+  const trimmed = text.trim()
+  return trimmed.length <= 80 ? trimmed : `${trimmed.slice(0, 80)}…`
+}
+
+function visibleUserText(body: AgentRequest): string {
+  return body.userText?.trim() || body.message
+}
+
+function ownedConversation(id: string, userId: string): MockAgentConversation | undefined {
+  return agentConversations.find((item) => item.id === id && item.userId === userId)
+}
+
+function conversationPayload(item: MockAgentConversation) {
+  return {
+    id: item.id,
+    title: item.title,
+    datasourceId: item.datasourceId,
+    database: item.database,
+    updatedAt: item.updatedAt,
+  }
+}
+
+function agentReply(
+  body: AgentRequest,
+  previousUserText?: string,
+): { content: string; conversationId: string } | Response {
   if (!body.message?.trim() || !body.datasourceId || !body.database) {
     return error(400, 'VALIDATION_FAILED', '请求参数不合法')
   }
@@ -54,11 +110,77 @@ function agentReply(body: AgentRequest): { content: string; conversationId: stri
       conversationId,
     }
   }
+  if (previousUserText) {
+    return {
+      content: `接着「${previousUserText}」，可以再加上过滤：\n\n\`\`\`sql\nSELECT id, amount FROM order_item WHERE created_at >= CURRENT_DATE;\n\`\`\``,
+      conversationId,
+    }
+  }
   return {
     content:
       '可以用下面的语句查询订单：\n\n```sql\nSELECT id, amount FROM order_item LIMIT 20;\n```',
     conversationId,
   }
+}
+
+function persistAgentTurn(
+  userId: string,
+  body: AgentRequest,
+  reply: { content: string; conversationId: string },
+): Response | null {
+  const existing = agentConversations.find((item) => item.id === reply.conversationId)
+  if (existing && existing.userId !== userId) {
+    return error(404, 'CONVERSATION_NOT_FOUND', '对话不存在')
+  }
+  const now = new Date().toISOString()
+  const userContent = visibleUserText(body)
+  const userMessage: MockAgentMessage = {
+    id: crypto.randomUUID(),
+    role: 'user',
+    content: userContent,
+    createdAt: now,
+  }
+  const assistantMessage: MockAgentMessage = {
+    id: crypto.randomUUID(),
+    role: 'assistant',
+    content: reply.content,
+    tools: [{ id: crypto.randomUUID(), toolName: 'listTables', status: 'SUCCESS' }],
+    createdAt: now,
+  }
+  if (!existing) {
+    agentConversations.unshift({
+      id: reply.conversationId,
+      userId,
+      title: clipTitle(userContent),
+      datasourceId: body.datasourceId,
+      database: body.database,
+      updatedAt: now,
+      messages: [userMessage, assistantMessage],
+    })
+    return null
+  }
+  existing.datasourceId = body.datasourceId
+  existing.database = body.database
+  existing.updatedAt = now
+  existing.messages.push(userMessage, assistantMessage)
+  return null
+}
+
+function resolveAgent(request: Request, body: AgentRequest) {
+  const userId = mockUserId(request)
+  if (body.conversationId) {
+    const found = agentConversations.find((item) => item.id === body.conversationId)
+    if (found && found.userId !== userId) {
+      return error(404, 'CONVERSATION_NOT_FOUND', '对话不存在')
+    }
+  }
+  const current = body.conversationId ? ownedConversation(body.conversationId, userId) : undefined
+  const previousUser = [...(current?.messages || [])].reverse().find((item) => item.role === 'user')
+  const reply = agentReply(body, previousUser?.content)
+  if (isHttpResponse(reply)) return reply
+  const denied = persistAgentTurn(userId, body, reply)
+  if (denied) return denied
+  return reply
 }
 
 function isHttpResponse(value: { content: string; conversationId: string } | Response): value is Response {
@@ -529,11 +651,39 @@ export const handlers = [
       nextPageToken: null,
     })
   }),
+  http.get(ai('/api/v1/ai/agent/conversations'), ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const userId = mockUserId(request)
+    const items = agentConversations
+      .filter((item) => item.userId === userId)
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+      .slice(0, 50)
+      .map(conversationPayload)
+    return HttpResponse.json({ items })
+  }),
+  http.get(ai('/api/v1/ai/agent/conversations/:id'), ({ params, request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const item = ownedConversation(String(params.id), mockUserId(request))
+    if (!item) return error(404, 'CONVERSATION_NOT_FOUND', '对话不存在')
+    return HttpResponse.json({ ...conversationPayload(item), messages: item.messages })
+  }),
+  http.delete(ai('/api/v1/ai/agent/conversations/:id'), ({ params, request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const id = String(params.id)
+    const userId = mockUserId(request)
+    const index = agentConversations.findIndex((item) => item.id === id && item.userId === userId)
+    if (index < 0) return error(404, 'CONVERSATION_NOT_FOUND', '对话不存在')
+    agentConversations.splice(index, 1)
+    return new HttpResponse(null, { status: 204 })
+  }),
   http.post(ai('/api/v1/ai/agent'), async ({ request }) => {
     const denied = authorized(request)
     if (denied) return denied
     const body = (await request.json()) as AgentRequest
-    const reply = agentReply(body)
+    const reply = resolveAgent(request, body)
     if (isHttpResponse(reply)) return reply
     if (body.message.includes('__SLOW__')) await delay(2000)
     return HttpResponse.json(reply)
@@ -542,7 +692,7 @@ export const handlers = [
     const denied = authorized(request)
     if (denied) return denied
     const body = (await request.json()) as AgentRequest
-    const reply = agentReply(body)
+    const reply = resolveAgent(request, body)
     if (isHttpResponse(reply)) return reply
     if (body.message.includes('__SLOW__')) await delay(2000)
     return agentSse(reply)

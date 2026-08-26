@@ -138,7 +138,7 @@ const dialectLabel = computed(() => {
   const engine = engineById(engines.value, currentSource.value?.engine)
   return engine?.displayName || editorLanguage.value
 })
-const copilotMessages = computed(() => copilot.messagesOf(active.value?.id || null))
+const copilotMessages = computed(() => copilot.messages)
 const copilotFixDisabled = computed(() => !copilotReady.value || copilot.inflight)
 
 async function syncUrl() {
@@ -152,6 +152,20 @@ function applyConnection(sourceId: string | null, database: string | null): void
   selectedDatabase.value = database
   editor.activateConnection(sourceId, database)
   void syncUrl()
+}
+async function openCopilotConversation(id: string): Promise<void> {
+  await copilot.openConversation(id)
+  if (copilot.conversationId !== id) return
+  const sourceId = copilot.datasourceId
+  const database = copilot.database
+  if (!sourceId) return
+  if (!sources.value.some((item) => item.id === sourceId)) {
+    copilot.notice = '原数据源已不可用，请在左侧重新选择'
+    return
+  }
+  applyConnection(sourceId, database)
+  side.value = 'database'
+  sideCollapsed.value = false
 }
 function newBoundTab() {
   editor.createTab(selectedSource.value, selectedDatabase.value)
@@ -383,7 +397,6 @@ async function sendCopilot(
   const tab = active.value
   if (!tab || tab.kind !== 'sql' || !tab.dataSourceId || !tab.database) return
   await copilot.send({
-    tabId: tab.id,
     userText,
     message: buildCopilotMessage({
       userText,
@@ -465,8 +478,10 @@ function tabConnectionLabel(tab: { database: string | null; dataSourceId: string
 }
 
 watch(
-  () => editor.tabs.map((tab) => tab.id),
-  (ids) => copilot.retain(ids),
+  () => copilot.open,
+  (open) => {
+    if (open) void copilot.loadList()
+  },
 )
 watch(
   () => editor.activeId,
@@ -729,9 +744,16 @@ onBeforeUnmount(() => {
             :available="copilotReady"
             :disabled-reason="copilotDisabledReason"
             :data-source-name="currentSource?.name || ''"
+            :data-source-id="active?.dataSourceId || ''"
             :database="selectedDatabase || ''"
             :dialect="dialectLabel"
+            :sources="sources"
             :messages="copilotMessages"
+            :conversations="copilot.conversations"
+            :conversation-id="copilot.conversationId"
+            :conversation-datasource-id="copilot.datasourceId"
+            :conversation-database="copilot.database"
+            :notice="copilot.notice"
             :inflight="copilot.inflight"
             :can-insert-and-run="canExecute"
             @send="sendCopilot"
@@ -739,6 +761,9 @@ onBeforeUnmount(() => {
             @close="copilot.hide()"
             @insert="applyCopilotSql"
             @insert-and-run="insertAndRunCopilot"
+            @new-conversation="copilot.startNew()"
+            @open-conversation="openCopilotConversation"
+            @delete-conversation="copilot.removeConversation"
           />
         </Pane>
       </Splitpanes>
