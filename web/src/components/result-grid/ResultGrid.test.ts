@@ -230,4 +230,16 @@ describe('result values', () => {
     expect(writeText).toHaveBeenCalledWith(['2\tbeta', '9007199254740993\tNULL'].join('\n'))
     wrapper.unmount()
   })
+
+  it('offers AI fix on a failed result and can disable it', async () => {
+    const wrapper = render({ result: null, error: "Table 'orders.mock_error' doesn't exist" })
+    expect(wrapper.find('[data-testid="copilot-fix"]').exists()).toBe(false)
+    await wrapper.setProps({ canFixWithAi: true, fixDisabled: true })
+    const button = wrapper.get('[data-testid="copilot-fix"]')
+    expect(button.attributes('disabled')).toBeDefined()
+    await wrapper.setProps({ fixDisabled: false })
+    await wrapper.get('[data-testid="copilot-fix"]').trigger('click')
+    expect(wrapper.emitted('fix-with-ai')).toHaveLength(1)
+    wrapper.unmount()
+  })
 })

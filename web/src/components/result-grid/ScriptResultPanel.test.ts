@@ -135,4 +135,23 @@ describe('script result panel', () => {
     expect(wrapper.get('[data-testid="script-progress"]').text()).toBe('第 2 / 3 条')
     wrapper.unmount()
   })
+
+  it('puts AI fix on the failed summary row', async () => {
+    const statements = [
+      statement({ position: 1 }),
+      statement({
+        position: 2,
+        sql: 'select * from mock_error',
+        status: 'FAILED',
+        result: null,
+        error: 'missing',
+      }),
+    ]
+    const wrapper = render(statements, { error: 'missing', resultIndex: 1 })
+    expect(wrapper.find('[data-testid="copilot-fix"]').exists()).toBe(false)
+    await wrapper.setProps({ canFixWithAi: true, fixDisabled: false })
+    await wrapper.get('[data-testid="copilot-fix"]').trigger('click')
+    expect(wrapper.emitted('fix-with-ai')).toHaveLength(1)
+    wrapper.unmount()
+  })
 })

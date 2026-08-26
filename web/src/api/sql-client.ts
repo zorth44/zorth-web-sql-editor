@@ -1,6 +1,6 @@
 import { appEnv } from '@/env'
 import { clearToken, getToken } from '@/auth/token-storage'
-import { ApiError } from '@/api/api-error'
+import { ApiError, isAbortError } from '@/api/api-error'
 import type { ApiErrorBody } from '@/types/contracts'
 
 let unauthorizedHandler: (() => Promise<void> | void) | undefined
@@ -32,7 +32,7 @@ function fallbackError(response: Response): ApiErrorBody {
   }
 }
 
-export async function sqlFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function bearerFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken()
   const headers = new Headers(init.headers)
   headers.set('X-Request-Id', crypto.randomUUID())
@@ -40,9 +40,9 @@ export async function sqlFetch(path: string, init: RequestInit = {}): Promise<Re
   if (init.body !== undefined) headers.set('Content-Type', 'application/json')
   let response: Response
   try {
-    response = await fetch(`${appEnv.sqlApiBase}${path}`, { ...init, headers })
+    response = await fetch(url, { ...init, headers })
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    if (isAbortError(error)) throw error
     throw new ApiError(0, {
       requestId: headers.get('X-Request-Id')!,
       code: 'NETWORK_ERROR',
@@ -56,6 +56,10 @@ export async function sqlFetch(path: string, init: RequestInit = {}): Promise<Re
     throw new ApiError(response.status, { ...fallbackError(response), ...body })
   }
   return response
+}
+
+export async function sqlFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return bearerFetch(`${appEnv.sqlApiBase}${path}`, init)
 }
 
 export async function sqlRequest<T>(path: string, init: RequestInit = {}): Promise<T> {

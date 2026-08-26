@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly PROD: boolean
   readonly VITE_SQL_API_BASE?: string
   readonly VITE_AUTH_API_BASE?: string
+  readonly VITE_AI_API_BASE?: string
   readonly VITE_AUTH_PRODUCT_TYPE?: string
   readonly VITE_AUTH_BRIDGE_ALLOWED_ORIGINS?: string
   readonly VITE_LEGACY_PORTAL_URL?: string

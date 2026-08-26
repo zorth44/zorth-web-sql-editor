@@ -601,7 +601,7 @@ textarea {
   background: var(--color-danger-soft);
 }
 .script-summary-open {
-  @apply flex w-full items-center gap-3 border-0 bg-transparent px-3 py-1.5 text-left text-xs text-ink hover:bg-wash;
+  @apply flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent px-3 py-1.5 text-left text-xs text-ink hover:bg-wash;
 }
 .script-summary-position {
   @apply w-6 shrink-0 text-right font-mono text-muted;
@@ -979,4 +979,155 @@ html.dark .result-ctx-item svg {
   background: var(--color-panel);
   padding: 4px 6px;
   font-size: 12px;
+}
+.copilot-panel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--color-panel);
+  border-left: 1px solid var(--color-line);
+}
+.copilot-head {
+  @apply flex h-10 shrink-0 items-center gap-1.5 border-b border-line px-3 text-sm;
+}
+.copilot-context {
+  @apply shrink-0 truncate border-b border-line bg-subtle px-3 py-1.5 text-[11px] text-muted;
+}
+.copilot-context-sep {
+  @apply px-1;
+}
+.copilot-messages {
+  @apply flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3;
+}
+.copilot-empty,
+.copilot-loading,
+.copilot-hint {
+  @apply text-xs text-muted;
+}
+.copilot-bubble {
+  @apply max-w-full rounded-lg px-2.5 py-2 text-xs;
+}
+.copilot-bubble-user {
+  @apply self-end bg-brand-soft text-ink;
+}
+.copilot-bubble-assistant {
+  @apply bg-subtle;
+}
+.copilot-text {
+  @apply whitespace-pre-wrap break-words;
+}
+.copilot-md {
+  @apply break-words leading-relaxed;
+}
+.copilot-md > :first-child {
+  margin-top: 0;
+}
+.copilot-md > :last-child {
+  margin-bottom: 0;
+}
+.copilot-md p,
+.copilot-md ul,
+.copilot-md ol,
+.copilot-md pre,
+.copilot-md table,
+.copilot-md blockquote {
+  margin: 0.45em 0;
+}
+.copilot-md h1,
+.copilot-md h2,
+.copilot-md h3,
+.copilot-md h4 {
+  @apply mt-2 mb-1 font-semibold text-ink;
+}
+.copilot-md h1 {
+  font-size: 13px;
+}
+.copilot-md h2,
+.copilot-md h3,
+.copilot-md h4 {
+  font-size: 12px;
+}
+.copilot-md ul,
+.copilot-md ol {
+  padding-left: 1.2em;
+}
+.copilot-md li + li {
+  margin-top: 0.15em;
+}
+.copilot-md code {
+  @apply rounded bg-panel px-1 py-px font-mono text-[11px];
+}
+.copilot-md pre {
+  @apply overflow-auto rounded-md border border-line bg-panel p-2 font-mono text-[11px];
+}
+.copilot-md pre code {
+  padding: 0;
+  background: transparent;
+}
+.copilot-md a {
+  @apply text-brand underline;
+}
+.copilot-md blockquote {
+  @apply border-l-2 border-line pl-2 text-muted;
+}
+.copilot-md table {
+  @apply w-full border-collapse overflow-hidden rounded-md border border-line;
+}
+.copilot-md th,
+.copilot-md td {
+  @apply border border-line px-1.5 py-0.5 text-left;
+}
+.copilot-md th {
+  @apply bg-panel font-semibold;
+}
+.copilot-error {
+  @apply text-danger;
+}
+.copilot-tools {
+  @apply mb-1.5 list-none space-y-0.5 p-0 text-[11px] text-muted;
+}
+.copilot-tool[data-status='STARTED'] {
+  @apply text-brand;
+}
+.copilot-tool[data-status='FAILURE'] {
+  @apply text-danger;
+}
+.copilot-caret {
+  display: inline-block;
+  width: 6px;
+  height: 12px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--color-brand);
+  animation: copilot-caret 1s step-end infinite;
+}
+@keyframes copilot-caret {
+  50% {
+    opacity: 0;
+  }
+}
+.copilot-sql {
+  @apply mt-2 overflow-hidden rounded-md border border-line bg-panel;
+}
+.copilot-sql pre {
+  @apply max-h-48 overflow-auto p-2 font-mono text-[11px];
+}
+.copilot-sql-actions {
+  @apply flex gap-1.5 border-t border-line px-2 py-1.5;
+}
+.copilot-composer {
+  @apply shrink-0 border-t border-line p-2;
+}
+.copilot-input {
+  @apply field min-h-[4.5rem] resize-none text-xs;
+}
+.copilot-composer-actions {
+  @apply mt-2 flex justify-end;
+}
+.copilot-fix {
+  @apply btn min-h-7 shrink-0 px-2 py-0.5 text-xs;
+}
+.script-summary-row {
+  @apply flex items-stretch;
 }

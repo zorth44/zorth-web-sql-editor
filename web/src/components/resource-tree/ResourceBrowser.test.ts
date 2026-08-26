@@ -214,9 +214,9 @@ describe('resource navigator', () => {
   it('renders a distinct engine icon for each data source type', async () => {
     const wrapper = await renderBrowser({
       sources: [
-        { ...sources[0], engine: 'MYSQL' },
-        { ...sources[1], engine: 'POSTGRESQL' },
-        { ...sources[2], engine: 'GBASE_8A' },
+        { ...sources[0], engine: 'MYSQL' } as DataSourceListItem,
+        { ...sources[1], engine: 'POSTGRESQL' } as DataSourceListItem,
+        { ...sources[2], engine: 'GBASE_8A' } as DataSourceListItem,
       ],
     })
     expect(

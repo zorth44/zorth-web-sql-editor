@@ -55,11 +55,14 @@ const props = defineProps<{
   canExport?: boolean
   exporting?: boolean
   rowLimit?: number
+  canFixWithAi?: boolean
+  fixDisabled?: boolean
 }>()
 const emit = defineEmits<{
   export: []
   'cancel-export': []
   'update:rowLimit': [value: number]
+  'fix-with-ai': []
 }>()
 
 const filter = ref('')
@@ -523,7 +526,19 @@ onBeforeUnmount(() => {
       class="m-3 rounded-lg bg-danger-soft p-4 text-sm text-danger"
       role="alert"
     >
-      <p class="font-medium">执行失败</p>
+      <div class="flex items-start justify-between gap-2">
+        <p class="font-medium">执行失败</p>
+        <button
+          v-if="canFixWithAi"
+          class="copilot-fix"
+          type="button"
+          :disabled="Boolean(fixDisabled)"
+          data-testid="copilot-fix"
+          @click="emit('fix-with-ai')"
+        >
+          用 AI 修复
+        </button>
+      </div>
       <pre class="mt-2 whitespace-pre-wrap font-mono text-xs">{{ error }}</pre>
     </div>
     <div v-else-if="!result" class="grid flex-1 place-items-center text-sm text-muted">

@@ -26,12 +26,13 @@ Mock 数据包含重复名称、连接失败、不可见 404、版本冲突和�
 | ---------------------------------- | ------------------------------------------------- |
 | `VITE_SQL_API_BASE`                | SQL 服务 base URL；同源部署可用 `/sql` 等相对路径 |
 | `VITE_AUTH_API_BASE`               | 现有授权服务 base URL                             |
+| `VITE_AI_API_BASE`                 | AI 服务 base URL；同源部署可用 `/ai-api`          |
 | `VITE_AUTH_PRODUCT_TYPE`           | LDAP 产品类型，默认 `chinaBank`                   |
 | `VITE_AUTH_BRIDGE_ALLOWED_ORIGINS` | 老系统 bridge sender Origin 白名单，逗号分隔      |
 | `VITE_LEGACY_PORTAL_URL`           | `needBind` 时前往老系统的地址                     |
 | `VITE_ENABLE_API_MOCK`             | 仅开发/测试允许为 `true`                          |
 
-生产环境必须明确提供两个 API base 和老系统地址，并保持 Mock 关闭。建议由网关将前端、授权接口和 SQL 接口部署为同源，生产全程使用 HTTPS。
+生产环境必须明确提供 SQL、授权、AI 三个 API base 和老系统地址，并保持 Mock 关闭。建议由网关将前端、授权接口、SQL 接口和 AI 接口部署为同源，生产全程使用 HTTPS。开发代理变量 `VITE_DEV_*_PROXY_TARGET` 不得打进生产包。
 
 ## 验证命令
 
@@ -42,7 +43,7 @@ pnpm typecheck
 pnpm test
 pnpm exec playwright install chromium
 pnpm e2e
-VITE_SQL_API_BASE=/sql VITE_AUTH_API_BASE=/auth \
+VITE_SQL_API_BASE=/sql VITE_AUTH_API_BASE=/auth VITE_AI_API_BASE=/ai \
   VITE_LEGACY_PORTAL_URL=https://legacy.example.com/account/bind \
   VITE_AUTH_BRIDGE_ALLOWED_ORIGINS=https://legacy.example.com \
   VITE_ENABLE_API_MOCK=false pnpm build

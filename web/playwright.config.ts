@@ -19,6 +19,7 @@ export default defineConfig({
     env: {
       VITE_SQL_API_BASE: '',
       VITE_AUTH_API_BASE: '',
+      VITE_AI_API_BASE: '',
       VITE_AUTH_PRODUCT_TYPE: 'chinaBank',
       VITE_AUTH_BRIDGE_ALLOWED_ORIGINS: 'http://legacy.example.test',
       VITE_LEGACY_PORTAL_URL: 'http://legacy.example.test/bind',

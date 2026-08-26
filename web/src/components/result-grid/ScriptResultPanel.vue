@@ -17,12 +17,15 @@ const props = defineProps<{
   canExport?: boolean
   exporting?: boolean
   rowLimit?: number
+  canFixWithAi?: boolean
+  fixDisabled?: boolean
 }>()
 const emit = defineEmits<{
   select: [index: number]
   export: []
   'cancel-export': []
   'update:rowLimit': [value: number]
+  'fix-with-ai': []
 }>()
 
 /** A script opens on the summary so progress and failures are visible at once. */
@@ -86,9 +89,12 @@ watch(
       :can-export="Boolean(canExport)"
       :exporting="Boolean(exporting)"
       :row-limit="rowLimit ?? DEFAULT_ROW_LIMIT"
+      :can-fix-with-ai="Boolean(canFixWithAi)"
+      :fix-disabled="Boolean(fixDisabled)"
       @export="emit('export')"
       @cancel-export="emit('cancel-export')"
       @update:row-limit="emit('update:rowLimit', $event)"
+      @fix-with-ai="emit('fix-with-ai')"
     >
       <template v-if="$slots.status" #status><slot name="status" /></template>
     </ResultGrid>
@@ -149,6 +155,16 @@ watch(
             <span class="script-summary-duration">{{ duration(statement) }}</span>
             <span class="script-summary-outcome">{{ outcome(statement) }}</span>
           </button>
+          <button
+            v-if="canFixWithAi && statement.status === 'FAILED'"
+            class="copilot-fix my-auto mr-2"
+            type="button"
+            :disabled="Boolean(fixDisabled)"
+            data-testid="copilot-fix"
+            @click="emit('fix-with-ai')"
+          >
+            用 AI 修复
+          </button>
         </li>
       </ol>
     </div>
@@ -160,9 +176,12 @@ watch(
       :can-export="Boolean(canExport)"
       :exporting="Boolean(exporting)"
       :row-limit="rowLimit ?? DEFAULT_ROW_LIMIT"
+      :can-fix-with-ai="Boolean(canFixWithAi)"
+      :fix-disabled="Boolean(fixDisabled)"
       @export="emit('export')"
       @cancel-export="emit('cancel-export')"
       @update:row-limit="emit('update:rowLimit', $event)"
+      @fix-with-ai="emit('fix-with-ai')"
     >
       <template v-if="$slots.status" #status><slot name="status" /></template>
     </ResultGrid>

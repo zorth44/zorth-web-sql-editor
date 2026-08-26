@@ -2,6 +2,7 @@ import { delay, http, HttpResponse } from 'msw'
 import { appEnv } from '@/env'
 import { initialDataSources, mockDataSources, mockSession } from '@/mocks/fixtures'
 import { mockEngineCatalog } from '@/mocks/engines'
+import type { AgentRequest } from '@/api/ai-agent'
 import type {
   ApiErrorBody,
   ConnectionFields,
@@ -16,6 +17,7 @@ import type {
 
 const sql = (path: string) => `${appEnv.sqlApiBase}${path}`
 const auth = (path: string) => `${appEnv.authApiBase}${path}`
+const ai = (path: string) => `${appEnv.aiApiBase}${path}`
 const sqlRpc = (pattern: string) =>
   new RegExp(`${appEnv.sqlApiBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${pattern}$`)
 function rpcId(request: Request, suffix: ':test' | ':cancel'): string {
@@ -35,6 +37,59 @@ function authorized(request: Request): Response | null {
   if (!header?.startsWith('Bearer ') || header === 'Bearer invalid-token')
     return error(401, 'UNAUTHENTICATED', '登录已过期，请重新登录')
   return null
+}
+
+function agentReply(body: AgentRequest): { content: string; conversationId: string } | Response {
+  if (!body.message?.trim() || !body.datasourceId || !body.database) {
+    return error(400, 'VALIDATION_FAILED', '请求参数不合法')
+  }
+  if (body.message.includes('__FAIL__')) return error(400, 'VALIDATION_FAILED', 'message 超限')
+  const conversationId = body.conversationId || crypto.randomUUID()
+  if (body.message.includes('__NO_SQL__')) {
+    return { content: '当前没有可插入的 SQL。', conversationId }
+  }
+  if (body.message.includes('请修复')) {
+    return {
+      content: '已改正未知列问题：\n\n```sql\nSELECT id, amount FROM order_item;\n```',
+      conversationId,
+    }
+  }
+  return {
+    content:
+      '可以用下面的语句查询订单：\n\n```sql\nSELECT id, amount FROM order_item LIMIT 20;\n```',
+    conversationId,
+  }
+}
+
+function isHttpResponse(value: { content: string; conversationId: string } | Response): value is Response {
+  return value instanceof Response
+}
+
+function agentSse(reply: { content: string; conversationId: string }): Response {
+  const encoder = new TextEncoder()
+  const frames = [
+    { event: 'start', data: { type: 'start', conversationId: reply.conversationId } },
+    { event: 'tool', data: { type: 'tool', toolName: 'listTables', status: 'STARTED' } },
+    { event: 'tool', data: { type: 'tool', toolName: 'listTables', status: 'SUCCESS' } },
+    { event: 'delta', data: { type: 'delta', content: reply.content } },
+    { event: 'completed', data: { type: 'completed', conversationId: reply.conversationId } },
+  ]
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const frame of frames) {
+        controller.enqueue(
+          encoder.encode(`event:${frame.event}\ndata:${JSON.stringify(frame.data)}\n\n`),
+        )
+      }
+      controller.close()
+    },
+  })
+  return new HttpResponse(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+    },
+  })
 }
 
 function listItem(detail: DataSourceDetail): DataSourceListItem {
@@ -473,6 +528,24 @@ export const handlers = [
       items: mockHistory.filter((item) => item.statementSummary.toLowerCase().includes(q)),
       nextPageToken: null,
     })
+  }),
+  http.post(ai('/api/v1/ai/agent'), async ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const body = (await request.json()) as AgentRequest
+    const reply = agentReply(body)
+    if (isHttpResponse(reply)) return reply
+    if (body.message.includes('__SLOW__')) await delay(2000)
+    return HttpResponse.json(reply)
+  }),
+  http.post(ai('/api/v1/ai/agent/stream'), async ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const body = (await request.json()) as AgentRequest
+    const reply = agentReply(body)
+    if (isHttpResponse(reply)) return reply
+    if (body.message.includes('__SLOW__')) await delay(2000)
+    return agentSse(reply)
   }),
   http.get(sql('/api/v1/sql/history/:id'), ({ params, request }) => {
     const denied = authorized(request)

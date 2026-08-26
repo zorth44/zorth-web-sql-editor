@@ -9,6 +9,7 @@ import 'monaco-editor/languages/definitions/pgsql/register'
 import { MYSQL_EDITOR_LANGUAGE, PG_EDITOR_LANGUAGE, formatterLanguageFor } from '@/data-sources/catalog'
 import { format } from 'sql-formatter'
 import { statementAt } from '@/sql-editor/sql'
+import { appendSqlText, replaceSqlOnce } from '@/sql-editor/sql-insert'
 
 const props = defineProps<{ modelValue: string; suggestions?: string[]; language?: string }>()
 const emit = defineEmits<{
@@ -109,6 +110,22 @@ function insertAtCursor(sql: string): void {
   ])
   editor.focus()
 }
+function getCopilotSql(): string {
+  if (!editor) return props.modelValue
+  return selectedText() || editor.getValue() || ''
+}
+function appendSql(sql: string): void {
+  if (!editor) return
+  editor.setValue(appendSqlText(editor.getValue(), sql))
+  editor.focus()
+}
+function replaceSql(target: string, sql: string): boolean {
+  if (!editor) return false
+  const result = replaceSqlOnce(editor.getValue(), target, sql)
+  editor.setValue(result.text)
+  editor.focus()
+  return result.replaced
+}
 function focus(): void {
   editor?.focus()
 }
@@ -190,7 +207,16 @@ onBeforeUnmount(() => {
   completion?.dispose()
   editor?.dispose()
 })
-defineExpose({ getRunnableStatement, getRunnableScript, formatSql, insertAtCursor, focus })
+defineExpose({
+  getRunnableStatement,
+  getRunnableScript,
+  getCopilotSql,
+  formatSql,
+  insertAtCursor,
+  appendSql,
+  replaceSql,
+  focus,
+})
 </script>
 <template>
   <div ref="root" class="h-full min-h-[180px] w-full" aria-label="SQL 编辑器" />

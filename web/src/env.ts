@@ -1,6 +1,7 @@
 export interface AppEnv {
   sqlApiBase: string
   authApiBase: string
+  aiApiBase: string
   authProductType: 'synthetical' | 'chinaBank' | 'oversea'
   bridgeAllowedOrigins: ReadonlySet<string>
   legacyPortalUrl: string
@@ -41,6 +42,7 @@ export function loadAppEnv(source: ImportMetaEnv = import.meta.env): AppEnv {
   return {
     sqlApiBase: validUrl(source.VITE_SQL_API_BASE || '', 'VITE_SQL_API_BASE'),
     authApiBase: validUrl(source.VITE_AUTH_API_BASE || '', 'VITE_AUTH_API_BASE'),
+    aiApiBase: validUrl(source.VITE_AI_API_BASE || '', 'VITE_AI_API_BASE'),
     authProductType: productType as AppEnv['authProductType'],
     bridgeAllowedOrigins: new Set(origins),
     legacyPortalUrl,

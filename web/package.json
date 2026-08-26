@@ -24,6 +24,7 @@
     "@tanstack/vue-table": "^9.1.2",
     "@tanstack/vue-virtual": "^3.13.35",
     "lucide-vue-next": "0.468.0",
+    "marked": "^18.0.11",
     "monaco-editor": "^0.56.0",
     "pinia": "3.0.3",
     "splitpanes": "^4.1.2",

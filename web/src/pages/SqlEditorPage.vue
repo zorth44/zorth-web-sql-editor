@@ -9,6 +9,7 @@ import {
   History,
   Play,
   Plus,
+  Sparkles,
   Square,
   Table2,
   WandSparkles,
@@ -27,10 +28,13 @@ import ScriptResultPanel from '@/components/result-grid/ScriptResultPanel.vue'
 import TableViewer from '@/components/table-viewer/TableViewer.vue'
 import WelcomeStart from '@/components/welcome/WelcomeStart.vue'
 import SqlMonacoEditor from '@/components/editor/SqlMonacoEditor.vue'
+import CopilotPanel from '@/components/copilot/CopilotPanel.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { DEFAULT_ROW_LIMIT } from '@/components/result-grid/limits'
 import { likelyNeedsDatabase, selectTableData } from '@/sql-editor/sql'
 import { planScript, runScript as runScriptStatements } from '@/sql-editor/script-runner'
+import { buildCopilotMessage, COPILOT_FIX_PROMPT } from '@/sql-editor/copilot-context'
+import { appendSqlText, replaceSqlOnce } from '@/sql-editor/sql-insert'
 import {
   SIDEBAR_DEFAULT_PX,
   SIDEBAR_MAX_PX,
@@ -39,6 +43,7 @@ import {
   pxToPanePercent,
 } from '@/sql-editor/sidebar-width'
 import { useEditorStore } from '@/stores/editor'
+import { useCopilotStore } from '@/stores/copilot'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { queryClient, queryKeys } from '@/query/client'
@@ -47,13 +52,17 @@ import type { DataSourceListItem, HistoryDetail, TableItem } from '@/types/contr
 const route = useRoute()
 const router = useRouter()
 const editor = useEditorStore()
+const copilot = useCopilotStore()
 const auth = useAuthStore()
 const notifications = useNotificationsStore()
 const monacoRef = ref<{
   getRunnableStatement: () => string
   getRunnableScript: () => string
+  getCopilotSql: () => string
   formatSql: () => void
   insertAtCursor: (sql: string) => void
+  appendSql: (sql: string) => void
+  replaceSql: (target: string, sql: string) => boolean
   focus: () => void
 } | null>(null)
 const hasSelection = ref(false)
@@ -72,12 +81,16 @@ const sideCollapsed = ref(false)
 const splitHost = ref<HTMLElement | null>(null)
 const splitWidth = ref(typeof window === 'undefined' ? 1200 : Math.max(window.innerWidth - 48, 1))
 const sideWidthPx = ref(SIDEBAR_DEFAULT_PX)
+const copilotWidthPx = ref(340)
 const userSized = ref(false)
 const sideFitKey = ref('init')
 const resourceNonce = ref(0)
 const sideSize = computed(() => pxToPanePercent(sideWidthPx.value, splitWidth.value))
 const sideMinSize = computed(() => pxToPanePercent(SIDEBAR_MIN_PX, splitWidth.value))
 const sideMaxSize = computed(() => pxToPanePercent(SIDEBAR_MAX_PX, splitWidth.value))
+const copilotSize = computed(() => pxToPanePercent(copilotWidthPx.value, splitWidth.value))
+const copilotMinSize = computed(() => pxToPanePercent(280, splitWidth.value))
+const copilotMaxSize = computed(() => pxToPanePercent(480, splitWidth.value))
 const exporting = ref(false)
 const exportOpen = ref(false)
 const rowLimit = ref(DEFAULT_ROW_LIMIT)
@@ -103,12 +116,30 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 const runShortcut = isMac ? '⌘⇧↵' : 'Ctrl+Shift+Enter'
 const statementShortcut = isMac ? '⌘↵' : 'Ctrl+Enter'
 const formatShortcut = isMac ? '⌥⇧F' : 'Shift+Alt+F'
+const copilotShortcut = isMac ? '⌘L' : 'Ctrl+L'
 const runLabel = computed(() => (hasSelection.value ? '运行选中' : '运行'))
 const runTitle = computed(() =>
   hasSelection.value
     ? `运行选中的全部语句（${runShortcut}），运行当前语句用 ${statementShortcut}`
     : `运行编辑器全部语句（${runShortcut}），运行当前语句用 ${statementShortcut}`,
 )
+const copilotReady = computed(() => {
+  const tab = active.value
+  return Boolean(tab && tab.kind === 'sql' && tab.dataSourceId && tab.database)
+})
+const copilotDisabledReason = computed(() => {
+  const tab = active.value
+  if (!tab) return '打开 SQL 页签后使用 Copilot'
+  if (tab.kind !== 'sql') return '请切换到 SQL 页签使用 Copilot'
+  if (!tab.dataSourceId || !tab.database) return '请先在左侧选择数据源和数据库'
+  return ''
+})
+const dialectLabel = computed(() => {
+  const engine = engineById(engines.value, currentSource.value?.engine)
+  return engine?.displayName || editorLanguage.value
+})
+const copilotMessages = computed(() => copilot.messagesOf(active.value?.id || null))
+const copilotFixDisabled = computed(() => !copilotReady.value || copilot.inflight)
 
 async function syncUrl() {
   const query: { dataSourceId?: string; database?: string } = {}
@@ -188,7 +219,12 @@ async function loadTableData(id: string, force = false) {
     selectTableData(
       tab.database,
       tab.table,
-      identifierQuoteFor(engineById(engines.value, sources.value.find((item) => item.id === tab.dataSourceId)?.engine)),
+      identifierQuoteFor(
+        engineById(
+          engines.value,
+          sources.value.find((item) => item.id === tab.dataSourceId)?.engine,
+        ),
+      ),
     ),
   )
 }
@@ -334,6 +370,72 @@ function openHistory(detail: HistoryDetail) {
 function notice(message: string) {
   notifications.push('info', message)
 }
+function onCopilotShortcut(event: KeyboardEvent): void {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
+  if (event.key.toLowerCase() !== 'l') return
+  event.preventDefault()
+  copilot.toggle()
+}
+async function sendCopilot(
+  userText: string,
+  extra?: { replaceSql?: string; failedSql?: string; failedError?: string },
+): Promise<void> {
+  const tab = active.value
+  if (!tab || tab.kind !== 'sql' || !tab.dataSourceId || !tab.database) return
+  await copilot.send({
+    tabId: tab.id,
+    userText,
+    message: buildCopilotMessage({
+      userText,
+      dialect: dialectLabel.value,
+      dataSourceName: currentSource.value?.name || '',
+      database: tab.database,
+      currentSql: monacoRef.value?.getCopilotSql() || tab.sql,
+      ...(extra?.failedSql ? { failedSql: extra.failedSql } : {}),
+      ...(extra?.failedError ? { failedError: extra.failedError } : {}),
+    }),
+    datasourceId: tab.dataSourceId,
+    database: tab.database,
+    ...(extra?.replaceSql ? { replaceSql: extra.replaceSql } : {}),
+  })
+}
+function applyCopilotSql(sql: string, replaceSql?: string): void {
+  const tab = active.value
+  if (!tab || tab.kind !== 'sql') return
+  if (replaceSql) {
+    const replaced = monacoRef.value
+      ? monacoRef.value.replaceSql(replaceSql, sql)
+      : (() => {
+          const result = replaceSqlOnce(tab.sql, replaceSql, sql)
+          editor.updateSql(tab.id, result.text)
+          return result.replaced
+        })()
+    if (!replaced) notice('未找到原失败语句，已追加到编辑器末尾')
+  } else if (monacoRef.value) {
+    monacoRef.value.appendSql(sql)
+  } else {
+    editor.updateSql(tab.id, appendSqlText(tab.sql, sql))
+  }
+  monacoRef.value?.focus()
+}
+async function insertAndRunCopilot(sql: string, replaceSql?: string): Promise<void> {
+  applyCopilotSql(sql, replaceSql)
+  await nextTick()
+  await executeScriptText(sql)
+}
+async function fixWithAi(): Promise<void> {
+  const tab = active.value
+  if (!tab || tab.kind !== 'sql' || copilotFixDisabled.value) return
+  copilot.show()
+  const failed = tab.statements.find((item) => item.status === 'FAILED')
+  const failedSql = failed?.sql || tab.sql
+  const failedError = failed?.error || tab.error || ''
+  await sendCopilot(COPILOT_FIX_PROMPT, {
+    replaceSql: failedSql,
+    failedSql,
+    failedError,
+  })
+}
 function syncSplitWidth(): void {
   const width = splitHost.value?.clientWidth
   if (width) splitWidth.value = width
@@ -363,6 +465,10 @@ function tabConnectionLabel(tab: { database: string | null; dataSourceId: string
 }
 
 watch(
+  () => editor.tabs.map((tab) => tab.id),
+  (ids) => copilot.retain(ids),
+)
+watch(
   () => editor.activeId,
   () => {
     const tab = editor.active
@@ -383,6 +489,7 @@ watch(
 
 onMounted(async () => {
   syncSplitWidth()
+  window.addEventListener('keydown', onCopilotShortcut, true)
   try {
     sources.value = (await listDataSources({ keyword: '', pageSize: 100 })).items
     applyFittedSidebar(sources.value)
@@ -412,6 +519,8 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onCopilotShortcut, true)
+  copilot.cancel()
   exportAbort?.abort()
   for (const tab of editor.tabs) if (tab.running) editor.abort(tab.id)
 })
@@ -441,7 +550,7 @@ onBeforeUnmount(() => {
     </aside>
     <div ref="splitHost" class="min-w-0 flex-1">
       <Splitpanes
-        :key="`${sideCollapsed ? 'collapsed' : 'open'}-${sideFitKey}`"
+        :key="`${sideCollapsed ? 'collapsed' : 'open'}-${copilot.open ? 'copilot' : 'main'}-${sideFitKey}`"
         class="sql-split min-w-0 h-full"
         @resized="onSideResized"
       >
@@ -524,6 +633,16 @@ onBeforeUnmount(() => {
                 <button v-else class="btn min-h-8 px-3 py-1 text-xs text-danger" @click="stop">
                   <Square :size="14" />停止
                 </button>
+                <button
+                  class="btn ml-auto min-h-8 px-2.5 py-1 text-xs"
+                  :class="{ 'activity-btn-active': copilot.open }"
+                  :title="`打开 Copilot（${copilotShortcut}）`"
+                  data-testid="copilot-toggle"
+                  @click="copilot.toggle()"
+                >
+                  <Sparkles :size="14" />Copilot
+                  <kbd class="shortcut">{{ copilotShortcut }}</kbd>
+                </button>
               </div>
               <TableViewer
                 v-if="
@@ -576,10 +695,13 @@ onBeforeUnmount(() => {
                     :can-export="canExport"
                     :exporting="exporting"
                     :row-limit="rowLimit"
+                    :can-fix-with-ai="true"
+                    :fix-disabled="copilotFixDisabled"
                     @select="active && editor.viewResult(active.id, $event)"
                     @update:row-limit="rowLimit = $event"
                     @export="requestExport"
                     @cancel-export="exportAbort?.abort()"
+                    @fix-with-ai="fixWithAi"
                   >
                     <template #status>
                       <span class="truncate">
@@ -596,6 +718,28 @@ onBeforeUnmount(() => {
               </Splitpanes>
             </template>
           </section>
+        </Pane>
+        <Pane
+          v-if="copilot.open"
+          :size="copilotSize"
+          :min-size="copilotMinSize"
+          :max-size="copilotMaxSize"
+        >
+          <CopilotPanel
+            :available="copilotReady"
+            :disabled-reason="copilotDisabledReason"
+            :data-source-name="currentSource?.name || ''"
+            :database="selectedDatabase || ''"
+            :dialect="dialectLabel"
+            :messages="copilotMessages"
+            :inflight="copilot.inflight"
+            :can-insert-and-run="canExecute"
+            @send="sendCopilot"
+            @cancel="copilot.cancel()"
+            @close="copilot.hide()"
+            @insert="applyCopilotSql"
+            @insert-and-run="insertAndRunCopilot"
+          />
         </Pane>
       </Splitpanes>
     </div>

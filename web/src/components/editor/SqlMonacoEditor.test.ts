@@ -131,4 +131,15 @@ describe('sql monaco editor', () => {
     expect(fake.createdLanguage).toBe('pgsql')
     wrapper.unmount()
   })
+
+  it('appends and replaces sql used by Copilot', async () => {
+    const wrapper = await render()
+    fake.value = 'select 1;'
+    wrapper.vm.appendSql('select 2;')
+    expect(fake.value).toBe('select 1;\n\nselect 2;\n')
+    fake.value = 'select * from mock_error;'
+    expect(wrapper.vm.replaceSql('select * from mock_error;', 'select 1')).toBe(true)
+    expect(fake.value).toBe('select 1')
+    wrapper.unmount()
+  })
 })
