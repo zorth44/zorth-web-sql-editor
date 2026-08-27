@@ -783,7 +783,7 @@ onBeforeUnmount(() => {
     </aside>
     <div ref="splitHost" class="min-w-0 flex-1">
       <Splitpanes
-        :key="`${sideCollapsed ? 'collapsed' : 'open'}-${copilot.open ? 'copilot' : 'main'}-${sideFitKey}`"
+        :key="`${sideCollapsed ? 'collapsed' : 'open'}-${sideFitKey}`"
         class="sql-split min-w-0 h-full"
         @resized="onSideResized"
       >

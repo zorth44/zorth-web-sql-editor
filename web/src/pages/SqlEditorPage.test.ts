@@ -6,9 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockSession } from '@/mocks/fixtures'
 import { queryClient } from '@/query/client'
 import { useAuthStore } from '@/stores/auth'
+import { useCopilotStore } from '@/stores/copilot'
 import { useEditorStore } from '@/stores/editor'
 import { saveToken } from '@/auth/token-storage'
 import type { Capability, Session } from '@/types/contracts'
+
+const resourceBrowserLifecycle = vi.hoisted(() => ({ mounted: 0, unmounted: 0 }))
 
 vi.mock('@/components/editor/SqlMonacoEditor.vue', () => ({
   default: {
@@ -34,9 +37,22 @@ vi.mock('@/components/editor/SqlMonacoEditor.vue', () => ({
     },
   },
 }))
-vi.mock('@/components/resource-tree/ResourceBrowser.vue', () => ({
-  default: { name: 'ResourceBrowser', template: '<div />' },
-}))
+
+vi.mock('@/components/resource-tree/ResourceBrowser.vue', async () => {
+  const { defineComponent, onBeforeUnmount } = await import('vue')
+  return {
+    default: defineComponent({
+      name: 'ResourceBrowser',
+      setup() {
+        resourceBrowserLifecycle.mounted += 1
+        onBeforeUnmount(() => {
+          resourceBrowserLifecycle.unmounted += 1
+        })
+      },
+      template: '<div data-testid="resource-browser" />',
+    }),
+  }
+})
 vi.mock('@/components/copilot/CopilotPanel.vue', () => ({
   default: { name: 'CopilotPanel', template: '<div />' },
 }))
@@ -86,7 +102,11 @@ async function renderPage(capabilities: Capability[] = mockSession.capabilities)
 }
 
 describe('sql editor scripts workspace', () => {
-  beforeEach(() => queryClient.clear())
+  beforeEach(() => {
+    queryClient.clear()
+    resourceBrowserLifecycle.mounted = 0
+    resourceBrowserLifecycle.unmounted = 0
+  })
 
   it('hides the scripts rail and save actions without SCRIPT_MANAGE', async () => {
     const wrapper = await renderPage(
@@ -108,6 +128,35 @@ describe('sql editor scripts workspace', () => {
     await flushPromises()
     expect(document.body.textContent).toContain('保存脚本')
     expect(document.querySelector('[data-testid="save-script-name"]')).not.toBeNull()
+    wrapper.unmount()
+  })
+})
+
+describe('sql editor copilot layout', () => {
+  beforeEach(() => {
+    queryClient.clear()
+    resourceBrowserLifecycle.mounted = 0
+    resourceBrowserLifecycle.unmounted = 0
+  })
+
+  it('does not remount the resource tree when toggling Copilot', async () => {
+    const wrapper = await renderPage()
+    useEditorStore().createTab('ds-orders-a', 'orders', 'select 1')
+    await flushPromises()
+    const mounted = resourceBrowserLifecycle.mounted
+    const unmounted = resourceBrowserLifecycle.unmounted
+    expect(mounted).toBeGreaterThan(0)
+
+    useCopilotStore().toggle()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="resource-browser"]').exists()).toBe(true)
+    expect(resourceBrowserLifecycle.mounted).toBe(mounted)
+    expect(resourceBrowserLifecycle.unmounted).toBe(unmounted)
+
+    useCopilotStore().toggle()
+    await flushPromises()
+    expect(resourceBrowserLifecycle.mounted).toBe(mounted)
+    expect(resourceBrowserLifecycle.unmounted).toBe(unmounted)
     wrapper.unmount()
   })
 })

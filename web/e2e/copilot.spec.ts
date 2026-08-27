@@ -21,6 +21,19 @@ async function setSql(page: Page, sql: string): Promise<void> {
 }
 
 test.describe('sql editor copilot', () => {
+  test('does not reload the resource tree when toggling Copilot', async ({ page }) => {
+    await login(page)
+    await expect(page.getByTestId('navigator-database-ds-orders-a-orders')).toBeVisible()
+    await page.getByTestId('copilot-toggle').click()
+    await expect(page.getByTestId('copilot-panel')).toBeVisible()
+    await expect(page.getByTestId('navigator-database-ds-orders-a-orders')).toBeVisible()
+    await expect(page.getByTestId('navigator-loading-ds-orders-a')).toHaveCount(0)
+    await page.getByTestId('copilot-toggle').click()
+    await expect(page.getByTestId('copilot-panel')).toHaveCount(0)
+    await expect(page.getByTestId('navigator-database-ds-orders-a-orders')).toBeVisible()
+    await expect(page.getByTestId('navigator-loading-ds-orders-a')).toHaveCount(0)
+  })
+
   test('inserts generated sql without running, then insert-and-run executes it', async ({
     page,
   }) => {
