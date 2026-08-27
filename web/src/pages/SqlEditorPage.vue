@@ -22,7 +22,12 @@ import { listEngines } from '@/api/engines'
 import { cancelExecution, executeSql, exportExecution } from '@/api/executions'
 import { getHistory } from '@/api/history'
 import { createScript, getScript, updateScript } from '@/api/scripts'
-import { ApiError, safeErrorMessage } from '@/api/api-error'
+import { ApiError, isAbortError, safeErrorMessage } from '@/api/api-error'
+import {
+  canPickSaveFile,
+  pickExportWritable,
+  suggestedExportFilename,
+} from '@/sql-editor/csv-export'
 import { editorLanguageFor, engineById, identifierQuoteFor } from '@/data-sources/catalog'
 import { useQuery } from '@tanstack/vue-query'
 import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
@@ -383,10 +388,32 @@ async function download() {
   const tab = active.value
   if (!tab || tab.result?.kind !== 'RESULT_SET' || !canExport.value) return
   exportOpen.value = false
+  let writable: WritableStream<Uint8Array> | undefined
+  try {
+    if (canPickSaveFile(window)) {
+      const picked = await pickExportWritable(
+        window,
+        suggestedExportFilename(
+          sources.value.find((item) => item.id === tab.dataSourceId)?.name ||
+            currentSource.value?.name ||
+            'export',
+          tab.database,
+        ),
+      )
+      if (!picked) return
+      writable = picked
+    }
+  } catch (e) {
+    if (!isAbortError(e)) notice(safeErrorMessage(e, '导出失败'))
+    return
+  }
   exportAbort = new AbortController()
   exporting.value = true
   try {
-    const file = await exportExecution(tab.result.executionId, 100000, exportAbort.signal)
+    const file = writable
+      ? await exportExecution(tab.result.executionId, 100000, exportAbort.signal, writable)
+      : await exportExecution(tab.result.executionId, 100000, exportAbort.signal)
+    if (!file.blob) return
     const url = URL.createObjectURL(file.blob)
     const link = document.createElement('a')
     link.href = url
@@ -394,8 +421,7 @@ async function download() {
     link.click()
     URL.revokeObjectURL(url)
   } catch (e) {
-    if (!(e instanceof DOMException && e.name === 'AbortError'))
-      notice(safeErrorMessage(e, '导出失败'))
+    if (!isAbortError(e)) notice(safeErrorMessage(e, '导出失败'))
   } finally {
     exportAbort = undefined
     exporting.value = false

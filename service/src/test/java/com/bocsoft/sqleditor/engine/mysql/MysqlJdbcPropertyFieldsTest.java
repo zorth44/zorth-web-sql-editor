@@ -10,5 +10,7 @@ class MysqlJdbcPropertyFieldsTest {
         MysqlEngineSupport mysql = new MysqlEngineSupport();
         assertThat(mysql.descriptor().getPropertyFields()).extracting(EngineField::getName)
             .containsExactlyElementsOf(new MysqlJdbc().allowedPropertyKeys());
+        assertThat(mysql.streamingRequiresAutoCommitOff()).isFalse();
+        assertThat(mysql.streamingFetchSize()).isEqualTo(Integer.MIN_VALUE);
     }
 }

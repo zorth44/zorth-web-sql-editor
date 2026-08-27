@@ -954,6 +954,7 @@ Accept: text/csv
 - 客户端不能在导出请求中替换 SQL，避免把导出接口变成绕过正常执行流程的第二个 SQL 执行入口。
 - DML/DDL 历史不可导出，返回 400。
 - 使用 Servlet 异步 + `StreamingResponseBody` 和流式 ResultSet，逐行写 CSV，不在内存构建整个文件。
+- 导出在创建 Statement 之前按引擎准备 JDBC 游标：`streamingRequiresAutoCommitOff()` 为真（PostgreSQL）时临时 `autoCommit=false`，并使用正数 `streamingFetchSize()` 打开服务端游标；MYSQL / GBase 8A 保持 `autoCommit=true` 和 Connector/J 的 `Integer.MIN_VALUE` 逐行流。成功则 commit 并恢复 autocommit；失败、取消、超时或触达上限不 commit，还池时 rollback 并恢复 `autoCommit=true`。编排层不得按引擎 id 字符串分支。
 - UTF-8 BOM、RFC 4180 引号转义、CRLF 行结束符。
 - 默认 `NULL` 导出为空字段；配置可改为字面量 `NULL`。
 - 默认启用 CSV 公式注入保护：以 `= + - @` 开头的文本字段前加单引号；可以通过部署配置关闭以获得完全原始值。
@@ -961,7 +962,7 @@ Accept: text/csv
 - HTTP 断开时取消 Statement 并释放连接。
 - 响应头使用安全文件名及 `Content-Disposition: attachment`。
 - 导出行为也写一条 `operation=EXPORT` 的执行历史，新记录保存实际重放的 SQL 和独立执行 ID。
-- 浏览器侧使用 `fetch` + Blob 下载，100 MB 上限对浏览器内存同样生效。
+- 浏览器在支持 File System Access 时先选保存位置，再把响应体按块写入文件；否则使用 `fetch` + Blob 下载。100 MB 上限对 Blob 回退同样生效，不要把 payload 转成字符串。
 
 ## 14. 执行历史 API
 

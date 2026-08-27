@@ -30,6 +30,8 @@ class Gbase8aEngineTest {
         assertThat(gbase.descriptor().getResourceTree().get(0).getListEndpoint()).isEqualTo("databases");
         assertThat(gbase.descriptor().getPropertyFields()).extracting(EngineField::getName)
             .containsExactly("serverTimezone", "characterSetResults", "zeroDateTimeBehavior", "tinyInt1isBit", "sendFractionalSeconds");
+        assertThat(gbase.streamingRequiresAutoCommitOff()).isFalse();
+        assertThat(gbase.streamingFetchSize()).isEqualTo(Integer.MIN_VALUE);
     }
 
     @Test void rejectsPostgresKeysAndAllowsMysqlKeys() {

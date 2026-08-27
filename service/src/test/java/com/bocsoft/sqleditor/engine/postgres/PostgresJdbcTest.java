@@ -63,6 +63,7 @@ class PostgresJdbcTest {
         assertThat(properties.getProperty("connectTimeout")).isEqualTo("3");
         assertThat(properties.getProperty("loginTimeout")).isEqualTo("3");
         assertThat(postgres.streamingFetchSize()).isEqualTo(100);
+        assertThat(postgres.streamingRequiresAutoCommitOff()).isTrue();
     }
 
     @Test void splitIgnoresSemicolonInsideDollarQuotes() {

@@ -399,8 +399,8 @@ JavaScript 无法无损表示超过 53 位有效范围的整数。后端必须�
 - 文件名：`<dataSource>-<database>-<yyyyMMdd-HHmmss>.csv`。
 - CSV 编码 UTF-8 with BOM，便于中文版 Excel 打开。
 - 导出请求沿用后端查询行数、结果体积和超时上限；可把 `rowLimit` 提到硬上限。
-- 第一阶段浏览器使用 `fetch` + `AbortSignal` + Blob 下载。100 MB 上限对浏览器内存同样生效，不要再把 Blob 转成字符串。
-- 下载中的导出允许取消。
+- 支持 File System Access 的浏览器在确认导出的手势里先 `showSaveFilePicker`，再 `fetch` 并把 `response.body` 按块写入所选文件，不把整份 CSV 收成 Blob 或字符串。用户取消选择器则不发请求。不支持该 API 时回退到 `fetch` + `AbortSignal` + Blob 下载；100 MB 上限对 Blob 回退同样生效，不要再把 Blob 转成字符串。
+- 下载中的导出允许取消：`AbortSignal` 停请求，已打开的文件 writable 要 abort，半截文件不当成成功下载。
 
 ## 9. 执行历史（第二阶段）
 

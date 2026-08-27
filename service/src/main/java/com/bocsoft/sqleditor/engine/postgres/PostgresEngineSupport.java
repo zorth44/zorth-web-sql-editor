@@ -95,4 +95,6 @@ public class PostgresEngineSupport implements EngineSupport {
     }
 
     @Override public int streamingFetchSize() { return 100; }
+
+    @Override public boolean streamingRequiresAutoCommitOff() { return true; }
 }

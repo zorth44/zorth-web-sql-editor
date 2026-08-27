@@ -46,4 +46,8 @@ public interface EngineSupport {
     default int streamingFetchSize() {
         return Integer.MIN_VALUE;
     }
+
+    default boolean streamingRequiresAutoCommitOff() {
+        return false;
+    }
 }
