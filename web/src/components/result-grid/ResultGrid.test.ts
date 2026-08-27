@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ResultGrid from '@/components/result-grid/ResultGrid.vue'
 import {
@@ -307,6 +308,47 @@ describe('result values', () => {
     expect(menu?.textContent).toContain('排序')
     expect(menu?.textContent).toContain('固定列')
     expect(menu?.textContent).not.toContain('筛选')
+    wrapper.unmount()
+  })
+
+  it('opens a date range picker on date columns and applies the range', async () => {
+    const wrapper = render({
+      headerFilters: true,
+      result: {
+        ...result,
+        columns: [
+          { name: 'created_at', label: 'created_at', jdbcType: 'DATE', typeName: 'DATE' },
+          { name: 'note', label: 'note', jdbcType: 'VARCHAR', typeName: 'VARCHAR' },
+        ],
+        rows: [['2026-01-02', 'beta']],
+      },
+    })
+    await wrapper.get('[data-testid="result-header-filter-0"]').trigger('click')
+    await nextTick()
+    const start = document.querySelector('[data-testid="result-date-range-start"]')
+    const end = document.querySelector('[data-testid="result-date-range-end"]')
+    const apply = document.querySelector('[data-testid="result-date-range-apply"]')
+    expect(start).toBeInstanceOf(HTMLInputElement)
+    expect(end).toBeInstanceOf(HTMLInputElement)
+    expect(apply).toBeInstanceOf(HTMLButtonElement)
+    if (
+      !(start instanceof HTMLInputElement) ||
+      !(end instanceof HTMLInputElement) ||
+      !(apply instanceof HTMLButtonElement)
+    ) {
+      return
+    }
+    start.value = '2026-01-01'
+    start.dispatchEvent(new Event('input', { bubbles: true }))
+    end.value = '2026-01-31'
+    end.dispatchEvent(new Event('input', { bubbles: true }))
+    await nextTick()
+    apply.click()
+    await nextTick()
+    expect(wrapper.emitted('update:filterDrafts')?.at(-1)).toEqual([
+      { created_at: '2026-01-01..2026-01-31' },
+    ])
+    expect(wrapper.emitted('apply-filters')).toHaveLength(1)
     wrapper.unmount()
   })
 })

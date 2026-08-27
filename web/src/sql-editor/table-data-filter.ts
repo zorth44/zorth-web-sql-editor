@@ -1,4 +1,10 @@
-import { columnTypeKind, type ColumnTypeKind } from '@/components/result-grid/column-type'
+import {
+  columnTypeKind,
+  dateFilterInputKind,
+  isTimestampJdbcType,
+  type ColumnTypeKind,
+  type DateFilterInputKind,
+} from '@/components/result-grid/column-type'
 import { quoteIdentifier, selectTableData } from '@/sql-editor/sql'
 
 export type TableDataSortDir = 'asc' | 'desc'
@@ -16,6 +22,7 @@ export type TableDataPredicate =
       valueKind: 'number' | 'boolean' | 'string'
       value: string
     }
+  | { column: string; type: 'between'; start: string; end: string }
 
 export type FilterParseResult =
   | { ok: true; predicate: TableDataPredicate | null }
@@ -24,6 +31,8 @@ export type FilterParseResult =
 const COMPARE_PREFIXES = ['>=', '<=', '<>', '!=', '=', '>', '<'] as const
 const NUMBER_VALUE = /^-?\d+(\.\d+)?$/
 const LIKE_ESCAPE = '/'
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+const RANGE_SPLIT = /\s*(?:\.\.|~|～)\s*/
 
 export function quoteSqlLiteral(value: string): string {
   return `'${value.split("'").join("''")}'`
@@ -33,10 +42,89 @@ export function escapeLikeValue(value: string): string {
   return value.replace(/[/_%]/g, (char) => `${LIKE_ESCAPE}${char}`)
 }
 
+export function toDateFilterSqlValue(raw: string, kind: DateFilterInputKind): string {
+  const text = raw.trim()
+  if (kind === 'date') return text.slice(0, 10)
+  if (kind === 'time') return /^\d{2}:\d{2}$/.test(text) ? `${text}:00` : text
+  const normalized = text.replace('T', ' ')
+  if (DATE_ONLY.test(normalized)) return `${normalized} 00:00:00`
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(normalized)) return `${normalized}:00`
+  return normalized
+}
+
+export function toDateFilterInputValue(sql: string, kind: DateFilterInputKind): string {
+  const text = sql.trim()
+  if (!text) return ''
+  if (kind === 'date') return text.slice(0, 10)
+  if (kind === 'time') return text.length >= 8 ? text.slice(0, 8) : text
+  if (DATE_ONLY.test(text)) return `${text}T00:00`
+  const withT = text.replace(' ', 'T')
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(withT)) return withT
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(withT)) return withT.slice(0, 19)
+  return withT
+}
+
+export function encodeDateRangeDraft(
+  startInput: string,
+  endInput: string,
+  kind: DateFilterInputKind,
+): string {
+  const startSql = startInput.trim() ? toDateFilterSqlValue(startInput, kind) : ''
+  const endSql = endInput.trim() ? toDateFilterSqlValue(endInput, kind) : ''
+  if (!startSql && !endSql) return ''
+  if (startSql && endSql) {
+    return startSql <= endSql ? `${startSql}..${endSql}` : `${endSql}..${startSql}`
+  }
+  if (startSql) return `>=${startSql}`
+  return `<=${endSql}`
+}
+
+export function decodeDateRangeDraft(
+  draft: string,
+  kind: DateFilterInputKind,
+): { start: string; end: string } {
+  const text = draft.trim()
+  if (!text || /^null$/i.test(text) || /^not\s+null$/i.test(text)) return { start: '', end: '' }
+  const range = splitDateRange(text)
+  if (range) {
+    return {
+      start: toDateFilterInputValue(range.start, kind),
+      end: toDateFilterInputValue(range.end, kind),
+    }
+  }
+  for (const prefix of COMPARE_PREFIXES) {
+    if (!text.startsWith(prefix)) continue
+    const raw = text.slice(prefix.length).trim()
+    const input = toDateFilterInputValue(raw, kind)
+    if (prefix === '<=' || prefix === '<') return { start: '', end: input }
+    if (prefix === '<>' || prefix === '!=') return { start: '', end: '' }
+    return { start: input, end: prefix === '=' ? input : '' }
+  }
+  const input = toDateFilterInputValue(text, kind)
+  return { start: input, end: input }
+}
+
+export function formatDateRangeLabel(draft: string): string {
+  const text = draft.trim()
+  if (!text) return ''
+  if (/^null$/i.test(text)) return '为空'
+  if (/^not\s+null$/i.test(text)) return '不为空'
+  const range = splitDateRange(text)
+  if (range) {
+    if (range.start && range.end) return `${range.start} ~ ${range.end}`
+    if (range.start) return `${range.start} ~`
+    if (range.end) return `~ ${range.end}`
+  }
+  if (text.startsWith('>=')) return `${text.slice(2).trim()} ~`
+  if (text.startsWith('<=')) return `~ ${text.slice(2).trim()}`
+  return text
+}
+
 export function parseTableDataFilter(
   draft: string,
   column: string,
   typeKind: ColumnTypeKind,
+  jdbcType?: string,
 ): FilterParseResult {
   const text = draft.trim()
   if (!text) return { ok: true, predicate: null }
@@ -46,6 +134,11 @@ export function parseTableDataFilter(
 
   if (typeKind === 'binary') {
     return { ok: false, error: '二进制列只支持空、NULL、NOT NULL' }
+  }
+
+  if (typeKind === 'date') {
+    const range = parseDateRangePredicate(text, column, jdbcType)
+    if (range) return range
   }
 
   let op: CompareOp | 'like' = 'like'
@@ -72,7 +165,7 @@ export function parseTableDataFilter(
     return { ok: true, predicate: { column, type: 'like', value: raw } }
   }
 
-  const value = typedCompareValue(raw, typeKind)
+  const value = typedCompareValue(raw, typeKind, jdbcType, boundFromCompareOp(op))
   if (!value.ok) return value
   return {
     ok: true,
@@ -89,7 +182,12 @@ export function compileTableDataFilters(
   for (const column of columns) {
     const draft = drafts[column.name]
     if (draft == null || !draft.trim()) continue
-    const parsed = parseTableDataFilter(draft, column.name, columnTypeKind(column.jdbcType))
+    const parsed = parseTableDataFilter(
+      draft,
+      column.name,
+      columnTypeKind(column.jdbcType),
+      column.jdbcType,
+    )
     if (!parsed.ok) errors[column.name] = parsed.error
     else if (parsed.predicate) predicates.push(parsed.predicate)
   }
@@ -126,9 +224,57 @@ export function nextTableDataSort(
   return { column, dir: 'asc' }
 }
 
+function splitDateRange(text: string): { start: string; end: string } | null {
+  if (!/\.\.|~|～/.test(text)) return null
+  const [start = '', end = ''] = text.split(RANGE_SPLIT)
+  return { start: start.trim(), end: end.trim() }
+}
+
+function parseDateRangePredicate(
+  text: string,
+  column: string,
+  jdbcType?: string,
+): FilterParseResult | null {
+  const range = splitDateRange(text)
+  if (!range) return null
+  const kind = dateFilterInputKind(jdbcType ?? 'DATE') ?? 'date'
+  const start = range.start
+    ? expandDateBound(toDateFilterSqlValue(range.start, kind), 'start', jdbcType)
+    : ''
+  const end = range.end
+    ? expandDateBound(toDateFilterSqlValue(range.end, kind), 'end', jdbcType)
+    : ''
+  if (!start && !end) return { ok: true, predicate: null }
+  if (start && end) {
+    const [lo, hi] = start <= end ? [start, end] : [end, start]
+    return { ok: true, predicate: { column, type: 'between', start: lo, end: hi } }
+  }
+  return {
+    ok: true,
+    predicate: {
+      column,
+      type: 'compare',
+      op: start ? '>=' : '<=',
+      valueKind: 'string',
+      value: start || end,
+    },
+  }
+}
+
+function boundFromCompareOp(op: CompareOp): 'start' | 'end' {
+  return op === '<=' || op === '<' ? 'end' : 'start'
+}
+
+function expandDateBound(value: string, bound: 'start' | 'end', jdbcType?: string): string {
+  if (!jdbcType || !isTimestampJdbcType(jdbcType) || !DATE_ONLY.test(value)) return value
+  return bound === 'end' ? `${value} 23:59:59` : `${value} 00:00:00`
+}
+
 function typedCompareValue(
   raw: string,
   typeKind: ColumnTypeKind,
+  jdbcType?: string,
+  bound: 'start' | 'end' = 'start',
 ):
   | { ok: true; valueKind: 'number' | 'boolean' | 'string'; value: string }
   | { ok: false; error: string } {
@@ -152,6 +298,14 @@ function typedCompareValue(
     }
     return { ok: false, error: '布尔列只接受 true、false、1、0' }
   }
+  if (typeKind === 'date') {
+    const kind = dateFilterInputKind(jdbcType ?? 'DATE') ?? 'date'
+    return {
+      ok: true,
+      valueKind: 'string',
+      value: expandDateBound(toDateFilterSqlValue(raw, kind), bound, jdbcType),
+    }
+  }
   return { ok: true, valueKind: 'string', value: raw }
 }
 
@@ -161,6 +315,9 @@ function predicateSql(predicate: TableDataPredicate, quote: string): string {
   if (predicate.type === 'not-null') return `${column} IS NOT NULL`
   if (predicate.type === 'like') {
     return `${column} LIKE ${quoteSqlLiteral(`%${escapeLikeValue(predicate.value)}%`)} ESCAPE ${quoteSqlLiteral(LIKE_ESCAPE)}`
+  }
+  if (predicate.type === 'between') {
+    return `(${column} >= ${quoteSqlLiteral(predicate.start)} AND ${column} <= ${quoteSqlLiteral(predicate.end)})`
   }
   return `${column} ${predicate.op} ${compareValueSql(predicate.valueKind, predicate.value)}`
 }

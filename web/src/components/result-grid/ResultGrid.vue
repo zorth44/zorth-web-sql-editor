@@ -16,7 +16,13 @@ import {
 import type { SqlCellValue, SqlColumn, SqlExecutionResult } from '@/types/contracts'
 import { nextTableDataSort, type TableDataSort } from '@/sql-editor/table-data-filter'
 import { cellMatches, compareCells, displayCell, previewCell } from './cell-value'
-import { columnTypeGlyph, columnTypeKind, defaultColumnWidth } from './column-type'
+import {
+  columnTypeGlyph,
+  columnTypeKind,
+  dateFilterInputKind,
+  defaultColumnWidth,
+} from './column-type'
+import DateRangeFilter from './DateRangeFilter.vue'
 import { clampRowLimit, DEFAULT_ROW_LIMIT, MAX_ROW_LIMIT, MIN_ROW_LIMIT } from './limits'
 import {
   FILTER_ROW_HEIGHT,
@@ -375,7 +381,7 @@ function ignoreGridPointer(event: PointerEvent): boolean {
     target instanceof Element &&
     Boolean(
       target.closest(
-        '.result-resize, .result-cell-menu, .result-type, .result-sort-icon, input, textarea',
+        '.result-resize, .result-cell-menu, .result-type, .result-sort-icon, .result-date-filter, input, textarea, button',
       ),
     )
   )
@@ -692,7 +698,18 @@ onBeforeUnmount(() => {
                   left: item.pinned ? `${pinnedLeft(item.index)}px` : undefined,
                 }"
               >
+                <DateRangeFilter
+                  v-if="dateFilterInputKind(item.column.jdbcType)"
+                  :column-label="item.column.label"
+                  :jdbc-type="item.column.jdbcType"
+                  :draft="filterDrafts?.[item.column.name] ?? ''"
+                  :error="filterErrors?.[item.column.name] ?? ''"
+                  :index="item.index"
+                  @update:draft="setFilterDraft(item.column.name, $event)"
+                  @apply="applyHeaderFilters"
+                />
                 <input
+                  v-else
                   class="result-header-filter"
                   :class="{ 'result-header-filter-error': filterErrors?.[item.column.name] }"
                   :value="filterDrafts?.[item.column.name] ?? ''"

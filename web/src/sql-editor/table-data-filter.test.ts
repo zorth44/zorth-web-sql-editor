@@ -3,7 +3,10 @@ import { columnTypeKind } from '@/components/result-grid/column-type'
 import {
   buildTableDataSql,
   compileTableDataFilters,
+  decodeDateRangeDraft,
+  encodeDateRangeDraft,
   escapeLikeValue,
+  formatDateRangeLabel,
   parseTableDataFilter,
   quoteSqlLiteral,
 } from '@/sql-editor/table-data-filter'
@@ -90,6 +93,56 @@ describe('table-data filter parser', () => {
       error: '比较运算符后面需要值',
     })
   })
+
+  it('parses date ranges as an inclusive between predicate', () => {
+    expect(parseTableDataFilter('2026-01-01..2026-01-31', 'created_at', 'date', 'DATE')).toEqual({
+      ok: true,
+      predicate: {
+        column: 'created_at',
+        type: 'between',
+        start: '2026-01-01',
+        end: '2026-01-31',
+      },
+    })
+    expect(
+      parseTableDataFilter('2026-01-01 ~ 2026-01-31', 'created_at', 'date', 'DATE'),
+    ).toMatchObject({
+      ok: true,
+      predicate: { type: 'between', start: '2026-01-01', end: '2026-01-31' },
+    })
+    expect(parseTableDataFilter('2026-01-01..', 'created_at', 'date', 'DATE')).toMatchObject({
+      ok: true,
+      predicate: { type: 'compare', op: '>=', value: '2026-01-01' },
+    })
+  })
+
+  it('expands date-only timestamp ranges to cover the last day', () => {
+    expect(
+      parseTableDataFilter('2026-01-01..2026-01-31', 'created_at', 'date', 'TIMESTAMP'),
+    ).toEqual({
+      ok: true,
+      predicate: {
+        column: 'created_at',
+        type: 'between',
+        start: '2026-01-01 00:00:00',
+        end: '2026-01-31 23:59:59',
+      },
+    })
+  })
+})
+
+describe('date range draft helpers', () => {
+  it('encodes and labels native picker values', () => {
+    expect(encodeDateRangeDraft('2026-01-31', '2026-01-01', 'date')).toBe('2026-01-01..2026-01-31')
+    expect(encodeDateRangeDraft('2026-01-01', '', 'date')).toBe('>=2026-01-01')
+    expect(encodeDateRangeDraft('', '09:30', 'time')).toBe('<=09:30:00')
+    expect(decodeDateRangeDraft('2026-01-01..2026-01-31', 'date')).toEqual({
+      start: '2026-01-01',
+      end: '2026-01-31',
+    })
+    expect(formatDateRangeLabel('2026-01-01..2026-01-31')).toBe('2026-01-01 ~ 2026-01-31')
+    expect(formatDateRangeLabel('NULL')).toBe('为空')
+  })
 })
 
 describe('table-data SQL builder', () => {
@@ -163,5 +216,26 @@ describe('table-data SQL builder', () => {
         flag: '布尔列只接受 true、false、1、0',
       },
     })
+  })
+
+  it('compiles a date range into inclusive SQL bounds', () => {
+    const compiled = compileTableDataFilters({ created_at: '2026-01-01..2026-01-31' }, [
+      { name: 'created_at', jdbcType: 'DATE' },
+    ])
+    expect(compiled.ok).toBe(true)
+    if (!compiled.ok) return
+    expect(
+      buildTableDataSql({
+        database: 'sales',
+        table: 'order_item',
+        predicates: compiled.predicates,
+      }),
+    ).toBe(
+      [
+        'SELECT *',
+        'FROM `sales`.`order_item`',
+        "WHERE (`created_at` >= '2026-01-01' AND `created_at` <= '2026-01-31')",
+      ].join('\n'),
+    )
   })
 })

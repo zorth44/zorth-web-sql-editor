@@ -1,4 +1,5 @@
 export type ColumnTypeKind = 'number' | 'string' | 'date' | 'binary' | 'boolean' | 'other'
+export type DateFilterInputKind = 'date' | 'time' | 'datetime'
 
 const NUMBER_TYPES = new Set([
   'TINYINT',
@@ -43,6 +44,18 @@ export function columnTypeKind(jdbcType: string): ColumnTypeKind {
   if (DATE_TYPES.has(type)) return 'date'
   if (BINARY_TYPES.has(type)) return 'binary'
   return 'other'
+}
+
+export function dateFilterInputKind(jdbcType: string): DateFilterInputKind | null {
+  const type = jdbcType.trim().toUpperCase()
+  if (type === 'TIME' || type === 'TIME_WITH_TIMEZONE') return 'time'
+  if (DATE_TYPES.has(type)) return 'date'
+  return null
+}
+
+export function isTimestampJdbcType(jdbcType: string): boolean {
+  const type = jdbcType.trim().toUpperCase()
+  return type === 'TIMESTAMP' || type === 'TIMESTAMP_WITH_TIMEZONE'
 }
 
 export function columnTypeGlyph(kind: ColumnTypeKind): string {

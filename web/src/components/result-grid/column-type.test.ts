@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { columnTypeGlyph, columnTypeKind, defaultColumnWidth } from './column-type'
+import {
+  columnTypeGlyph,
+  columnTypeKind,
+  dateFilterInputKind,
+  defaultColumnWidth,
+} from './column-type'
 import { clampRowLimit, DEFAULT_ROW_LIMIT } from './limits'
 
 describe('result column types', () => {
@@ -9,6 +14,10 @@ describe('result column types', () => {
     expect(columnTypeKind('VARCHAR')).toBe('string')
     expect(columnTypeGlyph('string')).toBe('A-Z')
     expect(columnTypeKind('TIMESTAMP')).toBe('date')
+    expect(dateFilterInputKind('DATE')).toBe('date')
+    expect(dateFilterInputKind('TIMESTAMP')).toBe('date')
+    expect(dateFilterInputKind('TIME')).toBe('time')
+    expect(dateFilterInputKind('VARCHAR')).toBeNull()
     expect(columnTypeKind('BLOB')).toBe('binary')
     expect(columnTypeKind('BOOLEAN')).toBe('boolean')
   })
