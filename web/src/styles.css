@@ -128,10 +128,10 @@ textarea {
   @apply flex h-10 shrink-0 items-center gap-2 border-b border-line bg-panel px-3;
 }
 .tab-bar {
-  @apply flex h-11 shrink-0 items-stretch gap-0.5 overflow-x-auto border-b border-line bg-canvas px-2;
+  @apply flex h-11 shrink-0 items-stretch gap-0.5 overflow-x-auto overflow-y-hidden border-b border-line bg-canvas px-2;
 }
 .editor-tab {
-  @apply relative flex max-w-[240px] items-center gap-2 border-0 bg-transparent px-2.5 text-left text-xs text-muted hover:bg-wash hover:text-ink;
+  @apply relative flex min-h-0 max-w-[240px] items-center gap-2 border-0 bg-transparent px-2.5 py-0 text-left text-xs leading-none text-muted hover:bg-wash hover:text-ink;
 }
 .editor-tab:focus {
   outline: none;
@@ -144,19 +144,19 @@ textarea {
   @apply shrink-0 text-muted;
 }
 .editor-tab-copy {
-  @apply flex min-w-0 flex-1 flex-col items-start leading-tight;
+  @apply flex min-h-0 min-w-0 flex-1 flex-col items-start justify-center;
 }
 .editor-tab-title {
-  @apply max-w-[180px] truncate;
+  @apply max-w-[180px] truncate leading-tight;
 }
 .editor-tab-dirty::after {
   content: ' •';
 }
 .editor-tab-title-input {
-  @apply max-w-[180px] rounded border border-line bg-panel px-1 py-0 text-xs text-ink;
+  @apply h-4 max-w-[180px] rounded border border-line bg-panel px-1 py-0 text-xs leading-none text-ink;
 }
 .editor-tab-connection {
-  @apply max-w-[180px] truncate text-[11px] text-muted;
+  @apply max-w-[180px] truncate text-[11px] leading-tight text-muted;
 }
 .editor-tab-running {
   @apply h-1.5 w-1.5 shrink-0 rounded-full bg-brand;
@@ -175,7 +175,7 @@ textarea {
   content: '';
   position: absolute;
   right: 6px;
-  bottom: -1px;
+  bottom: 0;
   left: 6px;
   height: 3px;
   border-radius: 2px 2px 0 0;
@@ -560,10 +560,10 @@ textarea {
   background: var(--color-panel);
 }
 .script-tabs {
-  @apply flex h-8 shrink-0 items-stretch gap-0.5 overflow-x-auto border-b border-line bg-subtle px-2;
+  @apply flex h-8 shrink-0 items-stretch gap-0.5 overflow-x-auto overflow-y-hidden border-b border-line bg-subtle px-2;
 }
 .script-tab {
-  @apply relative flex shrink-0 items-center gap-1.5 border-0 bg-transparent px-2.5 text-xs text-muted hover:bg-wash hover:text-ink;
+  @apply relative flex min-h-0 shrink-0 items-center gap-1.5 border-0 bg-transparent px-2.5 py-0 text-xs leading-none text-muted hover:bg-wash hover:text-ink;
 }
 .script-tab:disabled {
   @apply cursor-default opacity-60 hover:bg-transparent hover:text-muted;
@@ -579,7 +579,7 @@ textarea {
   content: '';
   position: absolute;
   right: 4px;
-  bottom: -1px;
+  bottom: 0;
   left: 4px;
   height: 2px;
   border-radius: 2px 2px 0 0;
