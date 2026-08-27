@@ -35,4 +35,28 @@ describe('phase-two API contracts', () => {
     expect(list.items[0]?.source).toBe('WEB_SQL_EDITOR')
     expect((await getHistory(executionId)).connectionAvailable).toBe(true)
   })
+  it('returns cursor-paged history', async () => {
+    for (let i = 0; i < 3; i += 1) {
+      await executeSql({
+        executionId: crypto.randomUUID(),
+        dataSourceId: 'ds-orders-a',
+        database: 'orders',
+        statement: `select page-${i}`,
+      })
+    }
+    const first = await listHistory({ pageSize: 2 })
+    expect(first.items).toHaveLength(2)
+    expect(first.nextPageToken).toBeTruthy()
+    const second = await listHistory({
+      pageSize: 2,
+      ...(first.nextPageToken ? { pageToken: first.nextPageToken } : {}),
+    })
+    expect(second.items).toHaveLength(1)
+    expect(second.nextPageToken).toBeNull()
+    expect([...first.items, ...second.items].map((item) => item.statementSummary)).toEqual([
+      'select page-2',
+      'select page-1',
+      'select page-0',
+    ])
+  })
 })

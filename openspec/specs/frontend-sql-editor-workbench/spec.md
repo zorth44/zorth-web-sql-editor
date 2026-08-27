@@ -298,7 +298,7 @@ The frontend SHALL list/filter current-user history, display summaries, and reop
 
 #### Scenario: Filter and paginate history
 - **WHEN** a user supplies keyword, connection, database, status, or type filters
-- **THEN** the frontend SHALL request server-side filtered cursor pages ordered newest first
+- **THEN** the frontend SHALL request server-side filtered cursor pages ordered newest first, render one page at a time with previous/next controls, and SHALL NOT append later pages into the same scroll list
 
 #### Scenario: Reopen available history
 - **WHEN** history detail reports an available connection

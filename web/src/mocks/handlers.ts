@@ -64,6 +64,10 @@ export function resetMockScripts(): void {
   }
 }
 
+export function resetMockHistory(): void {
+  mockHistory.splice(0, mockHistory.length)
+}
+
 const error = (status: number, code: string, message: string, details?: ApiErrorBody['details']) =>
   HttpResponse.json<ApiErrorBody>(
     { requestId: crypto.randomUUID(), code, message, ...(details ? { details } : {}) },
@@ -682,10 +686,27 @@ export const handlers = [
   http.get(sql('/api/v1/sql/history'), ({ request }) => {
     const denied = authorized(request)
     if (denied) return denied
-    const q = (new URL(request.url).searchParams.get('keyword') || '').toLowerCase()
+    const url = new URL(request.url)
+    const keyword = (url.searchParams.get('keyword') || '').toLowerCase()
+    const dataSourceId = url.searchParams.get('dataSourceId')
+    const database = url.searchParams.get('database')
+    const status = url.searchParams.get('status')
+    const statementType = url.searchParams.get('statementType')
+    const parsedSize = Number(url.searchParams.get('pageSize') || 30)
+    const pageSize = Number.isFinite(parsedSize) && parsedSize > 0 ? Math.min(parsedSize, 100) : 30
+    const offset =
+      Number((url.searchParams.get('pageToken') || 'cursor:0').replace('cursor:', '')) || 0
+    const filtered = mockHistory.filter((item) => {
+      if (keyword && !item.statementSummary.toLowerCase().includes(keyword)) return false
+      if (dataSourceId && item.dataSourceId !== dataSourceId) return false
+      if (database && item.database !== database) return false
+      if (status && item.status !== status) return false
+      if (statementType && item.statementType !== statementType) return false
+      return true
+    })
     return HttpResponse.json({
-      items: mockHistory.filter((item) => item.statementSummary.toLowerCase().includes(q)),
-      nextPageToken: null,
+      items: filtered.slice(offset, offset + pageSize),
+      nextPageToken: offset + pageSize < filtered.length ? `cursor:${offset + pageSize}` : null,
     })
   }),
   http.get(ai('/api/v1/ai/agent/conversations'), ({ request }) => {

@@ -1,18 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
 import { getHistory, listHistory } from '@/api/history'
 import { safeErrorMessage } from '@/api/api-error'
-import type { HistoryDetail, HistoryListParams, HistorySummary } from '@/types/contracts'
+import { queryKeys } from '@/query/client'
+import type { HistoryDetail, HistoryListParams } from '@/types/contracts'
 
+const PAGE_SIZE = 30
 const props = defineProps<{ dataSourceId: string | null }>()
 const emit = defineEmits<{ open: [detail: HistoryDetail]; notice: [message: string] }>()
+const inputKeyword = ref('')
 const keyword = ref('')
 const status = ref('')
 const statementType = ref('')
-const items = ref<HistorySummary[]>([])
-const next = ref<string | null>(null)
-const loading = ref(false)
-const error = ref('')
+const cursors = ref<string[]>([''])
+const pageIndex = ref(0)
 let timer: number | undefined
 
 const statusLabel: Record<string, string> = {
@@ -23,11 +25,19 @@ const statusLabel: Record<string, string> = {
   RUNNING: '运行中',
 }
 
-async function load(append = false) {
-  loading.value = true
-  error.value = ''
-  try {
-    const params: HistoryListParams = { keyword: keyword.value, pageSize: 30 }
+const currentCursor = computed(() => cursors.value[pageIndex.value] || undefined)
+const filters = computed(() => ({
+  keyword: keyword.value,
+  dataSourceId: props.dataSourceId || '',
+  status: status.value,
+  statementType: statementType.value,
+  pageSize: PAGE_SIZE,
+  pageToken: currentCursor.value || '',
+}))
+const listQuery = useQuery({
+  queryKey: computed(() => queryKeys.history(filters.value)),
+  queryFn: () => {
+    const params: HistoryListParams = { keyword: keyword.value, pageSize: PAGE_SIZE }
     if (props.dataSourceId) params.dataSourceId = props.dataSourceId
     if (status.value)
       params.status = status.value as Exclude<HistoryListParams['status'], undefined>
@@ -36,15 +46,26 @@ async function load(append = false) {
         HistoryListParams['statementType'],
         undefined
       >
-    if (append && next.value) params.pageToken = next.value
-    const page = await listHistory(params)
-    items.value = append ? [...items.value, ...page.items] : page.items
-    next.value = page.nextPageToken
-  } catch (e) {
-    error.value = safeErrorMessage(e, '历史加载失败')
-  } finally {
-    loading.value = false
-  }
+    if (currentCursor.value) params.pageToken = currentCursor.value
+    return listHistory(params)
+  },
+  staleTime: 30_000,
+})
+const items = computed(() => listQuery.data.value?.items ?? [])
+const hasPager = computed(() => pageIndex.value > 0 || Boolean(listQuery.data.value?.nextPageToken))
+
+function resetPaging(): void {
+  cursors.value = ['']
+  pageIndex.value = 0
+}
+function nextPage(): void {
+  const token = listQuery.data.value?.nextPageToken
+  if (!token) return
+  cursors.value = [...cursors.value.slice(0, pageIndex.value + 1), token]
+  pageIndex.value += 1
+}
+function previousPage(): void {
+  if (pageIndex.value > 0) pageIndex.value -= 1
 }
 async function open(id: string) {
   try {
@@ -56,17 +77,24 @@ async function open(id: string) {
 function formatTime(value: string): string {
   return new Date(value).toLocaleString()
 }
-watch([keyword, status, statementType, () => props.dataSourceId], () => {
+
+watch(inputKeyword, (value) => {
   window.clearTimeout(timer)
-  timer = window.setTimeout(() => void load(), 250)
+  timer = window.setTimeout(() => {
+    keyword.value = value
+    resetPaging()
+  }, 250)
 })
-onMounted(() => load())
+watch([status, statementType, () => props.dataSourceId], () => {
+  resetPaging()
+})
+onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 <template>
-  <section class="flex h-full min-h-0 flex-col bg-panel">
+  <section class="flex h-full min-h-0 flex-col bg-panel" data-testid="history-panel">
     <div class="space-y-2 border-b border-line px-3 py-2.5">
       <strong class="text-sm">执行历史</strong>
-      <input v-model="keyword" class="field py-1.5 text-xs" placeholder="搜索 SQL" />
+      <input v-model="inputKeyword" class="field py-1.5 text-xs" placeholder="搜索 SQL" />
       <div class="grid grid-cols-2 gap-2">
         <select v-model="status" class="field py-1.5 text-xs" aria-label="按状态筛选">
           <option value="">全部状态</option>
@@ -91,7 +119,9 @@ onMounted(() => load())
       </div>
     </div>
     <div class="min-h-0 flex-1 overflow-auto">
-      <p v-if="error" class="p-3 text-xs text-danger">{{ error }}</p>
+      <p v-if="listQuery.isError.value" class="p-3 text-xs text-danger">
+        {{ safeErrorMessage(listQuery.error.value, '历史加载失败') }}
+      </p>
       <button
         v-for="item in items"
         :key="item.id"
@@ -120,17 +150,37 @@ onMounted(() => load())
         </span>
         <span class="mt-0.5 block text-[11px] text-muted">{{ formatTime(item.startedAt) }}</span>
       </button>
-      <button
-        v-if="next"
-        class="btn m-3 w-[calc(100%-1.5rem)]"
-        :disabled="loading"
-        @click="load(true)"
+      <p
+        v-if="!items.length && !listQuery.isPending.value && !listQuery.isError.value"
+        class="p-4 text-center text-xs text-muted"
       >
-        加载更多
-      </button>
-      <p v-if="!items.length && !loading" class="p-4 text-center text-xs text-muted">
         暂无执行历史
       </p>
     </div>
+    <footer
+      v-if="hasPager"
+      class="flex items-center justify-between gap-2 border-t border-line px-3 py-2"
+      data-testid="history-pager"
+    >
+      <span class="shrink-0 text-[11px] text-muted">第 {{ pageIndex + 1 }} 页</span>
+      <div class="flex gap-1">
+        <button
+          class="btn px-2 py-1 text-xs"
+          type="button"
+          :disabled="pageIndex === 0 || listQuery.isFetching.value"
+          @click="previousPage"
+        >
+          上一页
+        </button>
+        <button
+          class="btn px-2 py-1 text-xs"
+          type="button"
+          :disabled="!listQuery.data.value?.nextPageToken || listQuery.isFetching.value"
+          @click="nextPage"
+        >
+          下一页
+        </button>
+      </div>
+    </footer>
   </section>
 </template>
