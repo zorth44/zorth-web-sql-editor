@@ -192,6 +192,7 @@ textarea {
   display: flex;
   min-height: 0;
   flex: 1;
+  align-items: center;
   overflow: hidden;
   background: var(--color-panel);
 }
@@ -207,8 +208,8 @@ textarea {
 .welcome-copy {
   position: relative;
   z-index: 1;
-  max-width: 42rem;
-  padding: 4.5rem 3.5rem 3rem;
+  max-width: min(48rem, 100%);
+  padding: 3rem 3.5rem;
 }
 .welcome-title {
   margin: 0;
@@ -266,8 +267,7 @@ textarea {
   color: var(--color-muted);
 }
 .welcome-hint {
-  max-width: 28rem;
-  margin: 2.5rem 0 0;
+  margin: 2rem 0 0;
   font-size: 0.875rem;
   line-height: 1.6;
   color: var(--color-muted);
