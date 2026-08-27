@@ -2,6 +2,7 @@ import { appEnv } from '@/env'
 import { clearToken, getToken } from '@/auth/token-storage'
 import { ApiError, isAbortError } from '@/api/api-error'
 import type { ApiErrorBody } from '@/types/contracts'
+import { randomUUID } from '@/uuid'
 
 let unauthorizedHandler: (() => Promise<void> | void) | undefined
 let unauthorizedFlight: Promise<void> | null = null
@@ -26,7 +27,7 @@ async function runUnauthorizedHandler(): Promise<void> {
 
 function fallbackError(response: Response): ApiErrorBody {
   return {
-    requestId: response.headers.get('X-Request-Id') || crypto.randomUUID(),
+    requestId: response.headers.get('X-Request-Id') || randomUUID(),
     code: `HTTP_${response.status}`,
     message: response.status >= 500 ? '服务暂时不可用' : '请求失败',
   }
@@ -35,7 +36,7 @@ function fallbackError(response: Response): ApiErrorBody {
 export async function bearerFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken()
   const headers = new Headers(init.headers)
-  headers.set('X-Request-Id', crypto.randomUUID())
+  headers.set('X-Request-Id', randomUUID())
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (init.body !== undefined) headers.set('Content-Type', 'application/json')
   let response: Response

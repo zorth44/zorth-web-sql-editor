@@ -1,3 +1,5 @@
+import { randomUUID } from '@/uuid'
+
 export interface CopilotToolCall {
   id: string
   toolName: string
@@ -32,7 +34,7 @@ export function applyToolEvent(
   status: CopilotToolCall['status'],
 ): CopilotToolCall[] {
   if (status === 'STARTED') {
-    return [...tools, { id: crypto.randomUUID(), toolName, status }]
+    return [...tools, { id: randomUUID(), toolName, status }]
   }
   const next = tools.map((item) => ({ ...item }))
   for (let i = next.length - 1; i >= 0; i -= 1) {
@@ -42,5 +44,5 @@ export function applyToolEvent(
       return next
     }
   }
-  return [...next, { id: crypto.randomUUID(), toolName, status }]
+  return [...next, { id: randomUUID(), toolName, status }]
 }

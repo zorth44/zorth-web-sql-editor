@@ -10,6 +10,7 @@ import {
 } from '@/api/ai-agent'
 import { isAbortError, isApiError, safeErrorMessage } from '@/api/api-error'
 import { applyToolEvent, type CopilotToolCall } from '@/sql-editor/copilot-tools'
+import { randomUUID } from '@/uuid'
 
 export interface CopilotMessage {
   id: string
@@ -178,7 +179,7 @@ export const useCopilotStore = defineStore('copilot', () => {
   }): Promise<void> {
     if (inflight.value) return
     notice.value = null
-    const assistantId = crypto.randomUUID()
+    const assistantId = randomUUID()
     const assistant: CopilotMessage = {
       id: assistantId,
       role: 'assistant',
@@ -189,7 +190,7 @@ export const useCopilotStore = defineStore('copilot', () => {
     if (input.replaceSql) assistant.replaceSql = input.replaceSql
     messages.value = [
       ...messages.value,
-      { id: crypto.randomUUID(), role: 'user', content: input.userText },
+      { id: randomUUID(), role: 'user', content: input.userText },
       assistant,
     ]
     inflight.value = true

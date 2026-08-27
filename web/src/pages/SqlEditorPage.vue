@@ -53,6 +53,7 @@ import {
   pxToPanePercent,
 } from '@/sql-editor/sidebar-width'
 import { isDirtyTab, useEditorStore } from '@/stores/editor'
+import { randomUUID } from '@/uuid'
 import { useCopilotStore } from '@/stores/copilot'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -312,7 +313,7 @@ async function executeStatements(tabId: string, statements: string[]) {
     outcome = await runScriptStatements(editor, {
       tabId,
       statements,
-      newExecutionId: () => crypto.randomUUID(),
+      newExecutionId: () => randomUUID(),
       describeError: (error) =>
         error instanceof DOMException && error.name === 'AbortError'
           ? '执行已取消'

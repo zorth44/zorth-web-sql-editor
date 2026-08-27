@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { DatabaseObjectType, SqlExecutionResult, TableItem } from '@/types/contracts'
 import type { TableDataPredicate, TableDataSort } from '@/sql-editor/table-data-filter'
+import { randomUUID } from '@/uuid'
 
 const STORAGE_KEY = 'zorth.sql-editor.drafts.v1'
 const MAX_BYTES = 200_000
@@ -252,7 +253,7 @@ export const useEditorStore = defineStore('editor', () => {
     title?: string,
   ): EditorTab {
     const tab: EditorTab = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       kind: 'sql',
       title: title || nextQueryTitle(tabs.value),
       dataSourceId,
@@ -298,7 +299,7 @@ export const useEditorStore = defineStore('editor', () => {
       return existing
     }
     const tab: EditorTab = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       kind: 'table',
       title: table.name,
       dataSourceId,

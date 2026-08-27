@@ -2,6 +2,7 @@ import { appEnv } from '@/env'
 import { bearerFetch } from '@/api/sql-client'
 import { ApiError, isApiError } from '@/api/api-error'
 import { consumeSse } from '@/sql-editor/sse'
+import { randomUUID } from '@/uuid'
 
 export interface AgentRequest {
   message: string
@@ -93,7 +94,7 @@ async function readAgentStream(
   })
   if (!response.body) {
     throw new ApiError(0, {
-      requestId: response.headers.get('X-Request-Id') || crypto.randomUUID(),
+      requestId: response.headers.get('X-Request-Id') || randomUUID(),
       code: 'AI_SERVICE_ERROR',
       message: 'Copilot 流式响应为空',
     })
@@ -110,7 +111,7 @@ async function readAgentStream(
     if (!event) return
     if (event.type === 'error') {
       throw new ApiError(event.code === 'CONVERSATION_NOT_FOUND' ? 404 : 500, {
-        requestId: response.headers.get('X-Request-Id') || crypto.randomUUID(),
+        requestId: response.headers.get('X-Request-Id') || randomUUID(),
         code: event.code || 'AI_SERVICE_ERROR',
         message: event.message || 'Copilot 请求失败',
       })
@@ -262,7 +263,7 @@ function parseToolSummaries(
       return []
     }
     const tool: NonNullable<AgentConversationMessage['tools']>[number] = {
-      id: typeof data.id === 'string' && data.id ? data.id : crypto.randomUUID(),
+      id: typeof data.id === 'string' && data.id ? data.id : randomUUID(),
       toolName,
       status,
     }
@@ -284,7 +285,7 @@ export async function getConversation(id: string): Promise<AgentConversationDeta
   const detail = parseConversationDetail(await response.json())
   if (!detail) {
     throw new ApiError(500, {
-      requestId: response.headers.get('X-Request-Id') || crypto.randomUUID(),
+      requestId: response.headers.get('X-Request-Id') || randomUUID(),
       code: 'AI_SERVICE_ERROR',
       message: '对话详情格式无效',
     })

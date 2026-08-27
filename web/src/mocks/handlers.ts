@@ -17,6 +17,7 @@ import type {
   ScriptWriteRequest,
   SqlExecutionRequest,
 } from '@/types/contracts'
+import { randomUUID } from '@/uuid'
 
 const sql = (path: string) => `${appEnv.sqlApiBase}${path}`
 const auth = (path: string) => `${appEnv.authApiBase}${path}`
@@ -70,7 +71,7 @@ export function resetMockHistory(): void {
 
 const error = (status: number, code: string, message: string, details?: ApiErrorBody['details']) =>
   HttpResponse.json<ApiErrorBody>(
-    { requestId: crypto.randomUUID(), code, message, ...(details ? { details } : {}) },
+    { requestId: randomUUID(), code, message, ...(details ? { details } : {}) },
     { status },
   )
 
@@ -139,7 +140,7 @@ function agentReply(
     return error(400, 'VALIDATION_FAILED', '请求参数不合法')
   }
   if (body.message.includes('__FAIL__')) return error(400, 'VALIDATION_FAILED', 'message 超限')
-  const conversationId = body.conversationId || crypto.randomUUID()
+  const conversationId = body.conversationId || randomUUID()
   if (body.message.includes('__NO_SQL__')) {
     return { content: '当前没有可插入的 SQL。', conversationId }
   }
@@ -174,16 +175,16 @@ function persistAgentTurn(
   const now = new Date().toISOString()
   const userContent = visibleUserText(body)
   const userMessage: MockAgentMessage = {
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     role: 'user',
     content: userContent,
     createdAt: now,
   }
   const assistantMessage: MockAgentMessage = {
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     role: 'assistant',
     content: reply.content,
-    tools: [{ id: crypto.randomUUID(), toolName: 'listTables', status: 'SUCCESS' }],
+    tools: [{ id: randomUUID(), toolName: 'listTables', status: 'SUCCESS' }],
     createdAt: now,
   }
   if (!existing) {
@@ -408,7 +409,7 @@ export const handlers = [
     const body = raw as unknown as CreateDataSourceRequest
     const timestamp = new Date().toISOString()
     const detail: DataSourceDetail = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       name: body.name,
       engine: body.engine,
       host: body.host,
@@ -832,7 +833,7 @@ export const handlers = [
       return error(404, 'DATA_SOURCE_NOT_FOUND', '数据源不存在或已不可见')
     const now = new Date().toISOString()
     const created: ScriptDetail = {
-      id: `${mockUserId(request) === '1002' ? 'other-' : ''}${crypto.randomUUID()}`,
+      id: `${mockUserId(request) === '1002' ? 'other-' : ''}${randomUUID()}`,
       name: body.name.trim(),
       dataSourceId: source?.id || null,
       dataSourceName: source?.name || null,

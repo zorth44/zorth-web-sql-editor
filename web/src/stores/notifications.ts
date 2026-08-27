@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { randomUUID } from '@/uuid'
 
 export interface NotificationItem {
   id: string
@@ -9,7 +10,7 @@ export interface NotificationItem {
 export const useNotificationsStore = defineStore('notifications', () => {
   const items = ref<NotificationItem[]>([])
   function push(kind: NotificationItem['kind'], message: string): void {
-    const id = crypto.randomUUID()
+    const id = randomUUID()
     items.value.push({ id, kind, message })
     window.setTimeout(() => remove(id), 4500)
   }
