@@ -4,12 +4,13 @@ import { displayCell } from './cell-value'
 export const INDEX_WIDTH = 44
 export const ROW_HEIGHT = 28
 export const HEADER_HEIGHT = 30
+export const FILTER_ROW_HEIGHT = 28
 
 export type GridPoint = { row: number; col: number }
 export type GridSelection = { anchor: GridPoint; focus: GridPoint }
 export type GridRect = { rowStart: number; rowEnd: number; colStart: number; colEnd: number }
 export type DragMode = 'cell' | 'row' | 'column'
-export type HitRegion = 'cell' | 'row-number' | 'header' | 'corner' | 'outside'
+export type HitRegion = 'cell' | 'row-number' | 'header' | 'filter' | 'corner' | 'outside'
 
 export interface GridHit {
   region: HitRegion
@@ -20,6 +21,7 @@ export interface GridHit {
 export interface HitTestLayout {
   indexWidth: number
   headerHeight: number
+  filterRowHeight?: number
   rowHeight: number
   columnWidths: number[]
   pinnedCount: number
@@ -106,15 +108,21 @@ export function hitTest(localX: number, localY: number, layout: HitTestLayout): 
   ) {
     return { region: 'outside', row: -1, col: -1 }
   }
-  const inHeader = localY < layout.headerHeight
+  const filterRowHeight = layout.filterRowHeight ?? 0
+  const labelHeight = layout.headerHeight - filterRowHeight
+  const inHeaderBlock = localY < layout.headerHeight
+  const inFilter = filterRowHeight > 0 && localY >= labelHeight && localY < layout.headerHeight
+  const inHeader = inHeaderBlock && !inFilter
   const col = columnAt(localX, layout)
-  const row = inHeader ? -1 : rowAt(localY, layout)
+  const row = inHeaderBlock ? -1 : rowAt(localY, layout)
   if (localX < layout.indexWidth) {
+    if (inFilter) return { region: 'filter', row: -1, col: -1 }
     if (inHeader) return { region: 'corner', row: -1, col: -1 }
     if (row < 0) return { region: 'outside', row: -1, col: -1 }
     return { region: 'row-number', row, col: -1 }
   }
   if (col < 0) return { region: 'outside', row: -1, col: -1 }
+  if (inFilter) return { region: 'filter', row: -1, col }
   if (inHeader) return { region: 'header', row: -1, col }
   if (row < 0) return { region: 'outside', row: -1, col }
   return { region: 'cell', row, col }

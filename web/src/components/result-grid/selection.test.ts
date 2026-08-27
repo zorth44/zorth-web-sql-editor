@@ -99,6 +99,21 @@ describe('hit testing', () => {
     expect(hitTest(-1, 40, layout())).toMatchObject({ region: 'outside' })
   })
 
+  it('treats the header filter row as a filter hit, not a column header', () => {
+    const withFilters = layout({ headerHeight: HEADER_HEIGHT + 28, filterRowHeight: 28 })
+    expect(hitTest(INDEX_WIDTH + 10, 8, withFilters)).toMatchObject({ region: 'header', col: 0 })
+    expect(hitTest(INDEX_WIDTH + 10, HEADER_HEIGHT + 8, withFilters)).toMatchObject({
+      region: 'filter',
+      col: 0,
+    })
+    expect(hitTest(8, HEADER_HEIGHT + 8, withFilters)).toMatchObject({ region: 'filter', col: -1 })
+    expect(hitTest(INDEX_WIDTH + 10, HEADER_HEIGHT + 28 + 4, withFilters)).toMatchObject({
+      region: 'cell',
+      row: 0,
+      col: 0,
+    })
+  })
+
   it('accounts for vertical scroll when resolving displayed rows', () => {
     expect(hitTest(INDEX_WIDTH + 10, HEADER_HEIGHT + 2, layout({ scrollTop: ROW_HEIGHT }))).toEqual(
       {

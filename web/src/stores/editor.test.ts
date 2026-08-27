@@ -179,4 +179,25 @@ describe('editor tabs', () => {
     expect(stored).toContain('"kind":"table"')
     expect(stored).toContain('order_item')
   })
+  it('keeps table Data filter drafts in memory across Properties, not in session drafts', () => {
+    const store = useEditorStore()
+    const table = {
+      database: 'orders',
+      name: 'order_item',
+      type: 'TABLE' as const,
+      comment: '订单明细',
+    }
+    const tab = store.openTableTab('ds-1', 'orders', table)
+    store.setTableDataFilterDrafts(tab.id, { status: 'FAILED' })
+    store.commitTableDataFilters(tab.id, [{ column: 'status', type: 'like', value: 'FAILED' }])
+    store.setTableDataSort(tab.id, { column: 'id', dir: 'desc' })
+    store.setViewerPane(tab.id, 'properties')
+    store.setViewerPane(tab.id, 'data')
+    expect(tab.dataFilterDrafts).toEqual({ status: 'FAILED' })
+    expect(tab.dataAppliedPredicates).toEqual([{ column: 'status', type: 'like', value: 'FAILED' }])
+    expect(tab.dataSort).toEqual({ column: 'id', dir: 'desc' })
+    const stored = sessionStorage.getItem('zorth.sql-editor.drafts.v1') || ''
+    expect(stored).not.toContain('FAILED')
+    expect(stored).not.toContain('dataFilterDrafts')
+  })
 })

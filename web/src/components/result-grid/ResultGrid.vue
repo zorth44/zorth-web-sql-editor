@@ -14,10 +14,12 @@ import {
   X,
 } from 'lucide-vue-next'
 import type { SqlCellValue, SqlColumn, SqlExecutionResult } from '@/types/contracts'
+import { nextTableDataSort, type TableDataSort } from '@/sql-editor/table-data-filter'
 import { cellMatches, compareCells, displayCell, previewCell } from './cell-value'
 import { columnTypeGlyph, columnTypeKind, defaultColumnWidth } from './column-type'
 import { clampRowLimit, DEFAULT_ROW_LIMIT, MAX_ROW_LIMIT, MIN_ROW_LIMIT } from './limits'
 import {
+  FILTER_ROW_HEIGHT,
   HEADER_HEIGHT,
   INDEX_WIDTH,
   ROW_HEIGHT,
@@ -57,12 +59,19 @@ const props = defineProps<{
   rowLimit?: number
   canFixWithAi?: boolean
   fixDisabled?: boolean
+  headerFilters?: boolean
+  filterDrafts?: Record<string, string>
+  filterErrors?: Record<string, string>
+  sortState?: TableDataSort | null
 }>()
 const emit = defineEmits<{
   export: []
   'cancel-export': []
   'update:rowLimit': [value: number]
   'fix-with-ai': []
+  'update:filterDrafts': [Record<string, string>]
+  'apply-filters': []
+  'update:sortState': [TableDataSort | null]
 }>()
 
 const filter = ref('')
@@ -115,7 +124,7 @@ const filtered = computed(() => {
   })
 })
 const ordered = computed(() => {
-  if (!sort.value) return filtered.value
+  if (props.headerFilters || !sort.value) return filtered.value
   const { col, dir } = sort.value
   const copy = [...filtered.value]
   copy.sort((a, b) => {
@@ -124,6 +133,16 @@ const ordered = computed(() => {
   })
   return copy
 })
+const displayedSort = computed(() => {
+  if (!props.headerFilters) return sort.value
+  const current = props.sortState
+  if (!current) return null
+  const col = columns.value.findIndex((item) => item.name === current.column)
+  return col >= 0 ? { col, dir: current.dir } : null
+})
+const headerBlockHeight = computed(
+  () => HEADER_HEIGHT + (props.headerFilters ? FILTER_ROW_HEIGHT : 0),
+)
 const start = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - 8))
 const end = computed(() =>
   Math.min(ordered.value.length, start.value + Math.ceil(viewport.value / ROW_HEIGHT) + 16),
@@ -167,15 +186,16 @@ function resetView(): void {
   hover.value = null
   dragging = false
   dragMode = null
+  detail.value = null
+  menu.value = null
+  scrollTop.value = 0
+  if (scrollEl.value) scrollEl.value.scrollTop = 0
+  if (props.headerFilters) return
   filter.value = ''
   columnFilters.value = {}
   sort.value = null
   pinned.value = []
   widths.value = {}
-  detail.value = null
-  menu.value = null
-  scrollTop.value = 0
-  if (scrollEl.value) scrollEl.value.scrollTop = 0
 }
 function closeMenu(): void {
   menu.value = null
@@ -244,17 +264,40 @@ function openValue(row: number, col: number): void {
 }
 function cycleSort(col: number): void {
   closeMenu()
+  const column = columns.value[col]
+  if (props.headerFilters) {
+    if (!column) return
+    emit('update:sortState', nextTableDataSort(props.sortState ?? null, column.name))
+    return
+  }
   if (sort.value?.col === col && sort.value.dir === 'asc') sort.value = { col, dir: 'desc' }
   else if (sort.value?.col === col && sort.value.dir === 'desc') sort.value = null
   else sort.value = { col, dir: 'asc' }
 }
 function setSort(col: number, dir: 'asc' | 'desc'): void {
+  const column = columns.value[col]
+  if (props.headerFilters) {
+    if (column) emit('update:sortState', { column: column.name, dir })
+    closeMenu()
+    return
+  }
   sort.value = { col, dir }
   closeMenu()
 }
 function clearSort(): void {
-  sort.value = null
+  if (props.headerFilters) emit('update:sortState', null)
+  else sort.value = null
   closeMenu()
+}
+function setFilterDraft(column: string, value: string): void {
+  emit('update:filterDrafts', { ...props.filterDrafts, [column]: value })
+}
+function onFilterInput(column: string, event: Event): void {
+  const target = event.target
+  if (target instanceof HTMLInputElement) setFilterDraft(column, target.value)
+}
+function applyHeaderFilters(): void {
+  emit('apply-filters')
 }
 function pinColumn(col: number): void {
   if (!pinned.value.includes(col)) pinned.value = [...pinned.value, col]
@@ -306,7 +349,8 @@ function currentLayout(): HitTestLayout {
   const el = scrollEl.value
   return {
     indexWidth: INDEX_WIDTH,
-    headerHeight: HEADER_HEIGHT,
+    headerHeight: headerBlockHeight.value,
+    filterRowHeight: props.headerFilters ? FILTER_ROW_HEIGHT : 0,
     rowHeight: ROW_HEIGHT,
     columnWidths: visualColumns.value.map((item) => widthOf(item.index)),
     pinnedCount: visualColumns.value.filter((item) => item.pinned).length,
@@ -359,7 +403,7 @@ function onGridPointerDown(event: PointerEvent): void {
   const point = localPoint(event)
   if (!point) return
   const hit = hitTest(point.x, point.y, currentLayout())
-  if (hit.region === 'outside' || hit.region === 'corner') return
+  if (hit.region === 'outside' || hit.region === 'corner' || hit.region === 'filter') return
   event.preventDefault()
   closeMenu()
   const target = event.currentTarget
@@ -426,8 +470,8 @@ function ensureVisible(filteredIndex: number): void {
   if (!el) return
   const top = filteredIndex * ROW_HEIGHT
   if (top < el.scrollTop) el.scrollTop = top
-  else if (top + ROW_HEIGHT > el.scrollTop + el.clientHeight - HEADER_HEIGHT) {
-    el.scrollTop = top - el.clientHeight + HEADER_HEIGHT + ROW_HEIGHT
+  else if (top + ROW_HEIGHT > el.scrollTop + el.clientHeight - headerBlockHeight.value) {
+    el.scrollTop = top - el.clientHeight + headerBlockHeight.value + ROW_HEIGHT
   }
 }
 function moveSelection(dRow: number, dCol: number, extend = false): void {
@@ -569,64 +613,98 @@ onBeforeUnmount(() => {
         @pointerleave="onGridPointerLeave"
       >
         <div class="result-table" :style="{ minWidth: `${tableMinWidth}px` }">
-          <div class="result-head" role="row" :style="{ height: `${HEADER_HEIGHT}px` }">
-            <div class="result-index result-index-head" role="columnheader">#</div>
-            <div
-              v-for="(item, visualCol) in visualColumns"
-              :key="`${item.index}:${item.column.name}`"
-              class="result-header"
-              :class="{
-                'result-col-pinned': item.pinned,
-                'result-header-selected':
-                  selectedRect &&
-                  visualCol >= selectedRect.colStart &&
-                  visualCol <= selectedRect.colEnd,
-              }"
-              role="columnheader"
-              :style="{
-                width: `${widthOf(item.index)}px`,
-                left: item.pinned ? `${pinnedLeft(item.index)}px` : undefined,
-              }"
-              :title="`${item.column.jdbcType} / ${item.column.typeName} · 单击选列，类型标记排序`"
-              :data-testid="`result-header-${item.index}`"
-              @contextmenu="openMenu($event, null, item.index)"
-            >
-              <span
-                class="result-type"
-                :data-kind="columnTypeKind(item.column.jdbcType)"
-                :title="`排序 · ${item.column.jdbcType}`"
-                :data-testid="`result-sort-glyph-${item.index}`"
-                @pointerdown.stop
-                @click.stop="cycleSort(item.index)"
+          <div class="result-head-block" :style="{ height: `${headerBlockHeight}px` }">
+            <div class="result-head" role="row" :style="{ height: `${HEADER_HEIGHT}px` }">
+              <div class="result-index result-index-head" role="columnheader">#</div>
+              <div
+                v-for="(item, visualCol) in visualColumns"
+                :key="`${item.index}:${item.column.name}`"
+                class="result-header"
+                :class="{
+                  'result-col-pinned': item.pinned,
+                  'result-header-selected':
+                    selectedRect &&
+                    visualCol >= selectedRect.colStart &&
+                    visualCol <= selectedRect.colEnd,
+                }"
+                role="columnheader"
+                :style="{
+                  width: `${widthOf(item.index)}px`,
+                  left: item.pinned ? `${pinnedLeft(item.index)}px` : undefined,
+                }"
+                :title="`${item.column.jdbcType} / ${item.column.typeName} · 单击选列，类型标记排序`"
+                :data-testid="`result-header-${item.index}`"
+                @contextmenu="openMenu($event, null, item.index)"
               >
-                {{ columnTypeGlyph(columnTypeKind(item.column.jdbcType)) }}
-              </span>
-              <span class="result-header-label">{{ item.column.label }}</span>
-              <ArrowUp
-                v-if="sort?.col === item.index && sort.dir === 'asc'"
-                class="result-header-icon result-sort-icon"
-                :size="11"
-                data-testid="result-sort-icon"
-                @pointerdown.stop
-                @click.stop="cycleSort(item.index)"
-              />
-              <ArrowDown
-                v-else-if="sort?.col === item.index && sort.dir === 'desc'"
-                class="result-header-icon result-sort-icon"
-                :size="11"
-                data-testid="result-sort-icon"
-                @pointerdown.stop
-                @click.stop="cycleSort(item.index)"
-              />
-              <Filter v-if="columnFilters[item.index]" class="result-header-icon" :size="11" />
-              <button
-                class="result-resize"
-                type="button"
-                aria-label="调整列宽"
-                @click.stop
-                @pointerdown.stop
-                @mousedown="startResize(item.index, $event)"
-              />
+                <span
+                  class="result-type"
+                  :data-kind="columnTypeKind(item.column.jdbcType)"
+                  :title="`排序 · ${item.column.jdbcType}`"
+                  :data-testid="`result-sort-glyph-${item.index}`"
+                  @pointerdown.stop
+                  @click.stop="cycleSort(item.index)"
+                >
+                  {{ columnTypeGlyph(columnTypeKind(item.column.jdbcType)) }}
+                </span>
+                <span class="result-header-label">{{ item.column.label }}</span>
+                <ArrowUp
+                  v-if="displayedSort?.col === item.index && displayedSort.dir === 'asc'"
+                  class="result-header-icon result-sort-icon"
+                  :size="11"
+                  data-testid="result-sort-icon"
+                  @pointerdown.stop
+                  @click.stop="cycleSort(item.index)"
+                />
+                <ArrowDown
+                  v-else-if="displayedSort?.col === item.index && displayedSort.dir === 'desc'"
+                  class="result-header-icon result-sort-icon"
+                  :size="11"
+                  data-testid="result-sort-icon"
+                  @pointerdown.stop
+                  @click.stop="cycleSort(item.index)"
+                />
+                <Filter v-if="columnFilters[item.index]" class="result-header-icon" :size="11" />
+                <button
+                  class="result-resize"
+                  type="button"
+                  aria-label="调整列宽"
+                  @click.stop
+                  @pointerdown.stop
+                  @mousedown="startResize(item.index, $event)"
+                />
+              </div>
+            </div>
+            <div
+              v-if="headerFilters"
+              class="result-filter-row"
+              role="row"
+              data-testid="result-header-filter-row"
+              :style="{ height: `${FILTER_ROW_HEIGHT}px` }"
+            >
+              <div class="result-index result-index-filter" aria-hidden="true" />
+              <div
+                v-for="item in visualColumns"
+                :key="`filter:${item.index}:${item.column.name}`"
+                class="result-filter-cell"
+                :class="{ 'result-col-pinned': item.pinned }"
+                :style="{
+                  width: `${widthOf(item.index)}px`,
+                  left: item.pinned ? `${pinnedLeft(item.index)}px` : undefined,
+                }"
+              >
+                <input
+                  class="result-header-filter"
+                  :class="{ 'result-header-filter-error': filterErrors?.[item.column.name] }"
+                  :value="filterDrafts?.[item.column.name] ?? ''"
+                  placeholder="回车筛选"
+                  :aria-label="`筛选 ${item.column.label}`"
+                  :title="filterErrors?.[item.column.name] || '回车将筛选应用到数据库'"
+                  :data-testid="`result-header-filter-${item.index}`"
+                  @pointerdown.stop
+                  @input="onFilterInput(item.column.name, $event)"
+                  @keydown.enter.prevent="applyHeaderFilters"
+                />
+              </div>
             </div>
           </div>
           <div class="result-rows" :style="{ height: `${ordered.length * ROW_HEIGHT}px` }">
@@ -739,8 +817,10 @@ onBeforeUnmount(() => {
       <span class="result-footer-spacer" />
       <template v-if="result?.kind === 'RESULT_SET'">
         <input
+          v-if="!headerFilters"
           v-model="filter"
           class="result-quick-filter"
+          data-testid="result-quick-filter"
           placeholder="过滤已返回结果"
           aria-label="过滤已返回结果"
         />
@@ -792,7 +872,11 @@ onBeforeUnmount(() => {
             <button class="result-ctx-item" @click="clearSort">取消排序</button>
           </div>
         </div>
-        <div class="result-ctx-item result-ctx-parent" @mouseenter="menu.submenu = 'filter'">
+        <div
+          v-if="!headerFilters"
+          class="result-ctx-item result-ctx-parent"
+          @mouseenter="menu.submenu = 'filter'"
+        >
           <Filter :size="14" />筛选
           <ChevronRight :size="12" class="ml-auto text-muted" />
           <div v-if="menu.submenu === 'filter'" class="result-ctx-sub">

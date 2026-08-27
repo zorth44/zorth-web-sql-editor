@@ -35,7 +35,8 @@ import SqlMonacoEditor from '@/components/editor/SqlMonacoEditor.vue'
 import CopilotPanel from '@/components/copilot/CopilotPanel.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { DEFAULT_ROW_LIMIT } from '@/components/result-grid/limits'
-import { likelyNeedsDatabase, selectTableData } from '@/sql-editor/sql'
+import { likelyNeedsDatabase } from '@/sql-editor/sql'
+import { buildTableDataSql, compileTableDataFilters } from '@/sql-editor/table-data-filter'
 import { planScript, runScript as runScriptStatements } from '@/sql-editor/script-runner'
 import { buildCopilotMessage, COPILOT_FIX_PROMPT } from '@/sql-editor/copilot-context'
 import { appendSqlText, replaceSqlOnce } from '@/sql-editor/sql-insert'
@@ -51,7 +52,14 @@ import { useCopilotStore } from '@/stores/copilot'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { queryClient, queryKeys } from '@/query/client'
-import type { DataSourceListItem, HistoryDetail, ScriptSummary, TableItem } from '@/types/contracts'
+import type {
+  DataSourceListItem,
+  HistoryDetail,
+  ScriptSummary,
+  SqlColumn,
+  TableItem,
+} from '@/types/contracts'
+import type { TableDataSort } from '@/sql-editor/table-data-filter'
 
 const route = useRoute()
 const router = useRouter()
@@ -253,17 +261,38 @@ async function loadTableData(id: string, force = false) {
   }
   await executeOnTab(
     id,
-    selectTableData(
-      tab.database,
-      tab.table,
-      identifierQuoteFor(
+    buildTableDataSql({
+      database: tab.database,
+      table: tab.table,
+      quote: identifierQuoteFor(
         engineById(
           engines.value,
           sources.value.find((item) => item.id === tab.dataSourceId)?.engine,
         ),
       ),
-    ),
+      predicates: tab.dataAppliedPredicates,
+      sort: tab.dataSort,
+    }),
   )
+}
+function tableResultColumns(id: string): SqlColumn[] {
+  const tab = editor.tabs.find((item) => item.id === id)
+  return tab?.result?.kind === 'RESULT_SET' ? tab.result.columns : []
+}
+function applyTableFilters(id: string): void {
+  const tab = editor.tabs.find((item) => item.id === id)
+  if (!tab || tab.kind !== 'table') return
+  const compiled = compileTableDataFilters(tab.dataFilterDrafts, tableResultColumns(id))
+  if (!compiled.ok) {
+    editor.setTableDataFilterErrors(id, compiled.errors)
+    return
+  }
+  editor.commitTableDataFilters(id, compiled.predicates)
+  void loadTableData(id, true)
+}
+function applyTableSort(id: string, sort: TableDataSort | null): void {
+  editor.setTableDataSort(id, sort)
+  void loadTableData(id, true)
 }
 async function executeOnTab(tabId: string, statement: string) {
   await executeStatements(tabId, [statement.trim()])
@@ -940,11 +969,17 @@ onBeforeUnmount(() => {
                 :exporting="exporting"
                 :row-limit="rowLimit"
                 :reload-token="resourceNonce"
+                :filter-drafts="active.dataFilterDrafts"
+                :filter-errors="active.dataFilterErrors"
+                :sort-state="active.dataSort"
                 @update:pane="editor.setViewerPane(active.id, $event)"
                 @refresh="loadTableData(active.id, true)"
                 @export="requestExport"
                 @cancel-export="exportAbort?.abort()"
                 @update:row-limit="rowLimit = $event"
+                @update:filter-drafts="editor.setTableDataFilterDrafts(active.id, $event)"
+                @apply-filters="applyTableFilters(active.id)"
+                @update:sort-state="applyTableSort(active.id, $event)"
               />
               <Splitpanes v-else horizontal class="sql-split min-h-0 flex-1">
                 <Pane :size="62" min-size="28">

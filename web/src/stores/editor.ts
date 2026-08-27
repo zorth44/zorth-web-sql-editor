@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { DatabaseObjectType, SqlExecutionResult, TableItem } from '@/types/contracts'
+import type { TableDataPredicate, TableDataSort } from '@/sql-editor/table-data-filter'
 
 const STORAGE_KEY = 'zorth.sql-editor.drafts.v1'
 const MAX_BYTES = 200_000
@@ -40,6 +41,10 @@ export interface EditorTab {
   savedSql: string | null
   savedDataSourceId: string | null
   savedDatabase: string | null
+  dataFilterDrafts: Record<string, string>
+  dataFilterErrors: Record<string, string>
+  dataAppliedPredicates: TableDataPredicate[]
+  dataSort: TableDataSort | null
 }
 interface Draft {
   id: string
@@ -103,6 +108,18 @@ function isDraft(item: unknown): item is Draft {
   return draft.kind === undefined || draft.kind === 'sql'
 }
 
+function emptyTableQuery(): Pick<
+  EditorTab,
+  'dataFilterDrafts' | 'dataFilterErrors' | 'dataAppliedPredicates' | 'dataSort'
+> {
+  return {
+    dataFilterDrafts: {},
+    dataFilterErrors: {},
+    dataAppliedPredicates: [],
+    dataSort: null,
+  }
+}
+
 function toTab(item: Draft): EditorTab {
   const tableTab = item.kind === 'table'
   return {
@@ -129,6 +146,7 @@ function toTab(item: Draft): EditorTab {
     savedSql: tableTab ? null : (item.savedSql ?? item.sql),
     savedDataSourceId: tableTab ? null : (item.savedDataSourceId ?? item.dataSourceId),
     savedDatabase: tableTab ? null : (item.savedDatabase ?? item.database),
+    ...emptyTableQuery(),
   }
 }
 
@@ -257,6 +275,7 @@ export const useEditorStore = defineStore('editor', () => {
       savedSql: null,
       savedDataSourceId: null,
       savedDatabase: null,
+      ...emptyTableQuery(),
     }
     tabs.value.push(tab)
     activeId.value = tab.id
@@ -302,6 +321,7 @@ export const useEditorStore = defineStore('editor', () => {
       savedSql: null,
       savedDataSourceId: null,
       savedDatabase: null,
+      ...emptyTableQuery(),
     }
     tabs.value.push(tab)
     activeId.value = tab.id
@@ -313,6 +333,27 @@ export const useEditorStore = defineStore('editor', () => {
     if (!tab || tab.kind !== 'table') return
     tab.viewerPane = pane
     persist()
+  }
+  function setTableDataFilterDrafts(id: string, drafts: Record<string, string>): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab || tab.kind !== 'table') return
+    tab.dataFilterDrafts = drafts
+  }
+  function setTableDataFilterErrors(id: string, errors: Record<string, string>): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab || tab.kind !== 'table') return
+    tab.dataFilterErrors = errors
+  }
+  function commitTableDataFilters(id: string, predicates: TableDataPredicate[]): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab || tab.kind !== 'table') return
+    tab.dataAppliedPredicates = predicates
+    tab.dataFilterErrors = {}
+  }
+  function setTableDataSort(id: string, sort: TableDataSort | null): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab || tab.kind !== 'table') return
+    tab.dataSort = sort
   }
   function ensureTab(dataSourceId: string | null, database: string | null): EditorTab {
     return active.value || createTab(dataSourceId, database)
@@ -530,6 +571,10 @@ export const useEditorStore = defineStore('editor', () => {
     createTab,
     openTableTab,
     setViewerPane,
+    setTableDataFilterDrafts,
+    setTableDataFilterErrors,
+    commitTableDataFilters,
+    setTableDataSort,
     ensureTab,
     bindTab,
     activateConnection,

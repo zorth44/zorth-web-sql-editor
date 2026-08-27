@@ -46,6 +46,7 @@ describe('table viewer', () => {
     expect(wrapper.findComponent(ResultGrid).exists()).toBe(true)
     expect(wrapper.find('[data-testid="result-scroll"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('1')
+    expect(wrapper.find('[data-testid="result-header-filter-row"]').exists()).toBe(true)
     await wrapper.get('[data-testid="table-viewer-tab-properties"]').trigger('click')
     expect(wrapper.emitted('update:pane')?.at(-1)).toEqual(['properties'])
     wrapper.unmount()
@@ -67,6 +68,17 @@ describe('table viewer', () => {
     expect(wrapper.get('[data-testid="table-properties-ddl"]').text()).toContain(
       'CREATE TABLE `order_item`',
     )
+    wrapper.unmount()
+  })
+
+  it('forwards header filter apply and sort to the parent', async () => {
+    const wrapper = render()
+    await wrapper.get('[data-testid="result-header-filter-0"]').setValue('>1')
+    expect(wrapper.emitted('update:filterDrafts')?.at(-1)).toEqual([{ id: '>1' }])
+    await wrapper.get('[data-testid="result-header-filter-0"]').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('apply-filters')).toHaveLength(1)
+    await wrapper.get('[data-testid="result-sort-glyph-0"]').trigger('click')
+    expect(wrapper.emitted('update:sortState')?.at(-1)).toEqual([{ column: 'id', dir: 'asc' }])
     wrapper.unmount()
   })
 })

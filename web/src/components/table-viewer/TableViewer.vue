@@ -7,6 +7,7 @@ import ResultGrid from '@/components/result-grid/ResultGrid.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import type { DatabaseObjectType, SqlExecutionResult, TableDetail } from '@/types/contracts'
+import type { TableDataSort } from '@/sql-editor/table-data-filter'
 import type { TableViewerPane } from '@/stores/editor'
 
 type PropertiesSection = 'info' | 'columns' | 'keys' | 'indexes' | 'ddl'
@@ -25,6 +26,9 @@ const props = defineProps<{
   exporting: boolean
   rowLimit: number
   reloadToken?: number
+  filterDrafts?: Record<string, string>
+  filterErrors?: Record<string, string>
+  sortState?: TableDataSort | null
 }>()
 const emit = defineEmits<{
   'update:pane': [pane: TableViewerPane]
@@ -32,6 +36,9 @@ const emit = defineEmits<{
   export: []
   'cancel-export': []
   'update:rowLimit': [value: number]
+  'update:filterDrafts': [Record<string, string>]
+  'apply-filters': []
+  'update:sortState': [TableDataSort | null]
 }>()
 
 const sections: { id: PropertiesSection; label: string }[] = [
@@ -129,9 +136,16 @@ onBeforeUnmount(() => window.clearTimeout(copyTimer))
         :can-export="canExport"
         :exporting="exporting"
         :row-limit="rowLimit"
+        header-filters
+        :filter-drafts="filterDrafts ?? {}"
+        :filter-errors="filterErrors ?? {}"
+        :sort-state="sortState ?? null"
         @update:row-limit="emit('update:rowLimit', $event)"
         @export="emit('export')"
         @cancel-export="emit('cancel-export')"
+        @update:filter-drafts="emit('update:filterDrafts', $event)"
+        @apply-filters="emit('apply-filters')"
+        @update:sort-state="emit('update:sortState', $event)"
       >
         <template #status>
           <span class="truncate">

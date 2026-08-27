@@ -1,7 +1,12 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ResultGrid from '@/components/result-grid/ResultGrid.vue'
-import { HEADER_HEIGHT, INDEX_WIDTH, ROW_HEIGHT } from '@/components/result-grid/selection'
+import {
+  FILTER_ROW_HEIGHT,
+  HEADER_HEIGHT,
+  INDEX_WIDTH,
+  ROW_HEIGHT,
+} from '@/components/result-grid/selection'
 import type { SqlExecutionResult } from '@/types/contracts'
 
 const result: SqlExecutionResult = {
@@ -240,6 +245,68 @@ describe('result values', () => {
     await wrapper.setProps({ fixDisabled: false })
     await wrapper.get('[data-testid="copilot-fix"]').trigger('click')
     expect(wrapper.emitted('fix-with-ai')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('keeps SQL result grids on client-side filter without a header filter row', () => {
+    const wrapper = render()
+    expect(wrapper.find('[data-testid="result-header-filter-row"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="result-quick-filter"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('shows header filter inputs on table Data and applies them on Enter', async () => {
+    const wrapper = render({
+      headerFilters: true,
+      filterDrafts: { note: 'alpha' },
+      filterErrors: { id: '数字列需要有效数字' },
+    })
+    expect(wrapper.find('[data-testid="result-header-filter-row"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="result-quick-filter"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="result-header-filter-1"]').element).toHaveValue('alpha')
+    expect(wrapper.get('[data-testid="result-header-filter-0"]').classes()).toContain(
+      'result-header-filter-error',
+    )
+    await wrapper.get('[data-testid="result-header-filter-1"]').setValue('beta')
+    expect(wrapper.emitted('update:filterDrafts')?.at(-1)).toEqual([{ note: 'beta' }])
+    await wrapper.get('[data-testid="result-header-filter-1"]').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('apply-filters')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('keeps header filter drafts after a new table Data result arrives', async () => {
+    const wrapper = render({ headerFilters: true, filterDrafts: { note: 'keep' } })
+    await wrapper.setProps({
+      result: { ...result, executionId: 'e2', rows: [['3', 'gamma', null]] },
+    })
+    expect(wrapper.get('[data-testid="result-header-filter-1"]').element).toHaveValue('keep')
+    wrapper.unmount()
+  })
+
+  it('does not select a column from the header filter row', async () => {
+    const wrapper = render({ headerFilters: true })
+    await pointer(wrapper, 'pointerdown', INDEX_WIDTH + 128, HEADER_HEIGHT + FILTER_ROW_HEIGHT / 2)
+    await pointer(wrapper, 'pointerup', INDEX_WIDTH + 128, HEADER_HEIGHT + FILTER_ROW_HEIGHT / 2)
+    expect(wrapper.find('.result-cell-selected').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('emits sort changes instead of sorting returned rows in table Data mode', async () => {
+    const wrapper = render({ headerFilters: true })
+    expect(wrapper.get('.result-row').text()).toContain('2')
+    await wrapper.get('[data-testid="result-sort-glyph-0"]').trigger('click')
+    expect(wrapper.emitted('update:sortState')?.at(-1)).toEqual([{ column: 'id', dir: 'asc' }])
+    expect(wrapper.get('.result-row').text()).toContain('2')
+    wrapper.unmount()
+  })
+
+  it('hides context-menu column filter in table Data mode', async () => {
+    const wrapper = render({ headerFilters: true })
+    await wrapper.get('[data-testid="result-cell-0-1"]').trigger('contextmenu')
+    const menu = document.querySelector('[data-testid="result-context-menu"]')
+    expect(menu?.textContent).toContain('排序')
+    expect(menu?.textContent).toContain('固定列')
+    expect(menu?.textContent).not.toContain('筛选')
     wrapper.unmount()
   })
 })
