@@ -116,6 +116,46 @@ describe('editor tabs', () => {
     store.beginScript(tab.id, ['select 1'])
     expect(() => store.beginScript(tab.id, ['select 2'])).toThrow('当前页签正在执行')
   })
+  it('marks unsaved SQL dirty and clean saved tabs clean', () => {
+    const store = useEditorStore()
+    const tab = store.createTab('ds-1', 'orders', 'select 1')
+    expect(store.isDirtyTab(tab)).toBe(true)
+    store.markSaved(tab.id, {
+      id: 'script-1',
+      name: '月报',
+      version: 1,
+      statement: 'select 1',
+      dataSourceId: 'ds-1',
+      database: 'orders',
+    })
+    expect(tab.title).toBe('月报')
+    expect(store.isDirtyTab(tab)).toBe(false)
+    store.updateSql(tab.id, 'select 2')
+    expect(store.isDirtyTab(tab)).toBe(true)
+    const stored = sessionStorage.getItem('zorth.sql-editor.drafts.v1') || ''
+    expect(stored).toContain('script-1')
+    expect(stored).not.toContain('RESULT_SET')
+    store.clearAll()
+    expect(sessionStorage.getItem('zorth.sql-editor.drafts.v1')).toBeNull()
+  })
+  it('keeps local rename of an unsaved tab and applies saved rename', () => {
+    const store = useEditorStore()
+    const tab = store.createTab('ds-1', 'orders', 'select 1', 'Query 1')
+    store.renameLocal(tab.id, '草稿')
+    expect(tab.title).toBe('草稿')
+    store.markSaved(tab.id, {
+      id: 'script-2',
+      name: '草稿',
+      version: 1,
+      statement: 'select 1',
+      dataSourceId: 'ds-1',
+      database: 'orders',
+    })
+    store.applyRename('script-2', '月报 v2', 2)
+    expect(tab.title).toBe('月报 v2')
+    expect(tab.savedVersion).toBe(2)
+    expect(store.isDirtyTab(tab)).toBe(false)
+  })
   it('opens one object tab per table and does not treat it as an idle SQL tab', () => {
     const store = useEditorStore()
     const sql = store.createTab('ds-1', 'orders', 'select 1')

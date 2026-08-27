@@ -33,29 +33,29 @@ vi.mock('monaco-editor/editor', () => ({
     create: (_el: unknown, options: { language?: string }) => {
       fake.createdLanguage = options.language || 'mysql'
       return {
-      getValue: () => fake.value,
-      setValue: (next: string) => {
-        fake.value = next
-      },
-      getModel: () => ({
         getValue: () => fake.value,
-        getValueInRange: () => fake.selection,
-        getOffsetAt: () => fake.cursorOffset,
-        getWordUntilPosition: () => ({ startColumn: 1, endColumn: 1 }),
-        language: fake.createdLanguage,
-      }),
-      getSelection: () => ({}),
-      getPosition: () => ({ lineNumber: 1, column: 1 }),
-      onDidChangeModelContent: () => ({ dispose: () => {} }),
-      onDidChangeCursorSelection: (listener: () => void) => {
-        fake.selectionListener = listener
-        return { dispose: () => {} }
-      },
-      addAction: (action: Action) => actions.set(action.id, action),
-      executeEdits: () => true,
-      focus: () => {},
-      dispose: () => {},
-    }
+        setValue: (next: string) => {
+          fake.value = next
+        },
+        getModel: () => ({
+          getValue: () => fake.value,
+          getValueInRange: () => fake.selection,
+          getOffsetAt: () => fake.cursorOffset,
+          getWordUntilPosition: () => ({ startColumn: 1, endColumn: 1 }),
+          language: fake.createdLanguage,
+        }),
+        getSelection: () => ({}),
+        getPosition: () => ({ lineNumber: 1, column: 1 }),
+        onDidChangeModelContent: () => ({ dispose: () => {} }),
+        onDidChangeCursorSelection: (listener: () => void) => {
+          fake.selectionListener = listener
+          return { dispose: () => {} }
+        },
+        addAction: (action: Action) => actions.set(action.id, action),
+        executeEdits: () => true,
+        focus: () => {},
+        dispose: () => {},
+      }
     },
   },
 }))
@@ -140,6 +140,14 @@ describe('sql monaco editor', () => {
     fake.value = 'select * from mock_error;'
     expect(wrapper.vm.replaceSql('select * from mock_error;', 'select 1')).toBe(true)
     expect(fake.value).toBe('select 1')
+    wrapper.unmount()
+  })
+
+  it('emits save from the worksheet shortcut instead of a not-available notice', async () => {
+    const wrapper = await render()
+    actions.get('zorth-save')?.run()
+    expect(wrapper.emitted('save')).toHaveLength(1)
+    expect(wrapper.emitted('notice')).toBeUndefined()
     wrapper.unmount()
   })
 })

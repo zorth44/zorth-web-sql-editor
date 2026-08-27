@@ -6,9 +6,11 @@ import 'splitpanes/dist/splitpanes.css'
 import {
   Database,
   FileCode,
+  Files,
   History,
   Play,
   Plus,
+  Save,
   Sparkles,
   Square,
   Table2,
@@ -19,11 +21,13 @@ import { listDataSources } from '@/api/data-sources'
 import { listEngines } from '@/api/engines'
 import { cancelExecution, executeSql, exportExecution } from '@/api/executions'
 import { getHistory } from '@/api/history'
-import { safeErrorMessage } from '@/api/api-error'
+import { createScript, getScript, updateScript } from '@/api/scripts'
+import { ApiError, safeErrorMessage } from '@/api/api-error'
 import { editorLanguageFor, engineById, identifierQuoteFor } from '@/data-sources/catalog'
 import { useQuery } from '@tanstack/vue-query'
 import ResourceBrowser from '@/components/resource-tree/ResourceBrowser.vue'
 import HistoryPanel from '@/components/history/HistoryPanel.vue'
+import ScriptPanel from '@/components/scripts/ScriptPanel.vue'
 import ScriptResultPanel from '@/components/result-grid/ScriptResultPanel.vue'
 import TableViewer from '@/components/table-viewer/TableViewer.vue'
 import WelcomeStart from '@/components/welcome/WelcomeStart.vue'
@@ -42,12 +46,12 @@ import {
   fitSidebarWidth,
   pxToPanePercent,
 } from '@/sql-editor/sidebar-width'
-import { useEditorStore } from '@/stores/editor'
+import { isDirtyTab, useEditorStore } from '@/stores/editor'
 import { useCopilotStore } from '@/stores/copilot'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { queryClient, queryKeys } from '@/query/client'
-import type { DataSourceListItem, HistoryDetail, TableItem } from '@/types/contracts'
+import type { DataSourceListItem, HistoryDetail, ScriptSummary, TableItem } from '@/types/contracts'
 
 const route = useRoute()
 const router = useRouter()
@@ -76,7 +80,7 @@ const enginesQuery = useQuery({
 const engines = computed(() => enginesQuery.data.value?.items || [])
 const selectedSource = ref<string | null>(null)
 const selectedDatabase = ref<string | null>(null)
-const side = ref<'database' | 'history'>('database')
+const side = ref<'database' | 'history' | 'scripts'>('database')
 const sideCollapsed = ref(false)
 const splitHost = ref<HTMLElement | null>(null)
 const splitWidth = ref(typeof window === 'undefined' ? 1200 : Math.max(window.innerWidth - 48, 1))
@@ -95,12 +99,30 @@ const exporting = ref(false)
 const exportOpen = ref(false)
 const rowLimit = ref(DEFAULT_ROW_LIMIT)
 const pendingCloseId = ref<string | null>(null)
+const saveOpen = ref(false)
+const saveAsMode = ref(false)
+const saveName = ref('')
+const saveBusy = ref(false)
+const renameOpen = ref(false)
+const renameTarget = ref<{
+  scriptId: string
+  name: string
+  version: number
+  statement: string
+  dataSourceId: string | null
+  database: string | null
+} | null>(null)
+const renameValue = ref('')
+const editingTitleId = ref<string | null>(null)
+const titleDraft = ref('')
+const scriptPanelRef = ref<{ reload: () => Promise<void> | void } | null>(null)
 const metadataSuggestions = ref<string[]>([])
 let exportAbort: AbortController | undefined
 
 const canExecute = computed(() => auth.session?.capabilities.includes('SQL_EXECUTE') ?? false)
 const canExport = computed(() => auth.session?.capabilities.includes('SQL_EXPORT') ?? false)
 const canHistory = computed(() => auth.session?.capabilities.includes('HISTORY_READ') ?? false)
+const canScripts = computed(() => auth.session?.capabilities.includes('SCRIPT_MANAGE') ?? false)
 const active = computed(() => editor.active)
 const editorLanguage = computed(() => {
   const engine = sources.value.find((item) => item.id === active.value?.dataSourceId)?.engine
@@ -117,6 +139,7 @@ const runShortcut = isMac ? '⌘⇧↵' : 'Ctrl+Shift+Enter'
 const statementShortcut = isMac ? '⌘↵' : 'Ctrl+Enter'
 const formatShortcut = isMac ? '⌥⇧F' : 'Shift+Alt+F'
 const copilotShortcut = isMac ? '⌘L' : 'Ctrl+L'
+const saveShortcut = isMac ? '⌘S' : 'Ctrl+S'
 const runLabel = computed(() => (hasSelection.value ? '运行选中' : '运行'))
 const runTitle = computed(() =>
   hasSelection.value
@@ -171,7 +194,7 @@ function newBoundTab() {
   editor.createTab(selectedSource.value, selectedDatabase.value)
   void nextTick(() => monacoRef.value?.focus())
 }
-function toggleSide(next: 'database' | 'history') {
+function toggleSide(next: 'database' | 'history' | 'scripts') {
   if (side.value === next && !sideCollapsed.value) {
     sideCollapsed.value = true
     return
@@ -352,7 +375,7 @@ async function download() {
 function requestClose(id: string) {
   const tab = editor.tabs.find((item) => item.id === id)
   if (!tab) return
-  if (tab.sql.trim()) {
+  if (tab.kind === 'sql' && isDirtyTab(tab)) {
     pendingCloseId.value = id
     return
   }
@@ -380,6 +403,190 @@ function openHistory(detail: HistoryDetail) {
   side.value = 'database'
   sideCollapsed.value = false
   void syncUrl()
+}
+async function openScript(id: string) {
+  try {
+    const detail = await getScript(id)
+    const existing = editor.findByScriptId(detail.id)
+    if (existing) {
+      editor.setActive(existing.id)
+    } else {
+      const tab = editor.createTab(
+        detail.connectionAvailable ? detail.dataSourceId : null,
+        detail.connectionAvailable ? detail.database : null,
+        detail.statement,
+        detail.name,
+      )
+      editor.markSaved(tab.id, {
+        id: detail.id,
+        name: detail.name,
+        version: detail.version,
+        statement: detail.statement,
+        dataSourceId: detail.connectionAvailable ? detail.dataSourceId : null,
+        database: detail.connectionAvailable ? detail.database : null,
+      })
+    }
+    if (detail.connectionAvailable) {
+      selectedSource.value = detail.dataSourceId
+      selectedDatabase.value = detail.database
+    } else {
+      selectedSource.value = null
+      selectedDatabase.value = null
+      notice('原连接已不可用，请在左侧导航重新选择数据源和数据库')
+    }
+    void syncUrl()
+  } catch (e) {
+    notice(safeErrorMessage(e, '打开脚本失败'))
+  }
+}
+function writeBody(
+  name: string,
+  statement: string,
+  dataSourceId: string | null,
+  database: string | null,
+  version?: number,
+) {
+  return {
+    name,
+    statement,
+    dataSourceId: dataSourceId || null,
+    database: database || null,
+    ...(version != null ? { version } : {}),
+  }
+}
+function handleSaveConflict(e: unknown): boolean {
+  if (e instanceof ApiError && e.code === 'VERSION_CONFLICT') {
+    notice('脚本已被更新，请重新打开后再保存，或使用另存为')
+    return true
+  }
+  return false
+}
+function requestSave(asNew = false) {
+  const tab = active.value
+  if (!tab || tab.kind !== 'sql' || !canScripts.value) return
+  const sql = monacoRef.value?.getCopilotSql() || tab.sql
+  if (!sql.trim()) {
+    notice('请先编写 SQL 再保存')
+    return
+  }
+  if (tab.scriptId && !asNew) {
+    void persistTab(tab.id, tab.title, false)
+    return
+  }
+  saveAsMode.value = asNew || Boolean(tab.scriptId)
+  saveName.value = tab.title
+  saveOpen.value = true
+}
+async function persistTab(tabId: string, name: string, asNew: boolean) {
+  const tab = editor.tabs.find((item) => item.id === tabId)
+  if (!tab || tab.kind !== 'sql') return
+  const statement = monacoRef.value?.getCopilotSql() || tab.sql
+  if (!statement.trim()) {
+    notice('请先编写 SQL 再保存')
+    return
+  }
+  saveBusy.value = true
+  try {
+    const detail =
+      tab.scriptId && !asNew
+        ? await updateScript(
+            tab.scriptId,
+            writeBody(
+              name,
+              statement,
+              tab.dataSourceId,
+              tab.database,
+              tab.savedVersion ?? undefined,
+            ),
+          )
+        : await createScript(writeBody(name, statement, tab.dataSourceId, tab.database))
+    editor.markSaved(tab.id, {
+      id: detail.id,
+      name: detail.name,
+      version: detail.version,
+      statement: detail.statement,
+      dataSourceId: detail.dataSourceId,
+      database: detail.database,
+    })
+    saveOpen.value = false
+    void scriptPanelRef.value?.reload()
+    notice('脚本已保存')
+  } catch (e) {
+    if (!handleSaveConflict(e)) notice(safeErrorMessage(e, '保存脚本失败'))
+  } finally {
+    saveBusy.value = false
+  }
+}
+async function confirmSave() {
+  const name = saveName.value.trim()
+  if (!name || !active.value) return
+  await persistTab(active.value.id, name, saveAsMode.value)
+}
+function startRenameFromList(item: ScriptSummary) {
+  renameTarget.value = {
+    scriptId: item.id,
+    name: item.name,
+    version: item.version,
+    statement: item.statementSummary,
+    dataSourceId: item.dataSourceId,
+    database: item.database,
+  }
+  renameValue.value = item.name
+  renameOpen.value = true
+}
+function startTitleEdit(tabId: string) {
+  const tab = editor.tabs.find((item) => item.id === tabId)
+  if (!tab || tab.kind !== 'sql') return
+  editingTitleId.value = tabId
+  titleDraft.value = tab.title
+}
+async function commitTitleEdit() {
+  const tabId = editingTitleId.value
+  editingTitleId.value = null
+  const tab = tabId ? editor.tabs.find((item) => item.id === tabId) : null
+  const name = titleDraft.value.trim()
+  if (!tab || tab.kind !== 'sql' || !name || name === tab.title) return
+  if (!tab.scriptId) {
+    editor.renameLocal(tab.id, name)
+    return
+  }
+  try {
+    const detail = await updateScript(
+      tab.scriptId,
+      writeBody(
+        name,
+        tab.savedSql || tab.sql,
+        tab.savedDataSourceId,
+        tab.savedDatabase,
+        tab.savedVersion ?? undefined,
+      ),
+    )
+    editor.applyRename(tab.scriptId, detail.name, detail.version)
+    void scriptPanelRef.value?.reload()
+  } catch (e) {
+    if (!handleSaveConflict(e)) notice(safeErrorMessage(e, '重命名失败'))
+  }
+}
+async function confirmRename() {
+  const target = renameTarget.value
+  const name = renameValue.value.trim()
+  if (!target || !name) return
+  try {
+    const current = await getScript(target.scriptId)
+    const detail = await updateScript(
+      target.scriptId,
+      writeBody(name, current.statement, current.dataSourceId, current.database, current.version),
+    )
+    editor.applyRename(target.scriptId, detail.name, detail.version)
+    renameOpen.value = false
+    renameTarget.value = null
+    void scriptPanelRef.value?.reload()
+  } catch (e) {
+    if (!handleSaveConflict(e)) notice(safeErrorMessage(e, '重命名失败'))
+  }
+}
+function onScriptDeleted(id: string) {
+  editor.unbindScript(id)
 }
 function notice(message: string) {
   notifications.push('info', message)
@@ -562,6 +769,17 @@ onBeforeUnmount(() => {
       >
         <History :size="18" />
       </button>
+      <button
+        v-if="canScripts"
+        class="activity-btn"
+        :class="{ 'activity-btn-active': side === 'scripts' && !sideCollapsed }"
+        title="脚本"
+        aria-label="脚本"
+        data-testid="scripts-rail"
+        @click="toggleSide('scripts')"
+      >
+        <Files :size="18" />
+      </button>
     </aside>
     <div ref="splitHost" class="min-w-0 flex-1">
       <Splitpanes
@@ -590,9 +808,17 @@ onBeforeUnmount(() => {
             @refresh="resourceNonce++"
           />
           <HistoryPanel
-            v-else
+            v-else-if="side === 'history'"
             :data-source-id="selectedSource"
             @open="openHistory"
+            @notice="notice"
+          />
+          <ScriptPanel
+            v-else
+            ref="scriptPanelRef"
+            @open="openScript"
+            @rename="startRenameFromList"
+            @deleted="onScriptDeleted"
             @notice="notice"
           />
         </Pane>
@@ -614,7 +840,23 @@ onBeforeUnmount(() => {
                   <Table2 v-if="tab.kind === 'table'" class="editor-tab-icon" :size="14" />
                   <FileCode v-else class="editor-tab-icon" :size="14" />
                   <span class="editor-tab-copy">
-                    <span class="editor-tab-title">{{ tab.title }}</span>
+                    <input
+                      v-if="editingTitleId === tab.id"
+                      v-model="titleDraft"
+                      class="editor-tab-title-input"
+                      aria-label="页签名称"
+                      @click.stop
+                      @keydown.enter.prevent="commitTitleEdit"
+                      @keydown.esc.prevent="editingTitleId = null"
+                      @blur="commitTitleEdit"
+                    />
+                    <span
+                      v-else
+                      class="editor-tab-title"
+                      :class="{ 'editor-tab-dirty': tab.kind === 'sql' && isDirtyTab(tab) }"
+                      @dblclick.stop="startTitleEdit(tab.id)"
+                      >{{ tab.title }}</span
+                    >
                     <span class="editor-tab-connection">{{ tabConnectionLabel(tab) }}</span>
                   </span>
                   <span v-if="tab.running" class="editor-tab-running" title="正在执行" />
@@ -647,6 +889,27 @@ onBeforeUnmount(() => {
                 </button>
                 <button v-else class="btn min-h-8 px-3 py-1 text-xs text-danger" @click="stop">
                   <Square :size="14" />停止
+                </button>
+                <button
+                  v-if="canScripts"
+                  class="btn min-h-8 px-2.5 py-1 text-xs"
+                  title="保存脚本"
+                  data-testid="save-script"
+                  :disabled="!active"
+                  @click="requestSave(false)"
+                >
+                  <Save :size="14" />保存
+                  <kbd class="shortcut">{{ saveShortcut }}</kbd>
+                </button>
+                <button
+                  v-if="canScripts"
+                  class="btn min-h-8 px-2.5 py-1 text-xs"
+                  title="另存为新脚本"
+                  data-testid="save-script-as"
+                  :disabled="!active"
+                  @click="requestSave(true)"
+                >
+                  另存为
                 </button>
                 <button
                   class="btn ml-auto min-h-8 px-2.5 py-1 text-xs"
@@ -696,6 +959,7 @@ onBeforeUnmount(() => {
                     @update:has-selection="hasSelection = $event"
                     @run="run"
                     @run-script="executeScriptText"
+                    @save="requestSave(false)"
                     @notice="notice"
                   />
                 </Pane>
@@ -775,7 +1039,36 @@ onBeforeUnmount(() => {
       @close="pendingCloseId = null"
       @confirm="pendingCloseId && closeTab(pendingCloseId)"
     >
-      关闭后将丢弃此页签中的 SQL，确定继续吗？
+      关闭后将丢弃未保存的修改，确定继续吗？
+    </ConfirmDialog>
+    <ConfirmDialog
+      :open="saveOpen"
+      title="保存脚本"
+      tone="primary"
+      confirm-label="保存"
+      :busy="saveBusy"
+      :confirm-disabled="!saveName.trim()"
+      @close="saveOpen = false"
+      @confirm="confirmSave"
+    >
+      <label class="block text-sm">
+        名称
+        <input v-model="saveName" class="field mt-1 w-full" data-testid="save-script-name" />
+      </label>
+    </ConfirmDialog>
+    <ConfirmDialog
+      :open="renameOpen"
+      title="重命名脚本"
+      tone="primary"
+      confirm-label="重命名"
+      :confirm-disabled="!renameValue.trim()"
+      @close="renameOpen = false"
+      @confirm="confirmRename"
+    >
+      <label class="block text-sm">
+        名称
+        <input v-model="renameValue" class="field mt-1 w-full" data-testid="rename-script-name" />
+      </label>
     </ConfirmDialog>
     <ConfirmDialog
       :open="exportOpen"

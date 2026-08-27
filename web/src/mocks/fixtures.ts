@@ -4,7 +4,7 @@ export const mockSession: Session = {
   user: { id: '1001', username: 'zhangsan', displayName: '张三' },
   product: { id: '12', name: '产品 A' },
   expiresAt: '2099-08-12T08:30:00Z',
-  capabilities: ['DATA_SOURCE_MANAGE', 'SQL_EXECUTE', 'SQL_EXPORT', 'HISTORY_READ'],
+  capabilities: ['DATA_SOURCE_MANAGE', 'SQL_EXECUTE', 'SQL_EXPORT', 'HISTORY_READ', 'SCRIPT_MANAGE'],
 }
 
 const now = '2026-08-12T06:00:00Z'

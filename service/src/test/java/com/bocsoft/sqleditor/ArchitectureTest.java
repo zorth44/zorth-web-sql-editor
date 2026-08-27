@@ -21,19 +21,19 @@ class ArchitectureTest {
 
     @ArchTest
     static final ArchRule orchestratorsDoNotDependOnMysqlEngine = noClasses()
-        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..auth..", "..common..")
+        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..script..", "..auth..", "..common..")
         .and().resideOutsideOfPackage("..engine.mysql..")
         .should().dependOnClassesThat().resideInAPackage("..engine.mysql..");
 
     @ArchTest
     static final ArchRule orchestratorsDoNotDependOnPostgresEngine = noClasses()
-        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..auth..", "..common..")
+        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..script..", "..auth..", "..common..")
         .and().resideOutsideOfPackage("..engine.postgres..")
         .should().dependOnClassesThat().resideInAPackage("..engine.postgres..");
 
     @ArchTest
     static final ArchRule orchestratorsDoNotDependOnGbase8aEngine = noClasses()
-        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..auth..", "..common..")
+        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..script..", "..auth..", "..common..")
         .and().resideOutsideOfPackage("..engine.gbase8a..")
         .should().dependOnClassesThat().resideInAPackage("..engine.gbase8a..");
 
@@ -46,5 +46,5 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule engineDoesNotDependOnExecutionOrHistory = noClasses()
         .that().resideInAPackage("..engine..")
-        .should().dependOnClassesThat().resideInAnyPackage("..execution..", "..history..");
+        .should().dependOnClassesThat().resideInAnyPackage("..execution..", "..history..", "..script..");
 }

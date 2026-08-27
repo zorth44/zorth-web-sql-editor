@@ -50,6 +50,7 @@ class BackendIntegrationTest {
     static final WireMockServer AUTH=new WireMockServer(0);
     static final String KEY=Base64.getEncoder().encodeToString(new byte[32]);
     @Autowired MockMvc mvc;@Autowired ObjectMapper json;@Autowired JdbcTemplate jdbc;@Autowired DynamicPoolManager pools;
+    @Autowired com.bocsoft.sqleditor.config.SqlEditorProperties editorProperties;
 
     static { AUTH.start(); }
     @BeforeAll static void auth(){configureFor("localhost",AUTH.port());stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/internal/api/v1/auth/context")).withHeader("Authorization",equalTo("Bearer token-a")).willReturn(okJson(context("user-a","product-a","产品 A"))));stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/internal/api/v1/auth/context")).withHeader("Authorization",equalTo("Bearer token-b")).willReturn(okJson(context("user-b","product-b","产品 B"))));stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/internal/api/v1/auth/context")).atPriority(10).willReturn(unauthorized().withHeader("Content-Type","application/json").withBody("{\"code\":\"UNAUTHENTICATED\"}")));}
@@ -58,7 +59,7 @@ class BackendIntegrationTest {
 
     @Test void fullProductScopedCrudAndConnectionContract()throws Exception{
         mvc.perform(get("/api/v1/session")).andExpect(status().isUnauthorized()).andExpect(header().exists("X-Request-Id")).andExpect(jsonPath("$.requestId").isNotEmpty()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
-        mvc.perform(get("/api/v1/session").header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.product.id").value("product-a")).andExpect(jsonPath("$.capabilities[0]").value("DATA_SOURCE_MANAGE"));
+        mvc.perform(get("/api/v1/session").header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.product.id").value("product-a")).andExpect(jsonPath("$.capabilities[0]").value("DATA_SOURCE_MANAGE")).andExpect(jsonPath("$.capabilities").value(org.hamcrest.Matchers.hasItem("SCRIPT_MANAGE")));
         JsonNode a=create("token-a","共享名称");JsonNode b=create("token-b","共享名称");String idA=a.path("id").asText();String idB=b.path("id").asText();assertThat(idA).isNotEqualTo(idB);assertThat(a.toString()).doesNotContain(MYSQL.getPassword()).doesNotContain("productId").doesNotContain("passwordCiphertext");
         assertThat(Instant.parse(a.path("createdAt").asText()).toString()).isNotBlank();assertThat(jdbc.queryForObject("select @@session.time_zone",String.class)).isEqualTo("+00:00");
         mvc.perform(get("/api/v1/data-sources").header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].id").value(idA));
@@ -201,6 +202,73 @@ class BackendIntegrationTest {
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.details.fieldErrors[0].field").value("agent"));
     }
 
+    @Test void currentUserSqlScriptsArePrivateSearchableAndRenamable()throws Exception{
+        JsonNode source=create("token-a","脚本数据源");
+        String sourceId=source.path("id").asText();
+        String database=MYSQL.getDatabaseName();
+        JsonNode created=json.readTree(mvc.perform(post("/api/v1/sql/scripts").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content(scriptPayload("月报",sourceId,database,"select 1 from orders")))
+            .andExpect(status().isCreated()).andExpect(header().string("Location",org.hamcrest.Matchers.startsWith("/api/v1/sql/scripts/")))
+            .andExpect(jsonPath("$.name").value("月报")).andExpect(jsonPath("$.statement").value("select 1 from orders"))
+            .andExpect(jsonPath("$.connectionAvailable").value(true)).andExpect(jsonPath("$.version").value(1)).andReturn()
+            .getResponse().getContentAsString());
+        String id=created.path("id").asText();
+        mvc.perform(get("/api/v1/sql/scripts").header("Authorization","Bearer token-b")).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(get("/api/v1/sql/scripts/"+id).header("Authorization","Bearer token-b")).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("SCRIPT_NOT_FOUND"));
+        mvc.perform(put("/api/v1/sql/scripts/"+id).header("Authorization","Bearer token-b").contentType(MediaType.APPLICATION_JSON)
+            .content(scriptPayload("偷改",sourceId,database,"select 2"))).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/v1/sql/scripts/"+id+"?version=1").header("Authorization","Bearer token-b")).andExpect(status().isNotFound());
+
+        mvc.perform(post("/api/v1/sql/scripts").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"空\",\"statement\":\"   \"}")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        int originalBytes=editorProperties.getExecution().getMaxStatementBytes();
+        editorProperties.getExecution().setMaxStatementBytes(8);
+        try{
+            mvc.perform(post("/api/v1/sql/scripts").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"过大\",\"statement\":\"select 12\"}")).andExpect(status().isPayloadTooLarge()).andExpect(jsonPath("$.code").value("STATEMENT_TOO_LARGE"));
+        }finally{editorProperties.getExecution().setMaxStatementBytes(originalBytes);}
+        mvc.perform(post("/api/v1/sql/scripts").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content(scriptPayload("幽灵",java.util.UUID.randomUUID().toString(),database,"select 1")))
+            .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("DATA_SOURCE_NOT_FOUND"));
+
+        mvc.perform(put("/api/v1/sql/scripts/"+id).header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content(scriptUpdate("月报对账",sourceId,database,"select 1 from orders",1)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("月报对账")).andExpect(jsonPath("$.version").value(2))
+            .andExpect(jsonPath("$.statement").value("select 1 from orders"));
+        mvc.perform(put("/api/v1/sql/scripts/"+id).header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content(scriptUpdate("冲突",sourceId,database,"select 1 from orders",1)))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("VERSION_CONFLICT")).andExpect(jsonPath("$.details.currentVersion").value(2));
+
+        json.readTree(mvc.perform(post("/api/v1/sql/scripts").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content(scriptPayload("月报对账",sourceId,database,"select count(*) from orders")))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        mvc.perform(get("/api/v1/sql/scripts").param("keyword","月报对账").header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(2));
+        mvc.perform(get("/api/v1/sql/scripts").param("keyword","count(*)").header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
+        MvcResult page=mvc.perform(get("/api/v1/sql/scripts?pageSize=1").header("Authorization","Bearer token-a")).andExpect(status().isOk()).andReturn();
+        String cursor=json.readTree(page.getResponse().getContentAsString()).path("nextPageToken").asText();
+        assertThat(cursor).isNotBlank();
+        mvc.perform(get("/api/v1/sql/scripts?pageSize=1&pageToken="+cursor).header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
+
+        mvc.perform(delete("/api/v1/data-sources/"+sourceId+"?version="+source.path("version").asLong()).header("Authorization","Bearer token-a"))
+            .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/sql/scripts/"+id).header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.statement").value("select 1 from orders"))
+            .andExpect(jsonPath("$.connectionAvailable").value(false));
+
+        int originalQuota=editorProperties.getScripts().getMaxPerUser();
+        editorProperties.getScripts().setMaxPerUser(2);
+        try{
+            mvc.perform(post("/api/v1/sql/scripts").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"第三\",\"statement\":\"select 3\"}")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SCRIPT_QUOTA_EXCEEDED"));
+        }finally{editorProperties.getScripts().setMaxPerUser(originalQuota);}
+
+        mvc.perform(delete("/api/v1/sql/scripts/"+id+"?version=2").header("Authorization","Bearer token-a")).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/sql/scripts/"+id).header("Authorization","Bearer token-a")).andExpect(status().isNotFound());
+    }
+
     private JsonNode create(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payload(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andExpect(header().string("Location",org.hamcrest.Matchers.startsWith("/api/v1/data-sources/"))).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private JsonNode createWithoutDefaultDatabase(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payloadWithoutDefaultDatabase(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private static String payload(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
@@ -210,5 +278,7 @@ class BackendIntegrationTest {
     private static String connectionPayloadDatabase(String password,String database){return connectionPayload(password).replace("\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\"","\"defaultDatabase\":\""+database+"\"");}
     private static String connectionPayloadPort(String password,int port){return connectionPayload(password).replace("\"port\":"+MYSQL.getMappedPort(3306),"\"port\":"+port);}
     private static String payloadWithUnknown(String name){String base=payload(name,MYSQL.getPassword());return base.substring(0,base.length()-1)+",\"productId\":\"attacker\"}";}
+    private static String scriptPayload(String name,String dataSourceId,String database,String statement){return "{\"name\":\""+name+"\",\"dataSourceId\":\""+dataSourceId+"\",\"database\":\""+database+"\",\"statement\":\""+statement+"\"}";}
+    private static String scriptUpdate(String name,String dataSourceId,String database,String statement,long version){return scriptPayload(name,dataSourceId,database,statement).replace("}"," ,\"version\":"+version+"}");}
     private static String context(String user,String product,String productName){return "{\"userId\":\""+user+"\",\"username\":\""+user+"\",\"displayName\":\""+user+"\",\"product\":{\"id\":\""+product+"\",\"name\":\""+productName+"\"},\"tokenExpiresAt\":\"2099-01-01T00:00:00Z\",\"legacy\":{\"pwd\":\"discard\"}}";}
 }

@@ -10,6 +10,14 @@ const assistant: CopilotMessage = {
   content: '可以用：\n```sql\nSELECT 1;\n```',
 }
 
+const listed = {
+  id: 'c-1',
+  title: '列出订单',
+  updatedAt: '2026-08-26T08:00:00Z',
+  datasourceId: 'ds-orders-a',
+  database: 'orders',
+}
+
 function render(
   extra: Record<string, unknown> = {},
   messages: CopilotMessage[] = [],
@@ -131,70 +139,75 @@ describe('copilot panel', () => {
     wrapper.unmount()
   })
 
-  it('explains an empty history list in the empty panel', () => {
+  it('hides history on an empty chat until the list is opened', async () => {
+    const wrapper = render({ conversations: [listed] })
+    const toggle = wrapper.get('[data-testid="copilot-history-toggle"]')
+    expect(wrapper.find('[data-testid="copilot-history"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="copilot-input"]').exists()).toBe(true)
+    expect(toggle.attributes('aria-pressed')).toBe('false')
+    await toggle.trigger('click')
+    expect(wrapper.get('[data-testid="copilot-history"]').text()).toContain('列出订单')
+    expect(wrapper.find('[data-testid="copilot-input"]').exists()).toBe(false)
+    expect(toggle.classes()).toContain('activity-btn-active')
+    expect(toggle.attributes('aria-pressed')).toBe('true')
+    await toggle.trigger('click')
+    expect(wrapper.find('[data-testid="copilot-history"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="copilot-input"]').exists()).toBe(true)
+    expect(toggle.attributes('aria-pressed')).toBe('false')
+    wrapper.unmount()
+  })
+
+  it('explains an empty history list after opening history', async () => {
     const wrapper = render()
+    await wrapper.get('[data-testid="copilot-history-toggle"]').trigger('click')
     expect(wrapper.get('[data-testid="copilot-history-empty"]').text()).toContain('还没有历史对话')
     wrapper.unmount()
   })
 
-  it('shows recent conversations in the empty state and opens one', async () => {
+  it('opens a conversation from the history view and returns to chat', async () => {
     const wrapper = render({
       sources: [{ id: 'ds-orders-a', name: '订单测试库' }],
-      conversations: [
-        {
-          id: 'c-1',
-          title: '列出订单',
-          updatedAt: '2026-08-26T08:00:00Z',
-          datasourceId: 'ds-orders-a',
-          database: 'orders',
-        },
-      ],
+      conversations: [listed],
     })
+    await wrapper.get('[data-testid="copilot-history-toggle"]').trigger('click')
     expect(wrapper.get('[data-testid="copilot-history"]').text()).toContain('列出订单')
     expect(wrapper.get('[data-testid="copilot-history"]').text()).toContain('订单测试库 / orders')
     expect(wrapper.get('[data-testid="copilot-history"]').text()).toContain('ds-orders-a')
     await wrapper.get('[data-testid="copilot-history-item-c-1"]').trigger('click')
     expect(wrapper.emitted('open-conversation')?.at(-1)).toEqual(['c-1'])
+    expect(wrapper.find('[data-testid="copilot-history"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="copilot-input"]').exists()).toBe(true)
     wrapper.unmount()
   })
 
-  it('hides the list while chatting until history is opened', async () => {
-    const wrapper = render(
-      {
-        conversations: [
-          {
-            id: 'c-1',
-            title: '列出订单',
-            updatedAt: '2026-08-26T08:00:00Z',
-            datasourceId: 'ds-orders-a',
-            database: 'orders',
-          },
-        ],
-      },
-      [assistant],
-    )
+  it('replaces the chat with the history view while chatting', async () => {
+    const wrapper = render({ conversations: [listed] }, [assistant])
     expect(wrapper.find('[data-testid="copilot-history"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="copilot-messages"]').text()).toContain('SELECT 1;')
     await wrapper.get('[data-testid="copilot-history-toggle"]').trigger('click')
     expect(wrapper.get('[data-testid="copilot-history"]').text()).toContain('列出订单')
+    expect(wrapper.find('[data-testid="copilot-messages"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="copilot-input"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="copilot-history-toggle"]').attributes('aria-pressed')).toBe(
+      'true',
+    )
     wrapper.unmount()
   })
 
-  it('confirms deleting a conversation', async () => {
-    const wrapper = render(
-      {
-        conversations: [
-          {
-            id: 'c-1',
-            title: '列出订单',
-            updatedAt: '2026-08-26T08:00:00Z',
-            datasourceId: 'ds-orders-a',
-            database: 'orders',
-          },
-        ],
-      },
-      [],
-      { attachTo: document.body },
-    )
+  it('returns to chat when starting a new conversation from history', async () => {
+    const wrapper = render({ conversations: [listed] })
+    await wrapper.get('[data-testid="copilot-history-toggle"]').trigger('click')
+    expect(wrapper.find('[data-testid="copilot-history"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="copilot-new"]').trigger('click')
+    expect(wrapper.emitted('new-conversation')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="copilot-history"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="copilot-input"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('confirms deleting a conversation and stays on history', async () => {
+    const wrapper = render({ conversations: [listed] }, [], { attachTo: document.body })
+    await wrapper.get('[data-testid="copilot-history-toggle"]').trigger('click')
     await wrapper.get('[data-testid="copilot-history-delete-c-1"]').trigger('click')
     await nextTick()
     const confirm = document.body.querySelector('button.btn-danger') as HTMLButtonElement
@@ -202,6 +215,7 @@ describe('copilot panel', () => {
     confirm.click()
     await nextTick()
     expect(wrapper.emitted('delete-conversation')?.at(-1)).toEqual(['c-1'])
+    expect(wrapper.find('[data-testid="copilot-history"]').exists()).toBe(true)
     wrapper.unmount()
   })
 })

@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)
-@MapperScan({"com.bocsoft.sqleditor.datasource.persistence", "com.bocsoft.sqleditor.history.persistence"})
+@MapperScan({"com.bocsoft.sqleditor.datasource.persistence", "com.bocsoft.sqleditor.history.persistence", "com.bocsoft.sqleditor.script.persistence"})
 @EnableConfigurationProperties(SqlEditorProperties.class)
 @EnableScheduling
 public class SqlEditorApplication {

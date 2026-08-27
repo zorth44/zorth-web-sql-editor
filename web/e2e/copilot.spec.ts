@@ -31,7 +31,9 @@ test.describe('sql editor copilot', () => {
     await panel.getByTestId('copilot-input').fill('列出订单')
     await panel.getByTestId('copilot-send').click()
     await expect(panel.getByTestId('copilot-tools')).toContainText('列出数据表')
-    await expect(panel.getByTestId('copilot-sql')).toContainText('SELECT id, amount FROM order_item')
+    await expect(panel.getByTestId('copilot-sql')).toContainText(
+      'SELECT id, amount FROM order_item',
+    )
     await panel.getByTestId('copilot-insert').click()
     await expect(page.getByTestId('result-pane')).toContainText('运行当前语句后在这里查看结果')
     await page.getByTestId('run-button').click()
@@ -70,7 +72,9 @@ test.describe('sql editor copilot', () => {
     const panel = page.getByTestId('copilot-panel')
     await panel.getByTestId('copilot-input').fill('列出订单')
     await panel.getByTestId('copilot-send').click()
-    await expect(panel.getByTestId('copilot-sql')).toContainText('SELECT id, amount FROM order_item')
+    await expect(panel.getByTestId('copilot-sql')).toContainText(
+      'SELECT id, amount FROM order_item',
+    )
 
     await panel.getByTestId('copilot-input').fill('加上时间过滤')
     await panel.getByTestId('copilot-send').click()
@@ -78,10 +82,14 @@ test.describe('sql editor copilot', () => {
     await expect(panel.getByTestId('copilot-sql').last()).toContainText('created_at')
 
     await page.getByLabel('新建页签').click()
-    await page.getByRole('tab', { name: /Query 1/ }).locator('.tab-close').click()
+    await page
+      .getByRole('tab', { name: /Query 1/ })
+      .locator('.tab-close')
+      .click()
     await expect(panel.getByTestId('copilot-messages')).toContainText('列出订单')
 
     await panel.getByTestId('copilot-new').click()
+    await panel.getByTestId('copilot-history-toggle').click()
     await expect(panel.getByTestId('copilot-history')).toContainText('列出订单')
     await expect(panel.getByTestId('copilot-history')).toContainText('ds-orders-a')
     await panel.locator('[data-testid^="copilot-history-item-"]').click()
@@ -90,6 +98,7 @@ test.describe('sql editor copilot', () => {
     await expect(page.getByRole('tab', { selected: true })).toContainText('orders')
 
     await panel.getByTestId('copilot-new').click()
+    await panel.getByTestId('copilot-history-toggle').click()
     await page.getByLabel('删除 列出订单').click()
     await page.getByRole('button', { name: '删除', exact: true }).click()
     await expect(panel.getByTestId('copilot-history-empty')).toBeVisible()

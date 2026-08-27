@@ -36,6 +36,7 @@
 | `SQL_EDITOR_CSV_FORMULA_PROTECTION` | 否 | CSV 公式前缀保护，默认 true。 |
 | `SQL_EDITOR_CSV_NULL_LITERAL` | 否 | CSV 是否将 NULL 输出为字面量，默认 false（空字段）。 |
 | `SQL_EDITOR_HISTORY_RETENTION_DAYS` | 否 | 历史保留天数，默认 90；0 关闭清理。 |
+| `SQL_EDITOR_SCRIPTS_MAX_PER_USER` | 否 | 当前用户可保存的 SQL 脚本上限，默认 200。 |
 | `SQL_EDITOR_STALE_RUNNING_MINUTES` | 否 | 启动时修正陈旧 RUNNING 的阈值，默认 5 分钟。 |
 | `SQL_EDITOR_MANAGEMENT_PORT` | 否 | 独立管理端口，默认 9081；仅绑定监控网络。 |
 

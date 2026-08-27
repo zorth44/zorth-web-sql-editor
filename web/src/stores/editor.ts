@@ -34,6 +34,12 @@ export interface EditorTab {
   statements: StatementRun[]
   resultIndex: number
   runningIndex: number | null
+  scriptId: string | null
+  savedVersion: number | null
+  savedName: string | null
+  savedSql: string | null
+  savedDataSourceId: string | null
+  savedDatabase: string | null
 }
 interface Draft {
   id: string
@@ -46,6 +52,12 @@ interface Draft {
   tableType?: DatabaseObjectType | null
   tableComment?: string | null
   viewerPane?: TableViewerPane
+  scriptId?: string | null
+  savedVersion?: number | null
+  savedName?: string | null
+  savedSql?: string | null
+  savedDataSourceId?: string | null
+  savedDatabase?: string | null
 }
 interface DraftBundle {
   activeId: string
@@ -53,9 +65,27 @@ interface DraftBundle {
 }
 
 export function isIdleTab(
-  tab: Pick<EditorTab, 'kind' | 'sql' | 'result' | 'error' | 'running'>,
+  tab: Pick<EditorTab, 'kind' | 'sql' | 'result' | 'error' | 'running' | 'scriptId'>,
 ): boolean {
-  return tab.kind === 'sql' && !tab.sql.trim() && !tab.result && !tab.error && !tab.running
+  return (
+    tab.kind === 'sql' &&
+    !tab.scriptId &&
+    !tab.sql.trim() &&
+    !tab.result &&
+    !tab.error &&
+    !tab.running
+  )
+}
+
+export function isDirtyTab(tab: EditorTab): boolean {
+  if (tab.kind !== 'sql') return false
+  if (!tab.scriptId) return Boolean(tab.sql.trim())
+  return (
+    tab.sql !== tab.savedSql ||
+    tab.title !== tab.savedName ||
+    tab.dataSourceId !== tab.savedDataSourceId ||
+    tab.database !== tab.savedDatabase
+  )
 }
 
 function isDraft(item: unknown): item is Draft {
@@ -93,6 +123,12 @@ function toTab(item: Draft): EditorTab {
     statements: [],
     resultIndex: 0,
     runningIndex: null,
+    scriptId: tableTab ? null : item.scriptId || null,
+    savedVersion: tableTab ? null : item.savedVersion || null,
+    savedName: tableTab ? null : item.savedName || null,
+    savedSql: tableTab ? null : (item.savedSql ?? item.sql),
+    savedDataSourceId: tableTab ? null : (item.savedDataSourceId ?? item.dataSourceId),
+    savedDatabase: tableTab ? null : (item.savedDatabase ?? item.database),
   }
 }
 
@@ -162,6 +198,12 @@ export const useEditorStore = defineStore('editor', () => {
           tableType,
           tableComment,
           viewerPane,
+          scriptId,
+          savedVersion,
+          savedName,
+          savedSql,
+          savedDataSourceId,
+          savedDatabase,
         }) => ({
           id,
           kind,
@@ -173,6 +215,12 @@ export const useEditorStore = defineStore('editor', () => {
           tableType,
           tableComment,
           viewerPane,
+          scriptId: kind === 'table' ? null : scriptId,
+          savedVersion: kind === 'table' ? null : savedVersion,
+          savedName: kind === 'table' ? null : savedName,
+          savedSql: kind === 'table' ? null : savedSql,
+          savedDataSourceId: kind === 'table' ? null : savedDataSourceId,
+          savedDatabase: kind === 'table' ? null : savedDatabase,
         }),
       ),
     }
@@ -203,6 +251,12 @@ export const useEditorStore = defineStore('editor', () => {
       statements: [],
       resultIndex: 0,
       runningIndex: null,
+      scriptId: null,
+      savedVersion: null,
+      savedName: null,
+      savedSql: null,
+      savedDataSourceId: null,
+      savedDatabase: null,
     }
     tabs.value.push(tab)
     activeId.value = tab.id
@@ -242,6 +296,12 @@ export const useEditorStore = defineStore('editor', () => {
       statements: [],
       resultIndex: 0,
       runningIndex: null,
+      scriptId: null,
+      savedVersion: null,
+      savedName: null,
+      savedSql: null,
+      savedDataSourceId: null,
+      savedDatabase: null,
     }
     tabs.value.push(tab)
     activeId.value = tab.id
@@ -399,6 +459,61 @@ export const useEditorStore = defineStore('editor', () => {
   function isCancelled(id: string): boolean {
     return cancelled.has(id)
   }
+  function markSaved(
+    id: string,
+    script: {
+      id: string
+      name: string
+      version: number
+      statement: string
+      dataSourceId: string | null
+      database: string | null
+    },
+  ): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab || tab.kind !== 'sql') return
+    tab.scriptId = script.id
+    tab.title = script.name
+    tab.sql = script.statement
+    tab.dataSourceId = script.dataSourceId
+    tab.database = script.database
+    tab.savedVersion = script.version
+    tab.savedName = script.name
+    tab.savedSql = script.statement
+    tab.savedDataSourceId = script.dataSourceId
+    tab.savedDatabase = script.database
+    persist()
+  }
+  function applyRename(scriptId: string, name: string, version: number): void {
+    for (const tab of tabs.value) {
+      if (tab.kind !== 'sql' || tab.scriptId !== scriptId) continue
+      tab.title = name
+      tab.savedName = name
+      tab.savedVersion = version
+    }
+    persist()
+  }
+  function renameLocal(id: string, name: string): void {
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab || tab.kind !== 'sql') return
+    tab.title = name
+    persist()
+  }
+  function unbindScript(scriptId: string): void {
+    for (const tab of tabs.value) {
+      if (tab.scriptId !== scriptId) continue
+      tab.scriptId = null
+      tab.savedVersion = null
+      tab.savedName = null
+      tab.savedSql = null
+      tab.savedDataSourceId = null
+      tab.savedDatabase = null
+    }
+    persist()
+  }
+  function findByScriptId(scriptId: string): EditorTab | undefined {
+    return tabs.value.find((tab) => tab.kind === 'sql' && tab.scriptId === scriptId)
+  }
   function clearAll(): void {
     for (const controller of aborters.values()) controller.abort()
     aborters.clear()
@@ -430,6 +545,12 @@ export const useEditorStore = defineStore('editor', () => {
     viewResult,
     abort,
     isCancelled,
+    markSaved,
+    applyRename,
+    renameLocal,
+    unbindScript,
+    findByScriptId,
+    isDirtyTab,
     clearAll,
   }
 })

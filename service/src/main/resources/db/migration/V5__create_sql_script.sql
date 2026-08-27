@@ -1,0 +1,20 @@
+CREATE TABLE sql_script (
+  id varchar(36) NOT NULL,
+  user_id varchar(64) NOT NULL,
+  username varchar(100) NOT NULL,
+  product_id varchar(64) NOT NULL,
+  name varchar(100) NOT NULL,
+  data_source_id varchar(36) NULL,
+  data_source_name varchar(100) NULL,
+  database_name varchar(64) NULL,
+  statement_text mediumtext NOT NULL,
+  version bigint NOT NULL,
+  created_by varchar(64) NOT NULL,
+  created_by_name varchar(100) NOT NULL,
+  created_at datetime(3) NOT NULL,
+  updated_by varchar(64) NOT NULL,
+  updated_by_name varchar(100) NOT NULL,
+  updated_at datetime(3) NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_sql_script_user_updated (user_id, updated_at DESC, id DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

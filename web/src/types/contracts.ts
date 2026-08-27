@@ -1,4 +1,9 @@
-export type Capability = 'DATA_SOURCE_MANAGE' | 'SQL_EXECUTE' | 'SQL_EXPORT' | 'HISTORY_READ'
+export type Capability =
+  | 'DATA_SOURCE_MANAGE'
+  | 'SQL_EXECUTE'
+  | 'SQL_EXPORT'
+  | 'HISTORY_READ'
+  | 'SCRIPT_MANAGE'
 
 export interface Session {
   user: { id: string; username: string; displayName: string }
@@ -247,6 +252,36 @@ export interface HistoryListParams {
   database?: string
   status?: ExecutionStatus | ''
   statementType?: StatementType | ''
+  pageSize?: number
+  pageToken?: string
+}
+
+export interface ScriptSummary {
+  id: string
+  name: string
+  dataSourceId: string | null
+  dataSourceName: string | null
+  database: string | null
+  statementSummary: string
+  version: number
+  createdAt: string
+  updatedAt: string
+}
+export interface ScriptDetail extends ScriptSummary {
+  statement: string
+  connectionAvailable: boolean
+}
+export interface ScriptWriteRequest {
+  name: string
+  statement: string
+  dataSourceId?: string | null
+  database?: string | null
+  version?: number
+}
+export interface ScriptListParams {
+  keyword?: string
+  dataSourceId?: string
+  database?: string
   pageSize?: number
   pageToken?: string
 }

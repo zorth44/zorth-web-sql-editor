@@ -51,7 +51,7 @@ const emit = defineEmits<{
 const draft = ref('')
 const composer = ref<HTMLTextAreaElement | null>(null)
 const scroller = ref<HTMLElement | null>(null)
-const historyOpen = ref(false)
+const view = ref<'chat' | 'history'>('chat')
 const pendingDeleteId = ref<string | null>(null)
 
 const contextLabel = computed(() => {
@@ -71,8 +71,6 @@ const connectionHint = computed(() => {
   }
   return '当前页签连接已切换，下一条会按新连接提问'
 })
-
-const showHistory = computed(() => historyOpen.value || !props.messages.length)
 
 function formatTime(value: string): string {
   const date = new Date(value)
@@ -140,8 +138,21 @@ function requestDelete(id: string): void {
   pendingDeleteId.value = id
 }
 
+function showChat(): void {
+  view.value = 'chat'
+}
+
+function toggleHistory(): void {
+  view.value = view.value === 'history' ? 'chat' : 'history'
+}
+
+function startNew(): void {
+  showChat()
+  emit('new-conversation')
+}
+
 function openItem(id: string): void {
-  historyOpen.value = false
+  showChat()
   emit('open-conversation', id)
 }
 
@@ -160,7 +171,10 @@ function connectionLabel(item: AgentConversationSummary): string {
 }
 
 watch(
-  () => props.messages.map((message) => `${message.content}:${message.tools?.length}:${message.streaming}`),
+  () =>
+    props.messages.map(
+      (message) => `${message.content}:${message.tools?.length}:${message.streaming}`,
+    ),
   async () => {
     await nextTick()
     scrollMessages()
@@ -178,7 +192,7 @@ watch(
         title="新对话"
         data-testid="copilot-new"
         :disabled="inflight"
-        @click="emit('new-conversation')"
+        @click="startNew()"
       >
         <Plus :size="12" />新对话
       </button>
@@ -187,8 +201,9 @@ watch(
         type="button"
         title="历史对话"
         data-testid="copilot-history-toggle"
-        :class="{ 'activity-btn-active': historyOpen }"
-        @click="historyOpen = !historyOpen"
+        :class="{ 'activity-btn-active': view === 'history' }"
+        :aria-pressed="view === 'history'"
+        @click="toggleHistory()"
       >
         <History :size="12" />历史
       </button>
@@ -215,7 +230,7 @@ watch(
     <p v-if="connectionHint" class="copilot-hint-bar" data-testid="copilot-connection-hint">
       {{ connectionHint }}
     </p>
-    <div v-if="showHistory" class="copilot-history" data-testid="copilot-history">
+    <div v-if="view === 'history'" class="copilot-history" data-testid="copilot-history">
       <ul v-if="conversations.length" class="copilot-history-list">
         <li v-for="item in conversations" :key="item.id" class="copilot-history-item">
           <button
@@ -251,7 +266,12 @@ watch(
         还没有历史对话。发送成功后会出现在这里。
       </p>
     </div>
-    <div ref="scroller" class="copilot-messages" data-testid="copilot-messages">
+    <div
+      v-if="view === 'chat'"
+      ref="scroller"
+      class="copilot-messages"
+      data-testid="copilot-messages"
+    >
       <p v-if="!messages.length && !inflight" class="copilot-empty">
         用自然语言描述你想写的 SQL。回复里的代码块可以插入当前页签。
       </p>
@@ -280,7 +300,8 @@ watch(
               class="copilot-md"
               data-testid="copilot-md"
               v-html="renderAssistantMarkdown(segment.text)"
-            /><!-- eslint-disable-line vue/no-v-html -- sanitized by renderAssistantMarkdown -->
+            />
+            <!-- eslint-disable-line vue/no-v-html -- sanitized by renderAssistantMarkdown -->
             <div v-else class="copilot-sql" data-testid="copilot-sql">
               <pre>{{ segment.sql }}</pre>
               <div v-if="!message.streaming" class="copilot-sql-actions">
@@ -321,7 +342,7 @@ watch(
         正在生成 SQL…
       </p>
     </div>
-    <form class="copilot-composer" @submit.prevent="submit">
+    <form v-if="view === 'chat'" class="copilot-composer" @submit.prevent="submit">
       <textarea
         ref="composer"
         v-model="draft"

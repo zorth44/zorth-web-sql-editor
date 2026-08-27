@@ -62,6 +62,8 @@ sql-editor:
   history:
     retention-days: ${SQL_EDITOR_HISTORY_RETENTION_DAYS:90}
     stale-running-minutes: ${SQL_EDITOR_STALE_RUNNING_MINUTES:5}
+  scripts:
+    max-per-user: ${SQL_EDITOR_SCRIPTS_MAX_PER_USER:200}
   http:
     trusted-proxy-cidrs: []
 

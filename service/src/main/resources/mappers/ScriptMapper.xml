@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bocsoft.sqleditor.script.persistence.ScriptMapper">
+  <resultMap id="script" type="com.bocsoft.sqleditor.script.persistence.ScriptRecord">
+    <id property="id" column="id"/>
+    <result property="userId" column="user_id"/>
+    <result property="username" column="username"/>
+    <result property="productId" column="product_id"/>
+    <result property="name" column="name"/>
+    <result property="dataSourceId" column="data_source_id"/>
+    <result property="dataSourceName" column="data_source_name"/>
+    <result property="databaseName" column="database_name"/>
+    <result property="statementText" column="statement_text"/>
+    <result property="version" column="version"/>
+    <result property="createdBy" column="created_by"/>
+    <result property="createdByName" column="created_by_name"/>
+    <result property="createdAt" column="created_at"/>
+    <result property="updatedBy" column="updated_by"/>
+    <result property="updatedByName" column="updated_by_name"/>
+    <result property="updatedAt" column="updated_at"/>
+  </resultMap>
+  <sql id="columns">id,user_id,username,product_id,name,data_source_id,data_source_name,database_name,statement_text,version,created_by,created_by_name,created_at,updated_by,updated_by_name,updated_at</sql>
+  <insert id="insert">INSERT INTO sql_script (<include refid="columns"/>) VALUES
+    (#{id},#{userId},#{username},#{productId},#{name},#{dataSourceId},#{dataSourceName},#{databaseName},#{statementText},#{version},#{createdBy},#{createdByName},#{createdAt},#{updatedBy},#{updatedByName},#{updatedAt})
+  </insert>
+  <select id="findOwned" resultMap="script">SELECT <include refid="columns"/> FROM sql_script WHERE id=#{id} AND user_id=#{userId}</select>
+  <select id="countOwned" resultType="int">SELECT COUNT(*) FROM sql_script WHERE user_id=#{userId}</select>
+  <select id="listOwned" resultMap="script">SELECT <include refid="columns"/> FROM sql_script WHERE user_id=#{userId}
+    <if test="keyword != null">AND (name LIKE #{keyword} ESCAPE '\\' OR statement_text LIKE #{keyword} ESCAPE '\\')</if>
+    <if test="dataSourceId != null and dataSourceId != ''">AND data_source_id=#{dataSourceId}</if>
+    <if test="database != null and database != ''">AND database_name=#{database}</if>
+    <if test="cursorUpdatedAt != null">AND (updated_at &lt; #{cursorUpdatedAt} OR (updated_at=#{cursorUpdatedAt} AND id &lt; #{cursorId}))</if>
+    ORDER BY updated_at DESC,id DESC LIMIT #{limit}
+  </select>
+  <update id="updateCurrent">UPDATE sql_script SET name=#{name},data_source_id=#{dataSourceId},data_source_name=#{dataSourceName},database_name=#{databaseName},statement_text=#{statementText},version=version+1,updated_by=#{updatedBy},updated_by_name=#{updatedByName},updated_at=#{updatedAt}
+    WHERE id=#{id} AND user_id=#{userId} AND version=#{version}</update>
+  <delete id="deleteCurrent">DELETE FROM sql_script WHERE id=#{id} AND user_id=#{userId} AND version=#{version}</delete>
+</mapper>

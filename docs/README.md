@@ -52,7 +52,7 @@ Vue 3 + TypeScript + Monaco
             ▼
 独立 Spring Boot SQL Service
   ├─ 调授权服务取得当前用户 + 唯一产品
-  ├─ 元数据库保存带所属产品的数据源和执行历史
+  ├─ 元数据库保存带所属产品的数据源、执行历史和用户 SQL 脚本
   ├─ AES-GCM 加密保存目标数据库密码
   ├─ Hikari 动态连接池连接目标 MySQL
   └─ JDBC 执行 SQL / 流式 CSV 导出（第二阶段）

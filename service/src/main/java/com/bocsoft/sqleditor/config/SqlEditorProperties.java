@@ -23,6 +23,7 @@ public class SqlEditorProperties {
     @Valid private final Execution execution = new Execution();
     @Valid private final Export export = new Export();
     @Valid private final History history = new History();
+    @Valid private final Scripts scripts = new Scripts();
     @Valid private final Http http = new Http();
 
     public Auth getAuth() { return auth; }
@@ -33,6 +34,7 @@ public class SqlEditorProperties {
     public Execution getExecution() { return execution; }
     public Export getExport() { return export; }
     public History getHistory() { return history; }
+    public Scripts getScripts() { return scripts; }
     public Http getHttp() { return http; }
 
     @PostConstruct
@@ -171,6 +173,10 @@ public class SqlEditorProperties {
         @Min(0) private int retentionDays=90; @Min(1) private int staleRunningMinutes=5;
         public int getRetentionDays(){return retentionDays;} public void setRetentionDays(int v){retentionDays=v;}
         public int getStaleRunningMinutes(){return staleRunningMinutes;} public void setStaleRunningMinutes(int v){staleRunningMinutes=v;}
+    }
+    public static class Scripts {
+        @Min(1) @Max(1000) private int maxPerUser=200;
+        public int getMaxPerUser(){return maxPerUser;} public void setMaxPerUser(int v){maxPerUser=v;}
     }
 
     public static class Http {

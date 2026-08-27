@@ -12,6 +12,9 @@ import type {
   DataSourceListItem,
   UpdateDataSourceRequest,
   HistorySummary,
+  ScriptDetail,
+  ScriptSummary,
+  ScriptWriteRequest,
   SqlExecutionRequest,
 } from '@/types/contracts'
 
@@ -25,6 +28,7 @@ function rpcId(request: Request, suffix: ':test' | ':cancel'): string {
   return decodeURIComponent(name.endsWith(suffix) ? name.slice(0, -suffix.length) : name)
 }
 const mockHistory: HistorySummary[] = []
+const mockScripts: ScriptDetail[] = loadMockScripts()
 const cancelledExecutions = new Set<string>()
 
 interface MockAgentMessage {
@@ -51,6 +55,15 @@ export function resetAgentConversations(): void {
   agentConversations = []
 }
 
+export function resetMockScripts(): void {
+  mockScripts.splice(0, mockScripts.length)
+  try {
+    sessionStorage.removeItem('zorth.mock.sql-scripts')
+  } catch {
+    /* ignore */
+  }
+}
+
 const error = (status: number, code: string, message: string, details?: ApiErrorBody['details']) =>
   HttpResponse.json<ApiErrorBody>(
     { requestId: crypto.randomUUID(), code, message, ...(details ? { details } : {}) },
@@ -72,6 +85,28 @@ function mockUserId(request: Request): string {
 function clipTitle(text: string): string {
   const trimmed = text.trim()
   return trimmed.length <= 80 ? trimmed : `${trimmed.slice(0, 80)}…`
+}
+
+function summarySql(text: string): string {
+  const compact = text.replace(/\s+/g, ' ').trim()
+  return compact.length <= 240 ? compact : `${compact.slice(0, 240)}…`
+}
+
+function loadMockScripts(): ScriptDetail[] {
+  try {
+    const raw = sessionStorage.getItem('zorth.mock.sql-scripts')
+    return raw ? (JSON.parse(raw) as ScriptDetail[]) : []
+  } catch {
+    return []
+  }
+}
+
+function persistMockScripts(): void {
+  try {
+    sessionStorage.setItem('zorth.mock.sql-scripts', JSON.stringify(mockScripts))
+  } catch {
+    /* ignore quota in tests */
+  }
 }
 
 function visibleUserText(body: AgentRequest): string {
@@ -183,7 +218,9 @@ function resolveAgent(request: Request, body: AgentRequest) {
   return reply
 }
 
-function isHttpResponse(value: { content: string; conversationId: string } | Response): value is Response {
+function isHttpResponse(
+  value: { content: string; conversationId: string } | Response,
+): value is Response {
   return value instanceof Response
 }
 
@@ -711,6 +748,142 @@ export const handlers = [
           connectionAvailable: true,
         })
       : error(404, 'EXECUTION_NOT_FOUND', '执行不存在')
+  }),
+  http.get(sql('/api/v1/sql/scripts'), ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const userId = mockUserId(request)
+    const url = new URL(request.url)
+    const keyword = (url.searchParams.get('keyword') || '').trim().toLowerCase()
+    const dataSourceId = url.searchParams.get('dataSourceId')
+    const database = url.searchParams.get('database')
+    const owned = mockScripts.filter(
+      (item) =>
+        item.id.startsWith(userId === '1002' ? 'other-' : 'me-') ||
+        (userId === '1001' && !item.id.startsWith('other-')),
+    )
+    const filtered = owned.filter((item) => {
+      if (dataSourceId && item.dataSourceId !== dataSourceId) return false
+      if (database && item.database !== database) return false
+      if (!keyword) return true
+      return (
+        item.name.toLowerCase().includes(keyword) || item.statement.toLowerCase().includes(keyword)
+      )
+    })
+    return HttpResponse.json({
+      items: filtered.map(
+        (item): ScriptSummary => ({
+          id: item.id,
+          name: item.name,
+          dataSourceId: item.dataSourceId,
+          dataSourceName: item.dataSourceName,
+          database: item.database,
+          statementSummary: item.statementSummary,
+          version: item.version,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        }),
+      ),
+      nextPageToken: null,
+    })
+  }),
+  http.get(sql('/api/v1/sql/scripts/:id'), ({ params, request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const item = mockScripts.find((entry) => entry.id === params.id)
+    if (!item) return error(404, 'SCRIPT_NOT_FOUND', '脚本不存在')
+    if (mockUserId(request) === '1002' && !item.id.startsWith('other-'))
+      return error(404, 'SCRIPT_NOT_FOUND', '脚本不存在')
+    return HttpResponse.json(item)
+  }),
+  http.post(sql('/api/v1/sql/scripts'), async ({ request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const body = (await request.json()) as ScriptWriteRequest
+    if (!body.name?.trim() || !body.statement?.trim())
+      return error(400, 'VALIDATION_FAILED', '请求参数不合法', {
+        fieldErrors: [{ field: 'statement', code: 'REQUIRED', message: 'SQL 不能为空' }],
+      })
+    const source = body.dataSourceId
+      ? mockDataSources().find((item) => item.id === body.dataSourceId)
+      : undefined
+    if (body.dataSourceId && !source)
+      return error(404, 'DATA_SOURCE_NOT_FOUND', '数据源不存在或已不可见')
+    const now = new Date().toISOString()
+    const created: ScriptDetail = {
+      id: `${mockUserId(request) === '1002' ? 'other-' : ''}${crypto.randomUUID()}`,
+      name: body.name.trim(),
+      dataSourceId: source?.id || null,
+      dataSourceName: source?.name || null,
+      database: body.database || null,
+      statementSummary: summarySql(body.statement),
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+      statement: body.statement,
+      connectionAvailable: Boolean(source),
+    }
+    mockScripts.unshift(created)
+    persistMockScripts()
+    return HttpResponse.json(created, {
+      status: 201,
+      headers: { Location: `/api/v1/sql/scripts/${created.id}` },
+    })
+  }),
+  http.put(sql('/api/v1/sql/scripts/:id'), async ({ params, request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const index = mockScripts.findIndex((item) => item.id === params.id)
+    if (index < 0) return error(404, 'SCRIPT_NOT_FOUND', '脚本不存在')
+    const current = mockScripts[index]!
+    if (mockUserId(request) === '1002' && !current.id.startsWith('other-'))
+      return error(404, 'SCRIPT_NOT_FOUND', '脚本不存在')
+    const body = (await request.json()) as ScriptWriteRequest
+    if (body.version !== current.version)
+      return error(409, 'VERSION_CONFLICT', '脚本已被更新', {
+        currentVersion: current.version,
+        currentUpdatedAt: current.updatedAt,
+        currentUpdatedByName: '张三',
+      })
+    const source = body.dataSourceId
+      ? mockDataSources().find((item) => item.id === body.dataSourceId)
+      : undefined
+    if (body.dataSourceId && !source)
+      return error(404, 'DATA_SOURCE_NOT_FOUND', '数据源不存在或已不可见')
+    const updated: ScriptDetail = {
+      ...current,
+      name: body.name.trim(),
+      statement: body.statement,
+      statementSummary: summarySql(body.statement),
+      dataSourceId: source?.id || null,
+      dataSourceName: source?.name || null,
+      database: body.database || null,
+      connectionAvailable: Boolean(source),
+      version: current.version + 1,
+      updatedAt: new Date().toISOString(),
+    }
+    mockScripts[index] = updated
+    persistMockScripts()
+    return HttpResponse.json(updated)
+  }),
+  http.delete(sql('/api/v1/sql/scripts/:id'), ({ params, request }) => {
+    const denied = authorized(request)
+    if (denied) return denied
+    const index = mockScripts.findIndex((item) => item.id === params.id)
+    if (index < 0) return error(404, 'SCRIPT_NOT_FOUND', '脚本不存在')
+    const current = mockScripts[index]!
+    if (mockUserId(request) === '1002' && !current.id.startsWith('other-'))
+      return error(404, 'SCRIPT_NOT_FOUND', '脚本不存在')
+    const version = Number(new URL(request.url).searchParams.get('version'))
+    if (version !== current.version)
+      return error(409, 'VERSION_CONFLICT', '脚本已被更新', {
+        currentVersion: current.version,
+        currentUpdatedAt: current.updatedAt,
+        currentUpdatedByName: '张三',
+      })
+    mockScripts.splice(index, 1)
+    persistMockScripts()
+    return new HttpResponse(null, { status: 204 })
   }),
 ]
 

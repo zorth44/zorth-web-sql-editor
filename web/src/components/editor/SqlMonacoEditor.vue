@@ -6,7 +6,11 @@ import { useThemeStore } from '@/stores/theme'
 import 'monaco-editor/features/register.all'
 import 'monaco-editor/languages/definitions/mysql/register'
 import 'monaco-editor/languages/definitions/pgsql/register'
-import { MYSQL_EDITOR_LANGUAGE, PG_EDITOR_LANGUAGE, formatterLanguageFor } from '@/data-sources/catalog'
+import {
+  MYSQL_EDITOR_LANGUAGE,
+  PG_EDITOR_LANGUAGE,
+  formatterLanguageFor,
+} from '@/data-sources/catalog'
 import { format } from 'sql-formatter'
 import { statementAt } from '@/sql-editor/sql'
 import { appendSqlText, replaceSqlOnce } from '@/sql-editor/sql-insert'
@@ -18,6 +22,7 @@ const emit = defineEmits<{
   'run-script': [script: string]
   'update:hasSelection': [value: boolean]
   notice: [message: string]
+  save: []
 }>()
 const theme = useThemeStore()
 const root = ref<HTMLElement | null>(null)
@@ -84,7 +89,9 @@ function getRunnableScript(): string {
 function formatSql(): void {
   if (!editor) return
   try {
-    editor.setValue(format(editor.getValue(), { language: formatterLanguageFor(resolvedLanguage()) }))
+    editor.setValue(
+      format(editor.getValue(), { language: formatterLanguageFor(resolvedLanguage()) }),
+    )
   } catch {
     emit('notice', '当前 SQL 无法格式化')
   }
@@ -180,7 +187,7 @@ onMounted(() => {
     id: 'zorth-save',
     label: '保存工作表',
     keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
-    run: () => emit('notice', '工作表保存暂未开放'),
+    run: () => emit('save'),
   })
   installCompletion()
 })

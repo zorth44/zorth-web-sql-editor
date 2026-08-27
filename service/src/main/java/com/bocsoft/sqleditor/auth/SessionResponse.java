@@ -13,7 +13,7 @@ public class SessionResponse {
         this.user = new User(context.getUserId(), context.getUsername(), context.getDisplayName());
         this.product = new Product(context.getProductId(), context.getProductName());
         this.expiresAt = context.getTokenExpiresAt();
-        this.capabilities = Arrays.asList("DATA_SOURCE_MANAGE", "SQL_EXECUTE", "SQL_EXPORT", "HISTORY_READ");
+        this.capabilities = Arrays.asList("DATA_SOURCE_MANAGE", "SQL_EXECUTE", "SQL_EXPORT", "HISTORY_READ", "SCRIPT_MANAGE");
     }
     public User getUser() { return user; }
     public Product getProduct() { return product; }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the SQL workspace: the resource navigator and lazy metadata browsing for visible data sources, connection-bound recoverable tabs, Monaco editing from the engine catalog, execution and cancellation interaction, result presentation, CSV export, and the current-user history workspace.
+Define the SQL workspace: the resource navigator and lazy metadata browsing for visible data sources, connection-bound recoverable tabs, Monaco editing from the engine catalog, execution and cancellation interaction, result presentation, CSV export, the current-user history workspace, and current-user saved SQL scripts.
 ## Requirements
 ### Requirement: Catalog-driven NAMESPACE navigator
 The resource tree SHALL treat the first layer under a data source as `NAMESPACE` and SHALL load it through the selected engine's catalog `listEndpoint`. For MYSQL and POSTGRESQL that endpoint is the existing databases API. Tree labels and filter placeholders SHALL come from that engine's `resourceTree` entry.
@@ -172,7 +172,7 @@ The frontend SHALL provide `/sql-editor` as a protected desktop workspace whose 
 - **THEN** the frontend SHALL create or select a tab bound to the new connection and SHALL NOT silently mutate the old tab's binding
 
 ### Requirement: Recoverable SQL tabs
-The workspace SHALL open on a welcome page when no editor tab is open, support multiple connection-bound tabs, confirm destructive close, and persist only bounded SQL draft state in Session Storage.
+The workspace SHALL open on a welcome page when no editor tab is open, support multiple connection-bound tabs, confirm close of dirty SQL tabs, and persist only bounded SQL draft state in Session Storage. Drafts MAY include `scriptId` and `version`. Results, Tokens, and credentials SHALL NOT be stored. Server-side scripts SHALL survive logout.
 
 #### Scenario: Start the editor
 - **WHEN** no recoverable draft exists
@@ -188,15 +188,19 @@ The workspace SHALL open on a welcome page when no editor tab is open, support m
 
 #### Scenario: Reload drafts
 - **WHEN** the page reloads with valid bounded draft state
-- **THEN** tab names, SQL text, and non-sensitive connection identifiers MAY be restored while results, Tokens, and credentials SHALL NOT be restored
+- **THEN** tab names, SQL text, `scriptId`, `version`, and non-sensitive connection identifiers MAY be restored while results, Tokens, and credentials SHALL NOT be restored
 
 #### Scenario: Logout or receive 401
 - **WHEN** authenticated teardown occurs
-- **THEN** all editor draft, active execution, result, and query-cache state SHALL be cleared
+- **THEN** all editor draft, active execution, result, and query-cache state SHALL be cleared and server-side scripts SHALL remain stored for the user
 
-#### Scenario: Close a non-empty tab
-- **WHEN** a user closes a tab containing SQL
+#### Scenario: Close a dirty tab
+- **WHEN** a user closes a SQL tab whose SQL, name, or connection binding differs from the last successful save, or that has never been saved and contains SQL
 - **THEN** the frontend SHALL require confirmation before discarding it
+
+#### Scenario: Close a clean saved tab
+- **WHEN** a user closes a SQL tab that is bound to a script and matches the last successful save snapshot
+- **THEN** the frontend SHALL close the tab without confirmation
 
 ### Requirement: Monaco MySQL editing
 The frontend SHALL wrap Monaco with the bound engine's catalog language (MYSQL: `mysql`), formatting, metadata completion, and documented keyboard commands, and SHALL expose whether a selection exists so run affordances can label themselves.
@@ -214,8 +218,8 @@ The frontend SHALL wrap Monaco with the bound engine's catalog language (MYSQL: 
 - **THEN** the workspace run action SHALL relabel itself between running the whole editor and running the selection so the current target is visible without hovering
 
 #### Scenario: Save shortcut
-- **WHEN** a user presses Cmd/Ctrl+S
-- **THEN** the frontend SHALL prevent browser save and state that worksheet persistence is not available
+- **WHEN** a user presses Cmd/Ctrl+S on a SQL tab and `SCRIPT_MANAGE` is present
+- **THEN** the frontend SHALL prevent the browser save dialog and SHALL save the active tab as a current-user script
 
 #### Scenario: Request completion
 - **WHEN** completion is requested for the active connection/NAMESPACE
@@ -304,12 +308,77 @@ The frontend SHALL list/filter current-user history, display summaries, and reop
 - **WHEN** history detail reports `connectionAvailable=false`
 - **THEN** the frontend SHALL restore SQL only and require a new connection selection
 
+### Requirement: Current-user script workspace
+The SQL workspace sidebar SHALL offer a Scripts rail beside Database and execution History when `SCRIPT_MANAGE` is present. The rail SHALL list the current user's saved scripts, open them into SQL tabs, and SHALL NOT mix in execution-history rows or Copilot conversations.
+
+#### Scenario: Open the scripts workspace
+- **WHEN** a user with `SCRIPT_MANAGE` selects the Scripts rail
+- **THEN** the frontend SHALL load the current-user script list and SHALL NOT show execution history or Copilot conversations in that pane
+
+#### Scenario: Search scripts
+- **WHEN** the user types a keyword in the scripts rail
+- **THEN** the frontend SHALL request a server-filtered page and render name, statement summary, connection snapshot, and updated time so scripts that share a name remain distinguishable
+
+#### Scenario: Open an available script
+- **WHEN** the user opens a script whose detail reports `connectionAvailable=true`
+- **THEN** the workspace SHALL focus an existing SQL tab bound to that `scriptId` if one is open, otherwise create a SQL tab with the saved name, SQL, data source, and NAMESPACE, and SHALL NOT execute the SQL automatically
+
+#### Scenario: Open a script whose connection is gone
+- **WHEN** script detail reports `connectionAvailable=false`
+- **THEN** the workspace SHALL restore name and SQL only and SHALL require a new connection selection before execution
+
+#### Scenario: Delete a script
+- **WHEN** the user confirms deletion of a listed script
+- **THEN** the frontend SHALL call delete with the current `version`, remove it from the list, and SHALL close or unbind any open tab that referenced that `scriptId` without discarding unrelated tabs
+
+### Requirement: Save SQL tabs as scripts
+The workspace SHALL persist the active SQL tab through create or update of a current-user script, bind the tab to the returned `scriptId` and `version`, and keep a dirty flag from the last successful save snapshot.
+
+#### Scenario: First save
+- **WHEN** the user saves a SQL tab that has no `scriptId` and provides a non-blank name
+- **THEN** the frontend SHALL POST a new script with the tab SQL and current connection binding, set the tab title to the script name, and mark the tab clean
+
+#### Scenario: Save an already bound tab
+- **WHEN** the user saves a SQL tab that already has a `scriptId`
+- **THEN** the frontend SHALL PUT that script with the tab's current `version`, SQL, name, and connection binding, and on success SHALL store the new `version` and mark the tab clean
+
+#### Scenario: Save as a new script
+- **WHEN** the user chooses Save As on a SQL tab and provides a name
+- **THEN** the frontend SHALL POST a new script and rebind the current tab to the new `scriptId` without modifying the previous script row
+
+#### Scenario: Conflict on save
+- **WHEN** save returns `409 VERSION_CONFLICT`
+- **THEN** the frontend SHALL keep the local editor text, SHALL NOT mark the tab clean, and SHALL tell the user to reload the script or Save As
+
+#### Scenario: Hide save without capability
+- **WHEN** Session lacks `SCRIPT_MANAGE`
+- **THEN** the frontend SHALL hide the Scripts rail and save actions and SHALL keep preventing the browser save dialog
+
+### Requirement: Rename a saved script
+The workspace SHALL let the user rename a script from the Scripts rail and from a bound SQL tab title. A rename of a bound script SHALL persist immediately and SHALL send the last successful save snapshot for statement and connection so unsaved editor text is not written. Duplicate names SHALL remain allowed.
+
+#### Scenario: Rename from the scripts rail
+- **WHEN** the user sets a listed script's name to a non-blank value of at most 100 characters
+- **THEN** the frontend SHALL PUT that script with the new name, current `version`, and unchanged statement and connection, SHALL update any open tab bound to that `scriptId` (title and stored `version`), and SHALL refresh the list timestamp
+
+#### Scenario: Rename a bound tab title
+- **WHEN** the user edits the title of a SQL tab that has a `scriptId`
+- **THEN** the frontend SHALL persist that name as a script rename, keep the same `scriptId`, and SHALL NOT mark unsaved SQL as saved
+
+#### Scenario: Rename an unsaved tab
+- **WHEN** the user edits the title of a SQL tab that has no `scriptId`
+- **THEN** the frontend SHALL change only the local tab title and SHALL use that title as the default name on first save
+
+#### Scenario: Rename to a name that already exists
+- **WHEN** the new name matches another script owned by the same user
+- **THEN** the frontend SHALL keep both rows and SHALL continue to show updated time so they can be told apart
+
 ### Requirement: SQL editor quality gates
 The second-stage frontend SHALL extend production contract mocks and repeatable unit, component, E2E, static, and build checks.
 
 #### Scenario: Verify editor behavior
 - **WHEN** frontend verification runs
-- **THEN** tests SHALL cover SQL extraction, special values, DDL metadata invalidation, SELECT/DML/DDL/error/cancel, CSV, metadata, and history core flows
+- **THEN** tests SHALL cover SQL extraction, special values, DDL metadata invalidation, SELECT/DML/DDL/error/cancel, CSV, metadata, history, and script save/open/delete core flows
 
 ### Requirement: Script execution boundaries
 The frontend SHALL split script text with a scanner that ignores delimiters inside strings, quoted identifiers, and comments, SHALL execute each resulting statement as an independent single-statement request, and SHALL declare the resulting session and transaction limits to the user.
@@ -329,4 +398,15 @@ The frontend SHALL split script text with a scanner that ignores delimiters insi
 #### Scenario: Exceed the script statement cap
 - **WHEN** a script splits into more statements than the configured maximum
 - **THEN** the frontend SHALL refuse to start execution and SHALL state the cap and that the script must be split
+
+### Requirement: Copilot session outlives SQL tabs
+The workbench SHALL keep the Copilot conversation independent of SQL tab identity. Closing or switching SQL tabs MUST NOT discard Copilot history. SQL tabs SHALL continue to supply the bound data source, NAMESPACE, and editor text used as this-turn Copilot context. Copilot history MUST NOT be mixed into the left-rail SQL execution history workspace.
+
+#### Scenario: Close a SQL tab
+- **WHEN** the user closes a SQL tab that was used to send Copilot messages
+- **THEN** the workbench SHALL NOT delete that Copilot conversation and SHALL NOT clear Copilot messages solely because the tab id is gone
+
+#### Scenario: Left rail history stays SQL executions
+- **WHEN** the user opens the sidebar History workspace
+- **THEN** the list SHALL remain current-user SQL execution history and SHALL NOT list Copilot conversations
 

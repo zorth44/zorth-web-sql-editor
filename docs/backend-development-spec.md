@@ -205,7 +205,7 @@ GET /api/v1/session
 }
 ```
 
-`capabilities` 只返回当前部署已经交付的能力：第一阶段仅 `DATA_SOURCE_MANAGE`，第二阶段上线后再追加 `SQL_EXECUTE`、`SQL_EXPORT`、`HISTORY_READ`。`expiresAt` 来自授权服务的 `tokenExpiresAt`，前端用它判断会话是否还有效；SQL 服务 60 秒 Token 缓存不延长这个时间。
+`capabilities` 只返回当前部署已经交付的能力：第一阶段仅 `DATA_SOURCE_MANAGE`，第二阶段上线后再追加 `SQL_EXECUTE`、`SQL_EXPORT`、`HISTORY_READ`、`SCRIPT_MANAGE`。`expiresAt` 来自授权服务的 `tokenExpiresAt`，前端用它判断会话是否还有效；SQL 服务 60 秒 Token 缓存不延长这个时间。
 
 不提供产品列表代理接口。推荐网关把前端、SQL 服务和授权服务登录做成同源；若登录仍直连授权服务，前端使用独立授权 baseURL。
 
@@ -991,6 +991,26 @@ GET /api/v1/sql/history/{id}
 - `connectionAvailable=false`。
 - 不返回当前数据源详情，也不能直接重新执行。
 
+### 14.3 SQL 脚本
+
+当前用户私有工作副本，与执行历史分开。名称允许重复，身份只使用 `id`。正文存元数据库 `MEDIUMTEXT`，不写应用盘。
+
+```http
+GET /api/v1/sql/scripts?keyword=&dataSourceId=&database=&pageSize=30&pageToken=
+GET /api/v1/sql/scripts/{id}
+POST /api/v1/sql/scripts
+PUT /api/v1/sql/scripts/{id}
+DELETE /api/v1/sql/scripts/{id}?version=
+```
+
+- 强制 `user_id = currentUserId`。
+- 创建/更新校验名称 1–100 字、非空 SQL、UTF-8 体积不超过 `sql-editor.execution.max-statement-bytes`。
+- 可选 `dataSourceId` 必须是当前产品可见数据源，否则 `404 DATA_SOURCE_NOT_FOUND`。
+- 每用户上限 `sql-editor.scripts.max-per-user`（默认 200），超出 `409 SCRIPT_QUOTA_EXCEEDED`。
+- 更新/删除使用 `version` 乐观锁；冲突 details 与数据源相同：`currentVersion`、`currentUpdatedAt`、`currentUpdatedByName`。
+- 列表按 `updated_at DESC, id DESC`，返回 240 字摘要；详情返回全文和 `connectionAvailable`。
+- 他人或不存在的 id 返回 `404 SCRIPT_NOT_FOUND`。
+
 ## 15. 统一错误码
 
 | HTTP | 错误码 | 场景 |
@@ -1002,7 +1022,9 @@ GET /api/v1/sql/history/{id}
 | 404 | `DATA_SOURCE_NOT_FOUND` | 数据源不存在，或不属于当前产品 |
 | 404 | `DATABASE_NOT_FOUND` | 数据库不存在 |
 | 404 | `EXECUTION_NOT_FOUND` | 执行不存在，或不属于当前用户 |
+| 404 | `SCRIPT_NOT_FOUND` | 脚本不存在，或不属于当前用户 |
 | 409 | `VERSION_CONFLICT` | 乐观锁冲突 |
+| 409 | `SCRIPT_QUOTA_EXCEEDED` | 当前用户脚本数量达到上限 |
 | 409 | `USER_PRODUCT_CONTEXT_INVALID` | 当前用户没有唯一有效产品 |
 | 409 | `DATA_SOURCE_IN_USE` | 有运行任务时删除 |
 | 409 | `EXECUTION_ID_CONFLICT` | 客户端执行 ID 已被使用 |
