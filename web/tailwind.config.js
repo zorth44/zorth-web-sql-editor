@@ -19,6 +19,7 @@ export default {
         subtle: 'var(--color-subtle)',
         wash: 'var(--color-hover)',
         line: 'var(--color-line)',
+        gridline: 'var(--color-grid)',
         overlay: 'var(--color-overlay)',
         placeholder: 'var(--color-placeholder)',
         danger: {

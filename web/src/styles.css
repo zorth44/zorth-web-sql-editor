@@ -15,6 +15,7 @@
   --color-subtle: #f8fafc;
   --color-hover: #f1f5f9;
   --color-line: #dce3e8;
+  --color-grid: #b8c3cc;
   --color-danger: #c2413a;
   --color-danger-fill: #b91c1c;
   --color-danger-soft: #fef2f2;
@@ -54,6 +55,7 @@ html.dark {
   --color-subtle: #1c242d;
   --color-hover: #24303b;
   --color-line: #2a3540;
+  --color-grid: #2a3540;
   --color-danger: #f87171;
   --color-danger-fill: #b91c1c;
   --color-danger-soft: rgb(248 113 113 / 0.12);
@@ -411,7 +413,7 @@ textarea {
 }
 .properties-table th,
 .properties-table td {
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--color-grid);
   padding: 7px 10px;
   vertical-align: top;
 }
@@ -648,7 +650,7 @@ textarea {
   position: relative;
   display: flex;
   background: var(--color-panel);
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-grid);
   font-size: 12px;
   font-weight: 600;
   color: var(--color-ink);
@@ -659,7 +661,7 @@ textarea {
   z-index: 2;
   width: 44px;
   flex-shrink: 0;
-  border-right: 1px solid var(--color-line);
+  border-right: 1px solid var(--color-grid);
   background: var(--color-subtle);
   color: var(--color-muted);
   font-size: 11px;
@@ -678,7 +680,7 @@ textarea {
   align-items: center;
   gap: 6px;
   padding: 0 12px 0 8px;
-  border-right: 1px solid var(--color-line);
+  border-right: 1px solid var(--color-grid);
   background: var(--color-panel);
   cursor: pointer;
   user-select: none;
@@ -742,8 +744,8 @@ html.dark .result-type {
   position: relative;
   flex-shrink: 0;
   overflow: hidden;
-  border-right: 1px solid var(--color-line);
-  border-bottom: 1px solid var(--color-line);
+  border-right: 1px solid var(--color-grid);
+  border-bottom: 1px solid var(--color-grid);
   background: var(--color-panel);
   padding: 0 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -756,7 +758,7 @@ html.dark .result-type {
   user-select: none;
 }
 .result-index {
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-grid);
 }
 .result-col-pinned {
   position: sticky;
@@ -768,7 +770,7 @@ html.dark .result-type {
 .result-filter-row {
   display: flex;
   background: var(--color-panel);
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-grid);
 }
 .result-index-filter {
   z-index: 6;
@@ -779,7 +781,7 @@ html.dark .result-type {
   flex-shrink: 0;
   align-items: center;
   padding: 0 4px;
-  border-right: 1px solid var(--color-line);
+  border-right: 1px solid var(--color-grid);
   background: var(--color-panel);
 }
 .result-filter-cell.result-col-pinned {
@@ -1227,11 +1229,11 @@ html.dark .result-ctx-item svg {
   @apply border-l-2 border-line pl-2 text-muted;
 }
 .copilot-md table {
-  @apply w-full border-collapse overflow-hidden rounded-md border border-line;
+  @apply w-full border-collapse overflow-hidden rounded-md border border-gridline;
 }
 .copilot-md th,
 .copilot-md td {
-  @apply border border-line px-1.5 py-0.5 text-left;
+  @apply border border-gridline px-1.5 py-0.5 text-left;
 }
 .copilot-md th {
   @apply bg-panel font-semibold;
