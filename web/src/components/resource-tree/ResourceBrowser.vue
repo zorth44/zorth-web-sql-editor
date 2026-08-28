@@ -415,7 +415,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
         <RefreshCw :size="14" />
       </button>
     </div>
-    <div class="min-h-0 flex-1 overflow-auto py-1 text-[12px] leading-none">
+    <div class="min-h-0 flex-1 overflow-auto py-1 text-[12px] leading-normal">
       <div v-if="!sources.length" class="px-3 py-6 text-center text-xs text-muted">
         <p>还没有可见的数据源</p>
         <RouterLink class="mt-2 inline-block text-brand" to="/data-sources"
