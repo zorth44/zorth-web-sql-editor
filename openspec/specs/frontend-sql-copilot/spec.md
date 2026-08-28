@@ -7,7 +7,7 @@ Define the right-hand Copilot panel on `/sql-editor`: SQL generation and repair,
 ## Requirements
 
 ### Requirement: Right-hand Copilot panel
-The SQL workspace SHALL host a right-hand Copilot panel on `/sql-editor`. The panel SHALL be toggleable from the toolbar and `Cmd/Ctrl+L`. Input SHALL be disabled until the active tab is a SQL tab bound to a data source and NAMESPACE. Welcome and table-object tabs SHALL NOT offer Copilot send. The panel SHALL stream Agent replies, render assistant Markdown, extract `sql` fences for **插入** and **插入并运行**, and SHALL keep **用 AI 修复** on failed results as an automatic send.
+The SQL workspace SHALL host a right-hand Copilot panel on `/sql-editor`. The panel SHALL be toggleable from the toolbar. Input SHALL be disabled until the active tab is a SQL tab bound to a data source and NAMESPACE. Welcome and table-object tabs SHALL NOT offer Copilot send. The panel SHALL stream Agent replies, render assistant Markdown, extract `sql` fences for **插入** and **插入并运行**, and SHALL keep **用 AI 修复** on failed results as an automatic send.
 
 #### Scenario: Open Copilot on a bound SQL tab
 - **WHEN** the user opens Copilot on a SQL tab that has a data source and NAMESPACE

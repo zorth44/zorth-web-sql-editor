@@ -7,8 +7,6 @@ vi.mock('monaco-editor/features/register.all', () => ({}))
 vi.mock('monaco-editor/languages/definitions/mysql/register', () => ({}))
 vi.mock('monaco-editor/languages/definitions/pgsql/register', () => ({}))
 
-type Action = { id: string; run: () => void }
-const actions = new Map<string, Action>()
 const fake = {
   value: 'select 1;\nselect 2;',
   selection: '',
@@ -18,8 +16,8 @@ const fake = {
 }
 
 vi.mock('monaco-editor/editor', () => ({
-  KeyMod: { CtrlCmd: 1, Shift: 2, Alt: 4 },
-  KeyCode: { Enter: 8, KeyF: 16, KeyS: 32 },
+  KeyMod: { CtrlCmd: 1 },
+  KeyCode: { KeyS: 32 },
   languages: {
     CompletionItemKind: { Field: 3 },
     registerCompletionItemProvider: () => ({ dispose: () => {} }),
@@ -51,7 +49,7 @@ vi.mock('monaco-editor/editor', () => ({
           fake.selectionListener = listener
           return { dispose: () => {} }
         },
-        addAction: (action: Action) => actions.set(action.id, action),
+        onKeyDown: () => ({ dispose: () => {} }),
         executeEdits: () => true,
         focus: () => {},
         dispose: () => {},
@@ -62,7 +60,6 @@ vi.mock('monaco-editor/editor', () => ({
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  actions.clear()
   fake.value = 'select 1;\nselect 2;'
   fake.selection = ''
   fake.cursorOffset = 0
@@ -78,28 +75,23 @@ async function render(language?: string) {
 }
 
 describe('sql monaco editor', () => {
-  it('runs the statement at the cursor with the single-statement shortcut', async () => {
+  it('returns the statement at the cursor for the run target', async () => {
     const wrapper = await render()
-    actions.get('zorth-run')?.run()
-    expect(wrapper.emitted('run')?.at(-1)).toEqual(['select 1'])
+    expect(wrapper.vm.getRunnableStatement()).toBe('select 1')
     wrapper.unmount()
   })
 
-  it('runs the whole editor text with the script shortcut', async () => {
+  it('returns the whole editor text as the script run target', async () => {
     const wrapper = await render()
-    actions.get('zorth-run-script')?.run()
-    expect(wrapper.emitted('run-script')?.at(-1)).toEqual(['select 1;\nselect 2;'])
-    expect(wrapper.emitted('notice')).toBeUndefined()
+    expect(wrapper.vm.getRunnableScript()).toBe('select 1;\nselect 2;')
     wrapper.unmount()
   })
 
-  it('runs only the selection when there is one', async () => {
+  it('uses the selection as the run target when there is one', async () => {
     const wrapper = await render()
     fake.selection = 'select 2'
-    actions.get('zorth-run-script')?.run()
-    actions.get('zorth-run')?.run()
-    expect(wrapper.emitted('run-script')?.at(-1)).toEqual(['select 2'])
-    expect(wrapper.emitted('run')?.at(-1)).toEqual(['select 2'])
+    expect(wrapper.vm.getRunnableScript()).toBe('select 2')
+    expect(wrapper.vm.getRunnableStatement()).toBe('select 2')
     wrapper.unmount()
   })
 
@@ -140,14 +132,6 @@ describe('sql monaco editor', () => {
     fake.value = 'select * from mock_error;'
     expect(wrapper.vm.replaceSql('select * from mock_error;', 'select 1')).toBe(true)
     expect(fake.value).toBe('select 1')
-    wrapper.unmount()
-  })
-
-  it('emits save from the worksheet shortcut instead of a not-available notice', async () => {
-    const wrapper = await render()
-    actions.get('zorth-save')?.run()
-    expect(wrapper.emitted('save')).toHaveLength(1)
-    expect(wrapper.emitted('notice')).toBeUndefined()
     wrapper.unmount()
   })
 })

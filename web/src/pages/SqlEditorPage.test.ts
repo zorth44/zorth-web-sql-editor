@@ -24,9 +24,6 @@ vi.mock('@/components/editor/SqlMonacoEditor.vue', () => ({
       getRunnableScript() {
         return ''
       },
-      getRunnableStatement() {
-        return ''
-      },
       formatSql() {},
       insertAtCursor() {},
       appendSql() {},

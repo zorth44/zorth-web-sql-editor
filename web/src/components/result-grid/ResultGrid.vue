@@ -592,8 +592,7 @@ onBeforeUnmount(() => {
       <pre class="mt-2 whitespace-pre-wrap font-mono text-xs">{{ error }}</pre>
     </div>
     <div v-else-if="!result" class="grid flex-1 place-items-center text-sm text-muted">
-      运行当前语句后在这里查看结果
-      <span class="mt-1 text-xs">⌘/Ctrl + Enter</span>
+      运行 SQL 后在这里查看结果
     </div>
     <div
       v-else-if="result.kind !== 'RESULT_SET'"

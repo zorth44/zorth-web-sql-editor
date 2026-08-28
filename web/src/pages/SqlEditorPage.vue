@@ -40,7 +40,6 @@ import SqlMonacoEditor from '@/components/editor/SqlMonacoEditor.vue'
 import CopilotPanel from '@/components/copilot/CopilotPanel.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { DEFAULT_ROW_LIMIT } from '@/components/result-grid/limits'
-import { likelyNeedsDatabase } from '@/sql-editor/sql'
 import { buildTableDataSql, compileTableDataFilters } from '@/sql-editor/table-data-filter'
 import { planScript, runScript as runScriptStatements } from '@/sql-editor/script-runner'
 import { buildCopilotMessage, COPILOT_FIX_PROMPT } from '@/sql-editor/copilot-context'
@@ -74,7 +73,6 @@ const copilot = useCopilotStore()
 const auth = useAuthStore()
 const notifications = useNotificationsStore()
 const monacoRef = ref<{
-  getRunnableStatement: () => string
   getRunnableScript: () => string
   getCopilotSql: () => string
   formatSql: () => void
@@ -148,17 +146,9 @@ const suggestions = computed(() =>
 const currentSource = computed(
   () => sources.value.find((item) => item.id === selectedSource.value) || null,
 )
-const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
-const runShortcut = isMac ? '⌘⇧↵' : 'Ctrl+Shift+Enter'
-const statementShortcut = isMac ? '⌘↵' : 'Ctrl+Enter'
-const formatShortcut = isMac ? '⌥⇧F' : 'Shift+Alt+F'
-const copilotShortcut = isMac ? '⌘L' : 'Ctrl+L'
-const saveShortcut = isMac ? '⌘S' : 'Ctrl+S'
 const runLabel = computed(() => (hasSelection.value ? '运行选中' : '运行'))
 const runTitle = computed(() =>
-  hasSelection.value
-    ? `运行选中的全部语句（${runShortcut}），运行当前语句用 ${statementShortcut}`
-    : `运行编辑器全部语句（${runShortcut}），运行当前语句用 ${statementShortcut}`,
+  hasSelection.value ? '运行选中的全部语句' : '运行编辑器全部语句',
 )
 const copilotReady = computed(() => {
   const tab = active.value
@@ -333,24 +323,6 @@ async function executeStatements(tabId: string, statements: string[]) {
     await queryClient.invalidateQueries({ queryKey: queryKeys.metadata(dataSourceId) })
   }
   await queryClient.invalidateQueries({ queryKey: ['sql-history'] })
-}
-async function run(statement: string) {
-  const tab = active.value
-  if (!tab || tab.kind !== 'sql' || !canExecute.value) return
-  const sql = statement.trim()
-  if (!sql) {
-    notice('请输入要执行的 SQL，或将光标放在目标语句上')
-    return
-  }
-  if (!tab.dataSourceId) {
-    notice('请在左侧导航选择数据源')
-    return
-  }
-  if (!tab.database && likelyNeedsDatabase(sql)) {
-    notice('请在左侧导航选择数据库')
-    return
-  }
-  await executeStatements(tab.id, [sql])
 }
 async function executeScriptText(text: string) {
   const tab = active.value
@@ -647,12 +619,6 @@ function onScriptDeleted(id: string) {
 function notice(message: string) {
   notifications.push('info', message)
 }
-function onCopilotShortcut(event: KeyboardEvent): void {
-  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
-  if (event.key.toLowerCase() !== 'l') return
-  event.preventDefault()
-  copilot.toggle()
-}
 async function sendCopilot(
   userText: string,
   extra?: { replaceSql?: string; failedSql?: string; failedError?: string },
@@ -767,7 +733,6 @@ watch(
 
 onMounted(async () => {
   syncSplitWidth()
-  window.addEventListener('keydown', onCopilotShortcut, true)
   try {
     sources.value = (await listDataSources({ keyword: '', pageSize: 100 })).items
     applyFittedSidebar(sources.value)
@@ -797,7 +762,6 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onCopilotShortcut, true)
   copilot.cancel()
   exportAbort?.abort()
   for (const tab of editor.tabs) if (tab.running) editor.abort(tab.id)
@@ -930,7 +894,6 @@ onBeforeUnmount(() => {
                   @click="formatSql"
                 >
                   <WandSparkles :size="14" />格式化
-                  <kbd class="shortcut">{{ formatShortcut }}</kbd>
                 </button>
                 <button
                   v-if="!active?.running"
@@ -941,7 +904,6 @@ onBeforeUnmount(() => {
                   @click="runScript"
                 >
                   <Play :size="14" />{{ runLabel }}
-                  <kbd class="shortcut shortcut-on-primary">{{ runShortcut }}</kbd>
                 </button>
                 <button v-else class="btn min-h-8 px-3 py-1 text-xs text-danger" @click="stop">
                   <Square :size="14" />停止
@@ -955,7 +917,6 @@ onBeforeUnmount(() => {
                   @click="requestSave(false)"
                 >
                   <Save :size="14" />保存
-                  <kbd class="shortcut">{{ saveShortcut }}</kbd>
                 </button>
                 <button
                   v-if="canScripts"
@@ -970,12 +931,11 @@ onBeforeUnmount(() => {
                 <button
                   class="btn ml-auto min-h-8 px-2.5 py-1 text-xs"
                   :class="{ 'activity-btn-active': copilot.open }"
-                  :title="`打开 Copilot（${copilotShortcut}）`"
+                  title="打开 Copilot"
                   data-testid="copilot-toggle"
                   @click="copilot.toggle()"
                 >
                   <Sparkles :size="14" />Copilot
-                  <kbd class="shortcut">{{ copilotShortcut }}</kbd>
                 </button>
               </div>
               <TableViewer
@@ -1019,9 +979,6 @@ onBeforeUnmount(() => {
                     :suggestions="suggestions"
                     @update:model-value="editor.updateSql(active!.id, $event)"
                     @update:has-selection="hasSelection = $event"
-                    @run="run"
-                    @run-script="executeScriptText"
-                    @save="requestSave(false)"
                     @notice="notice"
                   />
                 </Pane>

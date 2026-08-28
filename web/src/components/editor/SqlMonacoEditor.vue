@@ -18,11 +18,8 @@ import { appendSqlText, replaceSqlOnce } from '@/sql-editor/sql-insert'
 const props = defineProps<{ modelValue: string; suggestions?: string[]; language?: string }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
-  run: [statement: string]
-  'run-script': [script: string]
   'update:hasSelection': [value: boolean]
   notice: [message: string]
-  save: []
 }>()
 const theme = useThemeStore()
 const root = ref<HTMLElement | null>(null)
@@ -165,29 +162,8 @@ onMounted(() => {
   })
   editor.onDidChangeModelContent(() => emit('update:modelValue', editor?.getValue() || ''))
   editor.onDidChangeCursorSelection(() => emit('update:hasSelection', Boolean(selectedText())))
-  editor.addAction({
-    id: 'zorth-run',
-    label: '运行当前语句',
-    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
-    run: () => emit('run', currentStatement()),
-  })
-  editor.addAction({
-    id: 'zorth-run-script',
-    label: '运行脚本',
-    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter],
-    run: () => emit('run-script', runnableScript()),
-  })
-  editor.addAction({
-    id: 'zorth-format',
-    label: '格式化 SQL',
-    keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
-    run: formatSql,
-  })
-  editor.addAction({
-    id: 'zorth-save',
-    label: '保存工作表',
-    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
-    run: () => emit('save'),
+  editor.onKeyDown((event) => {
+    if (event.equals(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS)) event.preventDefault()
   })
   installCompletion()
 })

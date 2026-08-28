@@ -53,7 +53,7 @@
 | 路由       | Vue Router 4                          | 登录、数据源和编辑器路由                                                                | 1，编辑器路由在阶段 2 |
 | 请求缓存   | TanStack Vue Query                    | 服务端状态、分页、重试和缓存失效                                                        | 1                     |
 | 本地状态   | Pinia                                 | 编辑器页签、布局尺寸、当前连接等临时状态                                                | 1                     |
-| SQL 编辑器 | Monaco Editor                         | 语言来自引擎目录（MYSQL 与 GBASE_8A=`mysql`，POSTGRESQL=`pgsql`）；快捷键、查找、格式化和补全；封装为 Vue 组件 | 2                     |
+| SQL 编辑器 | Monaco Editor                         | 语言来自引擎目录（MYSQL 与 GBASE_8A=`mysql`，POSTGRESQL=`pgsql`）；查找、格式化和补全；封装为 Vue 组件 | 2                     |
 | 可调整布局 | splitpanes                            | 左侧资源树、编辑区和结果区可拖动                                                        | 2                     |
 | 大表格     | TanStack Vue Table + Vue Virtual      | 结果列和行虚拟滚动                                                                      | 2                     |
 | 样式       | Tailwind CSS + CSS Variables          | 参考 Bytebase 信息架构，同时保留品牌主题变量                                            | 1                     |
@@ -294,9 +294,7 @@ URL 仅包含非敏感 ID 和数据库名。打开 URL 时后端重新鉴权，�
 - 查找、替换、撤销、重做。
 - SQL 格式化。
 - 基于当前数据库元数据的库、表、字段补全。
-- `Cmd/Ctrl + Enter` 执行当前语句：有选区时执行选区，没有选区时执行光标所在语句。
-- `Cmd/Ctrl + Shift + Enter` 执行脚本：有选区时执行选区内的全部语句，没有选区时执行编辑器全部文本。
-- `Cmd/Ctrl + S` 保存当前 SQL 页签为当前用户脚本；首次保存询问名称，已绑定则覆盖。另存为创建新脚本。同名允许共存。
+- 工具栏保存当前 SQL 页签为当前用户脚本；首次保存询问名称，已绑定则覆盖。另存为创建新脚本。同名允许共存。
 
 运行按钮走脚本语义，文案随选区切换：有选区时显示“运行选中”，没有选区时显示“运行”。
 

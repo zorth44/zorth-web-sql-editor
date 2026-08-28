@@ -48,7 +48,7 @@ test.describe('sql editor copilot', () => {
       'SELECT id, amount FROM order_item',
     )
     await panel.getByTestId('copilot-insert').click()
-    await expect(page.getByTestId('result-pane')).toContainText('运行当前语句后在这里查看结果')
+    await expect(page.getByTestId('result-pane')).toContainText('运行 SQL 后在这里查看结果')
     await page.getByTestId('run-button').click()
     await expect(page.getByText('9007199254740993')).toBeVisible()
   })

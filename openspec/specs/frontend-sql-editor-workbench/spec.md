@@ -266,23 +266,15 @@ The workspace SHALL open on a welcome page when no editor tab is open, support m
 - **THEN** the frontend SHALL close the tab without confirmation
 
 ### Requirement: Monaco MySQL editing
-The frontend SHALL wrap Monaco with the bound engine's catalog language (MYSQL: `mysql`), formatting, metadata completion, and documented keyboard commands, and SHALL expose whether a selection exists so run affordances can label themselves.
+The frontend SHALL wrap Monaco with the bound engine's catalog language (MYSQL: `mysql`), formatting, and metadata completion, and SHALL expose whether a selection exists so run affordances can label themselves.
 
-#### Scenario: Execute selection or current statement
-- **WHEN** a user presses Cmd/Ctrl+Enter
-- **THEN** the frontend SHALL execute the non-empty selection or the statement containing the cursor as determined by a scanner that ignores delimiters in quotes and comments
-
-#### Scenario: Execute a script
-- **WHEN** a user presses Cmd/Ctrl+Shift+Enter
+#### Scenario: Execute from the run action
+- **WHEN** a user chooses Run
 - **THEN** the frontend SHALL execute every statement in the selection when one exists, otherwise every statement in the editor, and SHALL NOT block multiple statements with “暂不支持批量执行”
 
 #### Scenario: Label the run action from the selection
 - **WHEN** the editor selection changes between empty and non-empty
 - **THEN** the workspace run action SHALL relabel itself between running the whole editor and running the selection so the current target is visible without hovering
-
-#### Scenario: Save shortcut
-- **WHEN** a user presses Cmd/Ctrl+S on a SQL tab and `SCRIPT_MANAGE` is present
-- **THEN** the frontend SHALL prevent the browser save dialog and SHALL save the active tab as a current-user script
 
 #### Scenario: Request completion
 - **WHEN** completion is requested for the active connection/NAMESPACE

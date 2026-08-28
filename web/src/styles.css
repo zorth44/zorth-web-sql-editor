@@ -446,12 +446,6 @@ textarea {
   white-space: pre-wrap;
   background: var(--color-subtle);
 }
-.shortcut {
-  @apply ml-1 rounded border border-line bg-subtle px-1 font-mono text-[10px] font-normal text-muted;
-}
-.shortcut-on-primary {
-  @apply border-white/30 bg-white/10 text-white;
-}
 .tree-row {
   @apply flex h-6 items-center pr-1 text-ink hover:bg-wash;
 }
