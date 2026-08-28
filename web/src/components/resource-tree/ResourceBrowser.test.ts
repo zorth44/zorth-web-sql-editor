@@ -238,8 +238,8 @@ describe('resource navigator', () => {
   })
 
   it('shows a spinner while databases are loading', async () => {
-    let resolveDatabases!: (value: Awaited<ReturnType<typeof metadataApi.listDatabases>>) => void
-    const spy = vi.spyOn(metadataApi, 'listDatabases').mockReturnValue(
+    let resolveDatabases!: (value: Awaited<ReturnType<typeof metadataApi.listAllDatabases>>) => void
+    const spy = vi.spyOn(metadataApi, 'listAllDatabases').mockReturnValue(
       new Promise((resolve) => {
         resolveDatabases = resolve
       }),
@@ -252,10 +252,31 @@ describe('resource navigator', () => {
       expect(spinner.find('.tree-expand-spinner').exists()).toBe(true)
       expect(wrapper.text()).not.toContain('正在加载数据库')
       expect(wrapper.find('[data-testid="navigator-db-filter-ds-orders-a"]').exists()).toBe(false)
-      resolveDatabases({ items: [{ name: 'orders', kind: 'NAMESPACE' }], nextPageToken: null })
+      resolveDatabases([{ name: 'orders', kind: 'NAMESPACE' }])
       await flushPromises()
       expect(wrapper.find('[data-testid="navigator-loading-ds-orders-a"]').exists()).toBe(false)
       expect(wrapper.find('[data-testid="navigator-database-ds-orders-a-orders"]').exists()).toBe(
+        true,
+      )
+      wrapper.unmount()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('renders every database page after expand', async () => {
+    const spy = vi.spyOn(metadataApi, 'listAllDatabases').mockResolvedValue([
+      { name: 'db-a', kind: 'NAMESPACE' },
+      { name: 'db-z', kind: 'NAMESPACE' },
+    ])
+    try {
+      const wrapper = await renderBrowser({})
+      await wrapper.get('[aria-label="展开 订单测试库 mysql-a.internal:3306"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="navigator-database-ds-orders-a-db-a"]').exists()).toBe(
+        true,
+      )
+      expect(wrapper.find('[data-testid="navigator-database-ds-orders-a-db-z"]').exists()).toBe(
         true,
       )
       wrapper.unmount()

@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ChevronRight, Menu, RefreshCw, Search } from 'lucide-vue-next'
-import { getTableDetail, listDatabases, listTables } from '@/api/metadata'
+import { getTableDetail, listAllDatabases, listAllTables } from '@/api/metadata'
 import { quoteIdentifier, selectPreview } from '@/sql-editor/sql'
 import { safeErrorMessage } from '@/api/api-error'
 import EngineTypeIcon from '@/components/EngineTypeIcon.vue'
@@ -195,12 +195,14 @@ function publishSuggestions(): void {
   emit('suggestions', Array.from(new Set(names)))
 }
 async function loadDatabases(dataSourceId: string, force = false): Promise<void> {
-  if (!force && databasesBySource.value[dataSourceId]) return
+  if (!force && (databasesBySource.value[dataSourceId] || loadingDatabases.value[dataSourceId])) {
+    return
+  }
   loadingDatabases.value = { ...loadingDatabases.value, [dataSourceId]: true }
   databaseError.value = { ...databaseError.value, [dataSourceId]: '' }
   try {
-    const page = await listDatabases(dataSourceId)
-    databasesBySource.value = { ...databasesBySource.value, [dataSourceId]: page.items }
+    const items = await listAllDatabases(dataSourceId)
+    databasesBySource.value = { ...databasesBySource.value, [dataSourceId]: items }
     publishSuggestions()
   } catch (e) {
     databaseError.value = {
@@ -213,12 +215,12 @@ async function loadDatabases(dataSourceId: string, force = false): Promise<void>
 }
 async function loadTables(dataSourceId: string, database: string, force = false): Promise<void> {
   const key = dbKey(dataSourceId, database)
-  if (!force && tablesByDb.value[key]) return
+  if (!force && (tablesByDb.value[key] || loadingTables.value[key])) return
   loadingTables.value = { ...loadingTables.value, [key]: true }
   tableError.value = { ...tableError.value, [key]: '' }
   try {
-    const page = await listTables(dataSourceId, database)
-    tablesByDb.value = { ...tablesByDb.value, [key]: page.items }
+    const items = await listAllTables(dataSourceId, database)
+    tablesByDb.value = { ...tablesByDb.value, [key]: items }
     publishSuggestions()
   } catch (e) {
     tableError.value = { ...tableError.value, [key]: safeErrorMessage(e, '表加载失败') }
