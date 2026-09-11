@@ -16,6 +16,7 @@ async function renderBrowser(props: {
   dataSourceId?: string | null
   database?: string | null
   reloadToken?: number
+  completionGeneration?: number
 }) {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -33,6 +34,9 @@ async function renderBrowser(props: {
       database: props.database ?? null,
       ...(props.engines ? { engines: props.engines } : {}),
       ...(props.reloadToken === undefined ? {} : { reloadToken: props.reloadToken }),
+      ...(props.completionGeneration === undefined
+        ? {}
+        : { completionGeneration: props.completionGeneration }),
     },
     global: { plugins: [router] },
   })
@@ -279,6 +283,103 @@ describe('resource navigator', () => {
       expect(wrapper.find('[data-testid="navigator-database-ds-orders-a-db-z"]').exists()).toBe(
         true,
       )
+      wrapper.unmount()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('emits a binding-tagged catalog for the current NAMESPACE', async () => {
+    const wrapper = await renderBrowser({
+      dataSourceId: 'ds-orders-a',
+      database: 'orders',
+      completionGeneration: 3,
+    })
+    expect(wrapper.emitted('suggestions')?.at(-1)?.[0]).toMatchObject({
+      dataSourceId: 'ds-orders-a',
+      namespace: 'orders',
+      generation: 3,
+      namespaces: expect.arrayContaining(['orders']),
+      tables: expect.arrayContaining(['order_item', 'order_view']),
+      columnsByTable: {},
+    })
+    wrapper.unmount()
+  })
+
+  it('seeds columns from an opened table', async () => {
+    const wrapper = await renderBrowser({
+      dataSourceId: 'ds-orders-a',
+      database: 'orders',
+      completionGeneration: 1,
+    })
+    await wrapper
+      .get('[data-testid="navigator-table-ds-orders-a-orders-order_item"]')
+      .trigger('dblclick')
+    await flushPromises()
+    expect(
+      (wrapper.emitted('suggestions')?.at(-1)?.[0] as { columnsByTable: Record<string, string[]> })
+        .columnsByTable.order_item,
+    ).toEqual(expect.arrayContaining(['id', 'amount']))
+    wrapper.unmount()
+  })
+
+  it('does not publish a late table-detail after generation invalidation', async () => {
+    let resolveDetail!: (value: Awaited<ReturnType<typeof metadataApi.getTableDetail>>) => void
+    const spy = vi.spyOn(metadataApi, 'getTableDetail').mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetail = resolve
+      }),
+    )
+    try {
+      const wrapper = await renderBrowser({
+        dataSourceId: 'ds-orders-a',
+        database: 'orders',
+        completionGeneration: 1,
+      })
+      await wrapper
+        .get('[data-testid="navigator-table-ds-orders-a-orders-order_item"]')
+        .trigger('dblclick')
+      await flushPromises()
+      await wrapper.setProps({ completionGeneration: 2 })
+      await flushPromises()
+      expect(
+        (
+          wrapper.emitted('suggestions')?.at(-1)?.[0] as {
+            columnsByTable: Record<string, string[]>
+          }
+        ).columnsByTable,
+      ).toEqual({})
+      resolveDetail({
+        database: 'orders',
+        table: 'order_item',
+        columns: [
+          {
+            name: 'stale',
+            typeName: 'INT',
+            jdbcType: 'INTEGER',
+            length: 10,
+            precision: 10,
+            scale: 0,
+            nullable: true,
+            defaultValue: null,
+            extra: null,
+            comment: null,
+            ordinal: 1,
+            primaryKey: false,
+          },
+        ],
+        primaryKey: null,
+        indexes: [],
+        ddl: null,
+      })
+      await flushPromises()
+      expect(
+        (
+          wrapper.emitted('suggestions')?.at(-1)?.[0] as {
+            columnsByTable: Record<string, string[]>
+          }
+        ).columnsByTable.order_item,
+      ).toBeUndefined()
       wrapper.unmount()
     } finally {
       spy.mockRestore()

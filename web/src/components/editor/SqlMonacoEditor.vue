@@ -14,8 +14,20 @@ import {
 import { format } from 'sql-formatter'
 import { statementAt } from '@/sql-editor/sql'
 import { appendSqlText, replaceSqlOnce } from '@/sql-editor/sql-insert'
+import { EMPTY_COMPLETION_CATALOG, type CompletionCatalog } from '@/sql-editor/completion-catalog'
+import {
+  completionInsertText,
+  parseCompletionCaret,
+  resolveTableName,
+} from '@/sql-editor/completion-qualifier'
 
-const props = defineProps<{ modelValue: string; suggestions?: string[]; language?: string }>()
+const props = defineProps<{
+  modelValue: string
+  catalog?: CompletionCatalog
+  identifierQuote?: string
+  resolveColumns?: (table: string) => Promise<string[]>
+  language?: string
+}>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   'update:hasSelection': [value: boolean]
@@ -25,6 +37,20 @@ const theme = useThemeStore()
 const root = ref<HTMLElement | null>(null)
 let editor: monaco.editor.IStandaloneCodeEditor | undefined
 let completion: monaco.IDisposable | undefined
+const latest = {
+  catalog: props.catalog || EMPTY_COMPLETION_CATALOG,
+  quote: props.identifierQuote || '`',
+  resolveColumns: props.resolveColumns,
+}
+
+watch(
+  () => [props.catalog, props.identifierQuote, props.resolveColumns] as const,
+  () => {
+    latest.catalog = props.catalog || EMPTY_COMPLETION_CATALOG
+    latest.quote = props.identifierQuote || '`'
+    latest.resolveColumns = props.resolveColumns
+  },
+)
 
 function monacoTheme(): string {
   return theme.scheme === 'dark' ? 'vs-dark' : 'vs'
@@ -56,24 +82,88 @@ function runnableScript(): string {
   if (!editor) return ''
   return selectedText() || (editor.getValue() || '').trim()
 }
+function kindFor(kind: 'namespace' | 'table' | 'column'): monaco.languages.CompletionItemKind {
+  if (kind === 'namespace') return monaco.languages.CompletionItemKind.Module
+  if (kind === 'table') return monaco.languages.CompletionItemKind.Class
+  return monaco.languages.CompletionItemKind.Field
+}
+function rangeAt(
+  model: monaco.editor.ITextModel,
+  startOffset: number,
+  endOffset: number,
+): monaco.IRange {
+  const start = model.getPositionAt(startOffset)
+  const end = model.getPositionAt(endOffset)
+  return {
+    startLineNumber: start.lineNumber,
+    startColumn: start.column,
+    endLineNumber: end.lineNumber,
+    endColumn: end.column,
+  }
+}
+function items(
+  labels: string[],
+  kind: 'namespace' | 'table' | 'column',
+  range: monaco.IRange,
+  quote: string,
+): monaco.languages.CompletionItem[] {
+  return labels.map((label) => ({
+    label,
+    kind: kindFor(kind),
+    insertText: kind === 'column' ? completionInsertText(label, quote) : label,
+    range,
+  }))
+}
+function prefixMatches(name: string, prefix: string): boolean {
+  if (!prefix) return true
+  return name.toLowerCase().startsWith(prefix.toLowerCase())
+}
+async function complete(
+  model: monaco.editor.ITextModel,
+  position: monaco.Position,
+): Promise<monaco.languages.CompletionList> {
+  const catalog = latest.catalog
+  const quote = latest.quote
+  const offset = model.getOffsetAt(position)
+  const caret = parseCompletionCaret(model.getValue(), offset, quote)
+  if (caret.kind === 'non-code') return { suggestions: [] }
+  if (caret.kind === 'qualified') {
+    const table = resolveTableName(caret.qualifier, catalog.tables)
+    if (!table) return { suggestions: [] }
+    const cached = catalog.columnsByTable[table]
+    const columns = cached || (await latest.resolveColumns?.(table)) || []
+    const range = rangeAt(model, caret.prefixStart, caret.prefixEnd)
+    return {
+      suggestions: items(
+        columns.filter((name) => prefixMatches(name, caret.prefix)),
+        'column',
+        range,
+        quote,
+      ),
+    }
+  }
+  const word = model.getWordUntilPosition(position)
+  const range = {
+    startLineNumber: position.lineNumber,
+    endLineNumber: position.lineNumber,
+    startColumn: word.startColumn,
+    endColumn: word.endColumn,
+  }
+  const cachedColumns = Object.values(catalog.columnsByTable).flat()
+  return {
+    suggestions: [
+      ...items(catalog.namespaces, 'namespace', range, quote),
+      ...items(catalog.tables, 'table', range, quote),
+      ...items(Array.from(new Set(cachedColumns)), 'column', range, quote),
+    ],
+  }
+}
 function installCompletion(): void {
   completion?.dispose()
   completion = monaco.languages.registerCompletionItemProvider(resolvedLanguage(), {
+    triggerCharacters: ['.'],
     provideCompletionItems(model, position) {
-      const range = model.getWordUntilPosition(position)
-      return {
-        suggestions: (props.suggestions || []).map((label) => ({
-          label,
-          kind: monaco.languages.CompletionItemKind.Field,
-          insertText: label,
-          range: {
-            startLineNumber: position.lineNumber,
-            endLineNumber: position.lineNumber,
-            startColumn: range.startColumn,
-            endColumn: range.endColumn,
-          },
-        })),
-      }
+      return complete(model, position)
     },
   })
 }
@@ -173,7 +263,6 @@ watch(
     if (editor && editor.getValue() !== value) editor.setValue(value)
   },
 )
-watch(() => props.suggestions, installCompletion, { deep: true })
 watch(
   () => props.language,
   () => {

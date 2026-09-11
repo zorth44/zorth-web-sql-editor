@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ChevronRight, Menu, RefreshCw, Search } from 'lucide-vue-next'
 import { getTableDetail, listAllDatabases, listAllTables } from '@/api/metadata'
+import { EMPTY_COMPLETION_CATALOG, type CompletionCatalog } from '@/sql-editor/completion-catalog'
 import { quoteIdentifier, selectPreview } from '@/sql-editor/sql'
 import { safeErrorMessage } from '@/api/api-error'
 import EngineTypeIcon from '@/components/EngineTypeIcon.vue'
@@ -21,6 +22,7 @@ const props = defineProps<{
   dataSourceId: string | null
   database: string | null
   reloadToken?: number
+  completionGeneration?: number
 }>()
 const emit = defineEmits<{
   'select-connection': [dataSourceId: string, database: string]
@@ -34,7 +36,7 @@ const emit = defineEmits<{
     },
   ]
   notice: [message: string]
-  suggestions: [values: string[]]
+  suggestions: [values: CompletionCatalog]
   refresh: []
 }>()
 
@@ -185,25 +187,58 @@ function isChildOfDatabase(dataSourceId: string, database: string): boolean {
   if (!current || current.kind === 'source') return false
   return current.dataSourceId === dataSourceId && current.database === database
 }
+function currentGeneration(): number {
+  return props.completionGeneration ?? 0
+}
+function completionSnapshot(): CompletionCatalog {
+  const dataSourceId = props.dataSourceId
+  const namespace = props.database
+  if (!dataSourceId) {
+    return { ...EMPTY_COMPLETION_CATALOG, generation: currentGeneration() }
+  }
+  const namespaces = (databasesBySource.value[dataSourceId] || []).map((item) => item.name)
+  const tables = namespace
+    ? (tablesByDb.value[dbKey(dataSourceId, namespace)] || []).map((item) => item.name)
+    : []
+  const columnsByTable: Record<string, string[]> = {}
+  if (namespace) {
+    for (const table of tables) {
+      const detail = details.value[tableKey(dataSourceId, namespace, table)]
+      if (detail) columnsByTable[table] = detail.columns.map((column) => column.name)
+    }
+  }
+  return {
+    dataSourceId,
+    namespace,
+    generation: currentGeneration(),
+    namespaces,
+    tables,
+    columnsByTable,
+  }
+}
 function publishSuggestions(): void {
-  const names = [
-    ...props.sources.map((item) => item.name),
-    ...Object.values(databasesBySource.value).flatMap((items) => items.map((item) => item.name)),
-    ...Object.values(tablesByDb.value).flatMap((items) => items.map((item) => item.name)),
-    ...Object.values(details.value).flatMap((item) => item.columns.map((column) => column.name)),
-  ]
-  emit('suggestions', Array.from(new Set(names)))
+  emit('suggestions', completionSnapshot())
+}
+function publishIfCurrent(generation: number): void {
+  if (generation !== currentGeneration()) return
+  publishSuggestions()
+}
+function clearCompletionColumns(): void {
+  details.value = {}
+  publishSuggestions()
 }
 async function loadDatabases(dataSourceId: string, force = false): Promise<void> {
   if (!force && (databasesBySource.value[dataSourceId] || loadingDatabases.value[dataSourceId])) {
     return
   }
+  const generation = currentGeneration()
   loadingDatabases.value = { ...loadingDatabases.value, [dataSourceId]: true }
   databaseError.value = { ...databaseError.value, [dataSourceId]: '' }
   try {
     const items = await listAllDatabases(dataSourceId)
+    if (generation !== currentGeneration()) return
     databasesBySource.value = { ...databasesBySource.value, [dataSourceId]: items }
-    publishSuggestions()
+    publishIfCurrent(generation)
   } catch (e) {
     databaseError.value = {
       ...databaseError.value,
@@ -216,12 +251,14 @@ async function loadDatabases(dataSourceId: string, force = false): Promise<void>
 async function loadTables(dataSourceId: string, database: string, force = false): Promise<void> {
   const key = dbKey(dataSourceId, database)
   if (!force && (tablesByDb.value[key] || loadingTables.value[key])) return
+  const generation = currentGeneration()
   loadingTables.value = { ...loadingTables.value, [key]: true }
   tableError.value = { ...tableError.value, [key]: '' }
   try {
     const items = await listAllTables(dataSourceId, database)
+    if (generation !== currentGeneration()) return
     tablesByDb.value = { ...tablesByDb.value, [key]: items }
-    publishSuggestions()
+    publishIfCurrent(generation)
   } catch (e) {
     tableError.value = { ...tableError.value, [key]: safeErrorMessage(e, '表加载失败') }
   } finally {
@@ -235,10 +272,12 @@ async function ensureDetail(
 ): Promise<TableDetail | null> {
   const key = tableKey(dataSourceId, database, table)
   if (details.value[key]) return details.value[key]
+  const generation = currentGeneration()
   try {
     const detail = await getTableDetail(dataSourceId, database, table)
+    if (generation !== currentGeneration()) return null
     details.value = { ...details.value, [key]: detail }
-    publishSuggestions()
+    publishIfCurrent(generation)
     return detail
   } catch (e) {
     emit('notice', safeErrorMessage(e, '表结构加载失败'))
@@ -362,9 +401,18 @@ function closeMenu(): void {
   menu.value = null
 }
 watch(
+  () => props.completionGeneration,
+  (_generation, previous) => {
+    if (previous === undefined) return
+    clearCompletionColumns()
+  },
+)
+watch(
   () => props.reloadToken,
   async () => {
     if (!props.reloadToken) return
+    const generation = currentGeneration()
+    clearCompletionColumns()
     const openSources = Object.entries(expandedSources.value)
       .filter(([, open]) => open)
       .map(([id]) => id)
@@ -378,8 +426,7 @@ watch(
         return loadTables(key.slice(0, sep), key.slice(sep + 1), true)
       }),
     )
-    details.value = {}
-    publishSuggestions()
+    publishIfCurrent(generation)
   },
 )
 watch(

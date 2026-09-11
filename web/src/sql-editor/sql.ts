@@ -84,6 +84,72 @@ export function scanSql(source: string): SqlScript {
   return { statements: segments, reliable: state === 'normal' || state === 'line' }
 }
 
+export type SqlLexicalContext = 'code' | 'non-code'
+
+/**
+ * Lexer state at `offset` using the same quote/comment rules as `scanSql`.
+ * Double quotes are identifiers (code) only when `identifierQuote` is `"`.
+ */
+export function sqlLexicalContextAt(
+  source: string,
+  offset: number,
+  identifierQuote = '`',
+): SqlLexicalContext {
+  const doubleIsIdentifier = identifierQuote === '"'
+  let state: State = 'normal'
+  let dollarTag = ''
+  const end = Math.max(0, Math.min(offset, source.length))
+  for (let i = 0; i < end; i += 1) {
+    const char = source[i]
+    const next = source[i + 1]
+    if (state === 'normal') {
+      if (char === "'") state = 'single'
+      else if (char === '"') state = 'double'
+      else if (char === '`') state = 'backtick'
+      else if (char === '$') {
+        const tag = dollarQuoteTag(source, i)
+        if (tag) {
+          dollarTag = tag
+          state = 'dollar'
+          i += tag.length - 1
+        }
+      } else if (char === '#') state = 'line'
+      else if (char === '-' && next === '-' && /\s|$/.test(source[i + 2] || '')) {
+        state = 'line'
+        i += 1
+      } else if (char === '/' && next === '*') {
+        state = 'block'
+        i += 1
+      }
+    } else if (state === 'single') {
+      if (char === '\\') i += 1
+      else if (char === "'" && next === "'") i += 1
+      else if (char === "'") state = 'normal'
+    } else if (state === 'double') {
+      if (doubleIsIdentifier) {
+        if (char === '"' && next === '"') i += 1
+        else if (char === '"') state = 'normal'
+      } else if (char === '\\') i += 1
+      else if (char === '"' && next === '"') i += 1
+      else if (char === '"') state = 'normal'
+    } else if (state === 'backtick') {
+      if (char === '`' && next === '`') i += 1
+      else if (char === '`') state = 'normal'
+    } else if (state === 'dollar' && source.startsWith(dollarTag, i)) {
+      i += dollarTag.length - 1
+      dollarTag = ''
+      state = 'normal'
+    } else if (state === 'line' && (char === '\n' || char === '\r')) state = 'normal'
+    else if (state === 'block' && char === '*' && next === '/') {
+      state = 'normal'
+      i += 1
+    }
+  }
+  if (state === 'normal' || state === 'backtick') return 'code'
+  if (state === 'double' && doubleIsIdentifier) return 'code'
+  return 'non-code'
+}
+
 export function statementAt(source: string, offset: number): SqlSegment | null {
   const segments = splitSql(source)
   return (

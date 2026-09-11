@@ -21,6 +21,7 @@ import { listDataSources } from '@/api/data-sources'
 import { listEngines } from '@/api/engines'
 import { cancelExecution, executeSql, exportExecution } from '@/api/executions'
 import { getHistory } from '@/api/history'
+import { getTableDetail } from '@/api/metadata'
 import { createScript, getScript, updateScript } from '@/api/scripts'
 import { ApiError, isAbortError, safeErrorMessage } from '@/api/api-error'
 import {
@@ -44,6 +45,14 @@ import { buildTableDataSql, compileTableDataFilters } from '@/sql-editor/table-d
 import { planScript, runScript as runScriptStatements } from '@/sql-editor/script-runner'
 import { buildCopilotMessage, COPILOT_FIX_PROMPT } from '@/sql-editor/copilot-context'
 import { appendSqlText, replaceSqlOnce } from '@/sql-editor/sql-insert'
+import {
+  ColumnCompletionCache,
+  EMPTY_COMPLETION_CATALOG,
+  NestedBindingMap,
+  type CompletionCatalog,
+  type DirectorySnapshot,
+} from '@/sql-editor/completion-catalog'
+import { resolveTableName } from '@/sql-editor/completion-qualifier'
 import {
   SIDEBAR_DEFAULT_PX,
   SIDEBAR_MAX_PX,
@@ -101,6 +110,10 @@ const copilotWidthPx = ref(340)
 const userSized = ref(false)
 const sideFitKey = ref('init')
 const resourceNonce = ref(0)
+const columnCache = new ColumnCompletionCache()
+const directories = new NestedBindingMap<DirectorySnapshot>()
+const catalogEpoch = ref(0)
+const completionGeneration = ref(0)
 const sideSize = computed(() => pxToPanePercent(sideWidthPx.value, splitWidth.value))
 const sideMinSize = computed(() => pxToPanePercent(SIDEBAR_MIN_PX, splitWidth.value))
 const sideMaxSize = computed(() => pxToPanePercent(SIDEBAR_MAX_PX, splitWidth.value))
@@ -128,7 +141,6 @@ const renameValue = ref('')
 const editingTitleId = ref<string | null>(null)
 const titleDraft = ref('')
 const scriptPanelRef = ref<{ reload: () => Promise<void> | void } | null>(null)
-const metadataSuggestions = ref<string[]>([])
 let exportAbort: AbortController | undefined
 
 const canExecute = computed(() => auth.session?.capabilities.includes('SQL_EXECUTE') ?? false)
@@ -140,16 +152,38 @@ const editorLanguage = computed(() => {
   const engine = sources.value.find((item) => item.id === active.value?.dataSourceId)?.engine
   return editorLanguageFor(engineById(engines.value, engine))
 })
-const suggestions = computed(() =>
-  Array.from(new Set([...metadataSuggestions.value, ...sources.value.map((item) => item.name)])),
-)
+const completionCatalog = computed((): CompletionCatalog => {
+  void catalogEpoch.value
+  const tab = active.value
+  const dataSourceId = tab?.dataSourceId ?? null
+  const namespace = tab?.database ?? null
+  if (!dataSourceId || !namespace) {
+    return {
+      ...EMPTY_COMPLETION_CATALOG,
+      dataSourceId,
+      namespace,
+      generation: completionGeneration.value,
+    }
+  }
+  const directory = directories.get(dataSourceId, namespace)
+  return {
+    dataSourceId,
+    namespace,
+    generation: completionGeneration.value,
+    namespaces: directory?.namespaces ?? [],
+    tables: directory?.tables ?? [],
+    columnsByTable: columnCache.columnsByTable(dataSourceId, namespace),
+  }
+})
 const currentSource = computed(
   () => sources.value.find((item) => item.id === selectedSource.value) || null,
 )
+const identifierQuote = computed(() => {
+  const engine = sources.value.find((item) => item.id === active.value?.dataSourceId)?.engine
+  return identifierQuoteFor(engineById(engines.value, engine))
+})
 const runLabel = computed(() => (hasSelection.value ? '运行选中' : '运行'))
-const runTitle = computed(() =>
-  hasSelection.value ? '运行选中的全部语句' : '运行编辑器全部语句',
-)
+const runTitle = computed(() => (hasSelection.value ? '运行选中的全部语句' : '运行编辑器全部语句'))
 const copilotReady = computed(() => {
   const tab = active.value
   return Boolean(tab && tab.kind === 'sql' && tab.dataSourceId && tab.database)
@@ -179,6 +213,49 @@ function applyConnection(sourceId: string | null, database: string | null): void
   selectedDatabase.value = database
   editor.activateConnection(sourceId, database)
   void syncUrl()
+}
+function rememberCompletionSnapshot(snapshot: CompletionCatalog): void {
+  if (snapshot.generation !== completionGeneration.value) return
+  if (!snapshot.dataSourceId || !snapshot.namespace) return
+  directories.set(snapshot.dataSourceId, snapshot.namespace, {
+    namespaces: snapshot.namespaces,
+    tables: snapshot.tables,
+  })
+  for (const [table, columns] of Object.entries(snapshot.columnsByTable)) {
+    columnCache.put(snapshot.generation, snapshot.dataSourceId, snapshot.namespace, table, columns)
+  }
+  catalogEpoch.value += 1
+}
+function invalidateCompletionCache(): void {
+  completionGeneration.value = columnCache.invalidate()
+  catalogEpoch.value += 1
+}
+async function resolveColumns(table: string): Promise<string[]> {
+  const snapshot = completionCatalog.value
+  const dataSourceId = snapshot.dataSourceId
+  const namespace = snapshot.namespace
+  if (!dataSourceId || !namespace) return []
+  const resolved = resolveTableName(table, snapshot.tables)
+  if (!resolved) return []
+  const cached = snapshot.columnsByTable[resolved]
+  if (cached) return cached
+  const generation = completionGeneration.value
+  const columns = await columnCache.resolve(
+    generation,
+    dataSourceId,
+    namespace,
+    resolved,
+    async () => {
+      const detail = await getTableDetail(dataSourceId, namespace, resolved)
+      return detail.columns.map((column) => column.name)
+    },
+  )
+  catalogEpoch.value += 1
+  return columns
+}
+function refreshResources(): void {
+  invalidateCompletionCache()
+  resourceNonce.value += 1
 }
 async function openCopilotConversation(id: string): Promise<void> {
   await copilot.openConversation(id)
@@ -319,7 +396,7 @@ async function executeStatements(tabId: string, statements: string[]) {
     return
   }
   if (outcome.sawDdl) {
-    resourceNonce.value++
+    refreshResources()
     await queryClient.invalidateQueries({ queryKey: queryKeys.metadata(dataSourceId) })
   }
   await queryClient.invalidateQueries({ queryKey: ['sql-history'] })
@@ -724,6 +801,16 @@ watch(
   },
 )
 watch(
+  () => [active.value?.dataSourceId ?? null, active.value?.database ?? null] as const,
+  ([dataSourceId, database], previous) => {
+    const prevSource = previous?.[0] ?? null
+    const prevDatabase = previous?.[1] ?? null
+    if (prevSource === dataSourceId && prevDatabase === database) return
+    if (!prevSource && !prevDatabase) return
+    invalidateCompletionCache()
+  },
+)
+watch(
   () => [editor.activeId, editor.active?.kind, editor.active?.viewerPane] as const,
   () => {
     const tab = editor.active
@@ -820,12 +907,13 @@ onBeforeUnmount(() => {
             :data-source-id="selectedSource"
             :database="selectedDatabase"
             :reload-token="resourceNonce"
+            :completion-generation="completionGeneration"
             @select-connection="selectConnection"
             @insert="insertSql"
             @open-table="openTable"
             @notice="notice"
-            @suggestions="metadataSuggestions = $event"
-            @refresh="resourceNonce++"
+            @suggestions="rememberCompletionSnapshot"
+            @refresh="refreshResources"
           />
           <HistoryPanel
             v-else-if="side === 'history'"
@@ -976,7 +1064,9 @@ onBeforeUnmount(() => {
                     ref="monacoRef"
                     :model-value="active.sql"
                     :language="editorLanguage"
-                    :suggestions="suggestions"
+                    :catalog="completionCatalog"
+                    :identifier-quote="identifierQuote"
+                    :resolve-columns="resolveColumns"
                     @update:model-value="editor.updateSql(active!.id, $event)"
                     @update:has-selection="hasSelection = $event"
                     @notice="notice"

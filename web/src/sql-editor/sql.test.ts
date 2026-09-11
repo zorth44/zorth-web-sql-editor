@@ -6,6 +6,7 @@ import {
   selectPreview,
   selectTableData,
   splitSql,
+  sqlLexicalContextAt,
   statementAt,
 } from '@/sql-editor/sql'
 describe('SQL selection', () => {
@@ -64,7 +65,10 @@ describe('script scanning', () => {
   })
   it('does not split on semicolons inside dollar quotes', () => {
     const script = scanSql('select $tag$ a;b $tag$; select 2')
-    expect(script.statements.map((item) => item.text)).toEqual(['select $tag$ a;b $tag$', 'select 2'])
+    expect(script.statements.map((item) => item.text)).toEqual([
+      'select $tag$ a;b $tag$',
+      'select 2',
+    ])
     expect(script.reliable).toBe(true)
   })
   it('detects statements that depend on connection session state', () => {
@@ -75,5 +79,24 @@ describe('script scanning', () => {
     expect(needsSessionAffinity('select 1')).toBe(false)
     expect(needsSessionAffinity('update t set a = 1')).toBe(false)
     expect(needsSessionAffinity('create table t (a int)')).toBe(false)
+  })
+})
+
+describe('SQL lexical context at caret', () => {
+  it('treats normal SQL and backtick identifiers as code', () => {
+    expect(sqlLexicalContextAt('select * from orders.', 21, '`')).toBe('code')
+    expect(sqlLexicalContextAt('select * from `orders`.', 23, '`')).toBe('code')
+  })
+
+  it('treats strings and comments as non-code', () => {
+    expect(sqlLexicalContextAt("select 'orders.", 15, '`')).toBe('non-code')
+    expect(sqlLexicalContextAt('select 1 -- orders.', 19, '`')).toBe('non-code')
+    expect(sqlLexicalContextAt('select 1 /* orders.', 19, '`')).toBe('non-code')
+    expect(sqlLexicalContextAt('select $tag$ orders.', 20, '`')).toBe('non-code')
+  })
+
+  it('treats double quotes as strings unless they are the engine identifier quote', () => {
+    expect(sqlLexicalContextAt('select "orders.', 15, '`')).toBe('non-code')
+    expect(sqlLexicalContextAt('select "orders".', 16, '"')).toBe('code')
   })
 })
