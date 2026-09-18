@@ -202,7 +202,7 @@ class SqlExecutionServiceTest {
         verify(history, never()).start(anyString(), any(), any(), any(), anyString(), anyString(), any(), anyString(), anyString(), any());
     }
 
-    @Test void readOnlyRejectsExplainAnalyzeBeforeAcquire() {
+    @Test void readOnlyRejectsExplainAnalyzeBeforeAcquire() throws Exception {
         when(targets.engine(dataSource)).thenReturn(new MysqlEngineSupport());
         SqlExecutionRequest request = request("EXPLAIN ANALYZE SELECT 1");
         request.setReadOnly(true);

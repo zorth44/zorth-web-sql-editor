@@ -68,6 +68,7 @@ class PostgresEngineIntegrationTest {
             statement.execute("CREATE SCHEMA sales");
             statement.execute("CREATE TABLE sales.order_item (id int primary key, name text)");
             statement.execute("INSERT INTO sales.order_item (id, name) VALUES (1, 'a')");
+            statement.execute("ANALYZE sales.order_item");
         }
     }
 

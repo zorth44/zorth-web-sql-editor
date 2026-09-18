@@ -31,5 +31,5 @@
 
 - [x] 5.1 更新 `docs/backend-development-spec.md`：`table-detail.stats`、两条 explain API、错误码 `EXPLAIN_ANALYZE_NOT_ALLOWED` / `EXPLAIN_STATEMENT_NOT_SUPPORTED` / `EXPLAIN_ANALYZE_DISABLED`、只读拒 ANALYZE、新 `source` 值
 - [x] 5.2 更新 `web/src/types/contracts.ts`（及现有元数据/历史测试）：`TableDetail.stats`、`ExecutionSource` 新字面量；工作台不调用 explain 口
-- [ ] 5.3 现有元数据、只读执行、历史集成测试仍然通过；补 table-detail 含 `stats` 的集成断言（Testcontainers MySQL，Postgres 有则同样）
-- [ ] 5.4 运行 `openspec validate add-agent-table-info-explain-apis --strict` 确认本 change 通过
+- [x] 5.3 现有元数据、只读执行、历史集成测试仍然通过；补 table-detail 含 `stats` 的集成断言（Testcontainers MySQL，Postgres 有则同样）
+- [x] 5.4 运行 `openspec validate add-agent-table-info-explain-apis --strict` 确认本 change 通过
