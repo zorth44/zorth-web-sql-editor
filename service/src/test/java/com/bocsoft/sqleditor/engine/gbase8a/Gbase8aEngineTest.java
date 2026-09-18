@@ -48,6 +48,11 @@ class Gbase8aEngineTest {
             .isEqualTo("jdbc:gbase://[2001:db8::5]:5258/");
     }
 
+    @Test void rewritesExplainThroughMysqlEngine() {
+        assertThat(gbase.isAnalyzedExplain("EXPLAIN ANALYZE SELECT 1")).isTrue();
+        assertThat(gbase.rewriteExplain("SELECT 1", com.bocsoft.sqleditor.engine.ExplainMode.PLAN)).isEqualTo("EXPLAIN SELECT 1");
+    }
+
     @Test void classifiesMissingOfficialDriverWithoutLeakingUrl() {
         assertThat(gbase.classifyConnectionFailure(new ClassNotFoundException(Gbase8aJdbc.DRIVER_CLASS)).getCode())
             .isEqualTo("CONNECTION_FAILED");

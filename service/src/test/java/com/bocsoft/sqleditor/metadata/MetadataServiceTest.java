@@ -15,7 +15,9 @@ import com.bocsoft.sqleditor.datasource.SavedDataSource;
 import com.bocsoft.sqleditor.datasource.TargetConnectionProvider;
 import com.bocsoft.sqleditor.datasource.api.CursorPage;
 import com.bocsoft.sqleditor.datasource.connection.ConnectionConfiguration;
+import com.bocsoft.sqleditor.engine.EngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
+import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -128,5 +130,32 @@ class MetadataServiceTest {
         assertThat(page.getItems().get(0).getName()).isEqualTo("order_item");
         verify(connection).setSchema("sales");
         verify(connection, never()).setCatalog(any());
+    }
+
+    @Test
+    void tableDetailDelegatesToEngineWithoutShowTableStatus() throws Exception {
+        TargetConnectionProvider targets = mock(TargetConnectionProvider.class);
+        Connection connection = mock(Connection.class);
+        EngineSupport engine = mock(EngineSupport.class);
+        AuthContext auth = new AuthContext("u", "user", "User", "product-a", "A", Instant.now().plusSeconds(60));
+        SavedDataSource source = new SavedDataSource("ds", "Orders", 1, null, new ConnectionConfiguration("db", 3306, "u", "secret", null, "DISABLED", 10, Collections.emptyMap()));
+        TableDetailResponse expected = new TableDetailResponse(
+            "orders", "t", Collections.<com.bocsoft.sqleditor.metadata.api.ColumnItem>emptyList(), null,
+            Collections.<com.bocsoft.sqleditor.metadata.api.IndexItem>emptyList(), "CREATE TABLE t",
+            new com.bocsoft.sqleditor.metadata.api.TableStats("InnoDB", 1L, 2L, 3L, 4L, null, null, "c"));
+        when(targets.require(auth, "ds")).thenReturn(source);
+        when(targets.engine(source)).thenReturn(engine);
+        when(targets.borrow(source)).thenReturn(connection);
+        when(connection.getAutoCommit()).thenReturn(true);
+        when(engine.tableDetail(connection, "orders", "t")).thenReturn(expected);
+        when(engine.restoreSession(connection, null)).thenReturn(false);
+        SqlEditorProperties p = new SqlEditorProperties();
+        p.getCursor().setSigningKey(Base64.getEncoder().encodeToString(new byte[32]));
+        MetadataService service = new MetadataService(targets, new MetadataCursorCodec(new ObjectMapper(), p));
+        TableDetailResponse actual = service.detail(auth, "ds", "orders", "t");
+        assertThat(actual.getStats().getEstimatedRows()).isEqualTo(1L);
+        verify(engine).tableDetail(connection, "orders", "t");
+        verify(engine).validateIdentifier("database", "orders");
+        verify(engine).validateIdentifier("table", "t");
     }
 }

@@ -138,6 +138,26 @@ class PostgresEngineIntegrationTest {
             .andExpect(jsonPath("$.items[0].name").value("order_item"))
             .andExpect(jsonPath("$.items[0].database").value("sales"));
 
+        mvc.perform(get("/api/v1/data-sources/" + id + "/table-detail").param("database", "sales").param("table", "order_item")
+                .header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.stats.engine").isString())
+            .andExpect(jsonPath("$.stats.estimatedRows").isNumber())
+            .andExpect(jsonPath("$.stats.dataBytes").isNumber());
+
+        String planId = UUID.randomUUID().toString();
+        String body = "{\"executionId\":\"" + planId + "\",\"dataSourceId\":\"" + id
+            + "\",\"database\":\"sales\",\"statement\":\"SELECT 1\"}";
+        MvcResult planned = mvc.perform(post("/api/v1/sql/explains").header("Authorization", "Bearer token-a")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(request().asyncStarted())
+            .andReturn();
+        mvc.perform(asyncDispatch(planned)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET"));
+        mvc.perform(get("/api/v1/sql/history/" + planId).header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.source").value("AI_AGENT_EXPLAIN"))
+            .andExpect(jsonPath("$.statement").value("EXPLAIN (FORMAT JSON) SELECT 1"));
+
         executeSelect(id, "sales", "SELECT * FROM order_item");
         executeSelect(id, "public", "SELECT $tag$ hello; world $tag$ AS v");
     }

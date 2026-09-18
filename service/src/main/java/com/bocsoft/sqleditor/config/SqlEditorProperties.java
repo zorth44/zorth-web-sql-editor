@@ -25,6 +25,7 @@ public class SqlEditorProperties {
     @Valid private final History history = new History();
     @Valid private final Scripts scripts = new Scripts();
     @Valid private final Http http = new Http();
+    @Valid private final ExplainAnalyze explainAnalyze = new ExplainAnalyze();
 
     public Auth getAuth() { return auth; }
     public Credentials getCredentials() { return credentials; }
@@ -36,6 +37,7 @@ public class SqlEditorProperties {
     public History getHistory() { return history; }
     public Scripts getScripts() { return scripts; }
     public Http getHttp() { return http; }
+    public ExplainAnalyze getExplainAnalyze() { return explainAnalyze; }
 
     @PostConstruct
     public void validateConfiguration() {
@@ -53,6 +55,9 @@ public class SqlEditorProperties {
         }
         if (execution.executorPoolSize < execution.maxConcurrentGlobal) {
             throw new IllegalStateException("Execution pool must cover the global execution limit");
+        }
+        if (explainAnalyze.timeoutSeconds > execution.timeoutSeconds) {
+            throw new IllegalStateException("Explain-analyze timeout cannot exceed the execution timeout");
         }
         validateKeyMaterial(credentials.keys, "Credential key", true);
         validateSingleKey(cursor.signingKey, "Cursor signing key");
@@ -183,5 +188,14 @@ public class SqlEditorProperties {
         private List<String> trustedProxyCidrs = new ArrayList<String>();
         public List<String> getTrustedProxyCidrs() { return trustedProxyCidrs; }
         public void setTrustedProxyCidrs(List<String> v) { trustedProxyCidrs = v; }
+    }
+
+    public static class ExplainAnalyze {
+        private boolean enabled = false;
+        @Min(1) @Max(3600) private int timeoutSeconds = 15;
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public int getTimeoutSeconds() { return timeoutSeconds; }
+        public void setTimeoutSeconds(int timeoutSeconds) { this.timeoutSeconds = timeoutSeconds; }
     }
 }

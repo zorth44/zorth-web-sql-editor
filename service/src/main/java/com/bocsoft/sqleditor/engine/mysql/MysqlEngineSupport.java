@@ -9,6 +9,7 @@ import com.bocsoft.sqleditor.engine.EngineDescriptor;
 import com.bocsoft.sqleditor.engine.EngineField;
 import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.ExplainMode;
 import com.bocsoft.sqleditor.engine.ResourceTreeLevel;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
@@ -28,6 +29,7 @@ public class MysqlEngineSupport implements EngineSupport {
     private final MysqlFailures failures = new MysqlFailures();
     private final MysqlSqlScanner scanner = new MysqlSqlScanner();
     private final MysqlCatalogs catalogs = new MysqlCatalogs();
+    private final MysqlExplain explain = new MysqlExplain();
 
     @Override public String id() { return EngineId.MYSQL; }
     @Override public String family() { return "MYSQL_WIRE"; }
@@ -82,4 +84,7 @@ public class MysqlEngineSupport implements EngineSupport {
     @Override public String requireSingle(String sql) { return scanner.requireSingle(sql); }
     @Override public List<String> split(String sql) { return scanner.split(sql); }
     @Override public String quoteIdentifier(String value) { return catalogs.quoteIdentifier(value); }
+
+    @Override public boolean isAnalyzedExplain(String sql) { return explain.isAnalyzedExplain(sql); }
+    @Override public String rewriteExplain(String sql, ExplainMode mode) { return explain.rewrite(sql, mode); }
 }

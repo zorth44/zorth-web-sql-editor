@@ -39,6 +39,9 @@ public interface EngineSupport {
     List<String> split(String sql);
     String quoteIdentifier(String value);
 
+    boolean isAnalyzedExplain(String sql);
+    String rewriteExplain(String sql, ExplainMode mode);
+
     default void applyConnectTimeout(Properties properties, long timeoutMillis) {
         properties.setProperty("connectTimeout", String.valueOf(Math.max(1L, timeoutMillis)));
     }

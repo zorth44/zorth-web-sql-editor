@@ -61,6 +61,16 @@ public class SqlExecutionService {
     }
 
     public SqlExecutionResponse execute(AuthContext auth, SqlExecutionRequest request, String requestId, String clientIp) {
+        return run(auth, request, requestId, clientIp, ExecutionSource.normalizeClient(request.getSource()), true);
+    }
+
+    public SqlExecutionResponse executeForced(AuthContext auth, SqlExecutionRequest request, String requestId,
+                                              String clientIp, String forcedSource) {
+        return run(auth, request, requestId, clientIp, ExecutionSource.requirePersisted(forcedSource), false);
+    }
+
+    private SqlExecutionResponse run(AuthContext auth, SqlExecutionRequest request, String requestId, String clientIp,
+                                     String executionSource, boolean rejectAnalyzedExplain) {
         String id = uuid(request.getExecutionId());
         SavedDataSource source = targets.require(auth, request.getDataSourceId());
         EngineSupport engine = targets.engine(source);
@@ -74,10 +84,12 @@ public class SqlExecutionService {
         StatementType type = classifier.classify(sql);
         if (database == null && requiresDatabase(type, sql)) throw ApiException.validation("database", "REQUIRED", "请选择数据库");
         int timeoutSeconds = effectiveTimeoutSeconds(request);
-        String executionSource = ExecutionSource.normalize(request.getSource());
         boolean readOnly = Boolean.TRUE.equals(request.getReadOnly());
         if (readOnly && type != StatementType.SELECT) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "READ_ONLY_VIOLATION", "只读模式只允许查询语句");
+        }
+        if (rejectAnalyzedExplain && readOnly && engine.isAnalyzedExplain(sql)) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "EXPLAIN_ANALYZE_NOT_ALLOWED", "只读模式不允许 EXPLAIN ANALYZE");
         }
         if (registry.contains(id) || history.exists(id)) throw new ApiException(HttpStatus.CONFLICT, "EXECUTION_ID_CONFLICT", "执行 ID 已被使用");
         registry.acquire(id, auth.getUserId(), source.getId());

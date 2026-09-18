@@ -7,6 +7,7 @@ import com.bocsoft.sqleditor.metadata.api.IndexItem;
 import com.bocsoft.sqleditor.metadata.api.PrimaryKeyItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
+import com.bocsoft.sqleditor.metadata.api.TableStats;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.sql.Connection;
@@ -14,6 +15,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -129,7 +131,7 @@ final class MysqlCatalogs {
         return new TableDetailResponse(
             database, table, columns,
             pkOrder.isEmpty() ? null : new PrimaryKeyItem(pkName, new ArrayList<String>(pkOrder.values())),
-            indexes, readDdl(connection, database, table)
+            indexes, readDdl(connection, database, table), readStats(connection, database, table)
         );
     }
 
@@ -176,6 +178,40 @@ final class MysqlCatalogs {
             if (rs.next()) return rs.getString(2);
         } catch (SQLException ignored) { }
         return null;
+    }
+
+    TableStats readStats(Connection connection, String database, String table) {
+        String sql = "SHOW TABLE STATUS FROM " + quoteIdentifier(database) + " WHERE Name = " + stringLiteral(table);
+        try (Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery(sql)) {
+            if (!rs.next()) return null;
+            return new TableStats(
+                rs.getString("Engine"),
+                longValue(rs, "Rows"),
+                longValue(rs, "Data_length"),
+                longValue(rs, "Index_length"),
+                longValue(rs, "Auto_increment"),
+                timestamp(rs, "Create_time"),
+                timestamp(rs, "Update_time"),
+                rs.getString("Comment")
+            );
+        } catch (SQLException ignored) {
+            return null;
+        }
+    }
+
+    private String stringLiteral(String value) {
+        return "'" + value.replace("\\", "\\\\").replace("'", "''") + "'";
+    }
+
+    private Long longValue(ResultSet rs, String column) throws SQLException {
+        long value = rs.getLong(column);
+        return rs.wasNull() ? null : Long.valueOf(value);
+    }
+
+    private String timestamp(ResultSet rs, String column) throws SQLException {
+        Timestamp value = rs.getTimestamp(column);
+        return value == null ? null : value.toInstant().toString();
     }
 
     private String jdbcTypeName(int type) {

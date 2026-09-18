@@ -260,7 +260,7 @@ GET /api/v1/session
 | `data_source_name` | varchar(100) | 名称快照 |
 | `database_name` | varchar(64) | 数据库 |
 | `operation` | varchar(20) | `EXECUTE` 或 `EXPORT` |
-| `source` | varchar(20) | `WEB_SQL_EDITOR` 或 `AI_AGENT`，缺省 `WEB_SQL_EDITOR` |
+| `source` | varchar(32) | `WEB_SQL_EDITOR`、`AI_AGENT`、`AI_AGENT_EXPLAIN` 或 `AI_AGENT_EXPLAIN_ANALYZE`，缺省 `WEB_SQL_EDITOR` |
 | `statement_text` | mediumtext | SQL 原文 |
 | `statement_hash` | char(64) | SHA-256 |
 | `statement_type` | varchar(32) | SELECT/INSERT/UPDATE/DELETE/DDL/OTHER |
@@ -727,7 +727,8 @@ GET /api/v1/data-sources/{id}/table-detail?database=orders&table=order_item
 - `columns`：名称、原始类型、JDBC 类型、长度、精度、小数位、是否可空、默认值、额外属性、注释、序号。
 - `primaryKey`：名称和有序字段。
 - `indexes`：名称、是否唯一、类型和有序字段。
-- `ddl`：`SHOW CREATE TABLE` 返回的建表/建视图语句；读取失败时为 `null`。
+- `ddl`：建表/建视图语句；MySQL / GBase 来自 `SHOW CREATE TABLE`，PostgreSQL 为引擎合成；读取失败时为 `null`。
+- `stats`：引擎中性表统计。字段为 `engine`、`estimatedRows`、`dataBytes`、`indexBytes`、`autoIncrement`、`createTime`、`updateTime`、`comment`。缺省值为 JSON `null`。MySQL / GBase 映射自 `SHOW TABLE STATUS`（`Rows` 对应 `estimatedRows`，为估计值）；PostgreSQL 映射自 `pg_class` / 关系大小。统计采集失败时整个 `stats` 为 `null`，不影响列和 `ddl`。禁止把 `Rows`、`Data_length` 等 MySQL 列名暴露给调用方。
 
 数据库名和表名只作为参数传给 `DatabaseMetaData` 或经过反引号转义的内部固定 SQL，禁止直接拼接未经校验的标识符。
 
@@ -739,13 +740,38 @@ GET /api/v1/data-sources/{id}/table-detail?database=orders&table=order_item
 
 - 支持目标账号允许的查询、DML、DDL 和其他单条 MySQL Statement。
 - 默认不做危险语句识别、审批或额外拦截。`SELECT INTO OUTFILE`、`LOAD DATA` 等能否执行，只取决于 MySQL 账号。
-- 请求可带 `readOnly: true`。此时在占用并发、写历史、打开目标连接之前，只放行分类为 `SELECT` 的语句（含 `WITH` / `SHOW` / `EXPLAIN` / `DESC` / `DESCRIBE`），其余返回 `422 READ_ONLY_VIOLATION`。放行后对连接调用 `setReadOnly(true)`；若 JDBC 仍返回 update count，同样按 `READ_ONLY_VIOLATION` 失败。这是 Agent 通道的服务端只读边界，不是完整 SQL 解析器：`SELECT ... INTO OUTFILE` 仍可能被放行。
-- 省略或 `readOnly: false` 时编辑器行为不变，仍可跑 DML/DDL。
+- 请求可带 `readOnly: true`。此时在占用并发、写历史、打开目标连接之前，只放行分类为 `SELECT` 的语句（含 `WITH` / `SHOW` / `EXPLAIN` / `DESC` / `DESCRIBE`），其余返回 `422 READ_ONLY_VIOLATION`。分类为 `EXPLAIN` 且请求 ANALYZE（`EXPLAIN ANALYZE` 或 `EXPLAIN (ANALYZE ...)`）时返回 `422 EXPLAIN_ANALYZE_NOT_ALLOWED`。放行后对连接调用 `setReadOnly(true)`；若 JDBC 仍返回 update count，同样按 `READ_ONLY_VIOLATION` 失败。这是 Agent 通道的服务端只读边界，不是完整 SQL 解析器：`SELECT ... INTO OUTFILE` 仍可能被放行。
+- 省略或 `readOnly: false` 时编辑器行为不变，仍可跑 DML/DDL，包括用户手写的 `EXPLAIN ANALYZE`。
 - `autoCommit=true`。DML 成功即提交；MySQL DDL 通常会隐式提交。
 - 一次请求只允许一条语句，Connector 设置 `allowMultiQueries=false`。
 - 前端把脚本切分后逐条串行提交，每条语句一个请求和一个 `executionId`；后端用同一规则做权威校验。无法可靠识别或存在第二条语句时返回 `400 MULTI_STATEMENT_NOT_SUPPORTED`。这条兜底不因前端支持脚本而放宽。
 - 不支持 `DELIMITER` 客户端命令；存储过程、触发器脚本不作为验收范围。
 - 取消和超时都是尽力而为。语句已在数据库完成或已经提交时，取消不能撤销结果。
+
+### 12.1.1 Agent 执行计划 API
+
+给 Spring AI / AgentScope 等外部 Agent 使用，不在 `explains` 上提供 `analyze` 布尔开关。
+
+```http
+POST /api/v1/sql/explains
+POST /api/v1/sql/explains:analyze
+```
+
+请求体与执行口类似，但 **不含** `readOnly`、`source`、`analyze`（未知字段 400）：
+
+```json
+{
+  "executionId": "f44b...",
+  "dataSourceId": "15d7...",
+  "database": "orders",
+  "statement": "select * from order_item where id = 1",
+  "timeoutSeconds": 10
+}
+```
+
+- `/sql/explains`：引擎把语句改写成计划-only `EXPLAIN`（PostgreSQL 为 `EXPLAIN (FORMAT JSON)`）。提交 `EXPLAIN ANALYZE` 返回 `422 EXPLAIN_ANALYZE_NOT_ALLOWED`。非查询语句返回 `422 EXPLAIN_STATEMENT_NOT_SUPPORTED`。历史 `source` 固定 `AI_AGENT_EXPLAIN`，语句为改写后文本。超时沿用执行配置上限。
+- `/sql/explains:analyze`：监管入口。配置 `sql-editor.explain-analyze.enabled` 缺省 `false`，未开启返回 `403 EXPLAIN_ANALYZE_DISABLED`。开启后改写为 `EXPLAIN ANALYZE`（PostgreSQL 为 `EXPLAIN (ANALYZE, FORMAT JSON)`），历史 `source` 为 `AI_AGENT_EXPLAIN_ANALYZE`。超时夹在 `1..sql-editor.explain-analyze.timeout-seconds`（缺省 15），省略或更大值都用该上限。
+- 两条口都走现有单语句执行链：配额、取消、只读连接、产品隔离。调用方应提交原始 `SELECT`/`WITH`，不要把通用 `/sql/executions` 当 explain。
 
 ### 12.2 SQL 语句分类
 
@@ -834,7 +860,7 @@ Content-Type: application/json
 
 - `readOnly`：缺省 `false`。`true` 时强制只读，见 §12.1。
 - `timeoutSeconds`：缺省为配置 `sql-editor.execution.timeout-seconds`。小于 1 或大于该上限返回 `400 VALIDATION_FAILED`。
-- `source`：`WEB_SQL_EDITOR` 或 `AI_AGENT`，缺省 `WEB_SQL_EDITOR`。只写入历史，不当鉴权，也不隐含 `readOnly`。
+- `source`：仅 `POST /api/v1/sql/executions` 可传 `WEB_SQL_EDITOR` 或 `AI_AGENT`，缺省 `WEB_SQL_EDITOR`。只写入历史，不当鉴权，也不隐含 `readOnly`。计划口与 ANALYZE 口不接受该字段，由服务端分别写入 `AI_AGENT_EXPLAIN` / `AI_AGENT_EXPLAIN_ANALYZE`。
 
 `executionId` 规则：
 
@@ -845,7 +871,7 @@ Content-Type: application/json
 后端处理顺序：
 
 1. 校验 Token，并确认数据源 `product_id` 与当前产品一致；不一致则 404。
-2. 校验执行 ID、SQL 大小、单语句规则、database 必填规则、`timeoutSeconds` / `source`，以及 `readOnly` 时的语句类型。只读拒绝发生在占用并发和写历史之前。
+2. 校验执行 ID、SQL 大小、单语句规则、database 必填规则、`timeoutSeconds` / `source`，以及 `readOnly` 时的语句类型（含拒绝 ANALYZE）。只读拒绝发生在占用并发和写历史之前。
 3. 校验并发配额。
 4. 先插入 `RUNNING` 历史记录（唯一约束冲突则返回 `EXECUTION_ID_CONFLICT`），写入 `source` 和 `client_ip`。
 5. 在执行线程池中注册 `executionId -> userId/Statement/Future`。
@@ -1033,6 +1059,9 @@ DELETE /api/v1/sql/scripts/{id}?version=
 | 413 | `STATEMENT_TOO_LARGE` | SQL 超过 1 MB |
 | 429 | `EXECUTION_LIMIT_EXCEEDED` | 并发超限 |
 | 422 | `READ_ONLY_VIOLATION` | `readOnly=true` 时语句不是只读查询 |
+| 422 | `EXPLAIN_ANALYZE_NOT_ALLOWED` | 计划口或只读执行收到 `EXPLAIN ANALYZE` |
+| 422 | `EXPLAIN_STATEMENT_NOT_SUPPORTED` | 计划/ANALYZE 口收到非查询语句 |
+| 403 | `EXPLAIN_ANALYZE_DISABLED` | `sql-editor.explain-analyze.enabled` 为 false |
 | 422 | `SQL_EXECUTION_FAILED` | MySQL 语法、权限或执行错误 |
 | 503 | `AUTH_SERVICE_UNAVAILABLE` | 授权服务不可用 |
 | 504 | `SQL_EXECUTION_TIMEOUT` | 执行超时 |

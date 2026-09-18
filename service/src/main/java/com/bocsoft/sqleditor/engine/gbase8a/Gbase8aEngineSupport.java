@@ -8,6 +8,7 @@ import com.bocsoft.sqleditor.engine.EngineDescriptor;
 import com.bocsoft.sqleditor.engine.EngineField;
 import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.ExplainMode;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
@@ -86,6 +87,8 @@ public class Gbase8aEngineSupport implements EngineSupport {
     @Override public String requireSingle(String sql) { return mysql.requireSingle(sql); }
     @Override public List<String> split(String sql) { return mysql.split(sql); }
     @Override public String quoteIdentifier(String value) { return mysql.quoteIdentifier(value); }
+    @Override public boolean isAnalyzedExplain(String sql) { return mysql.isAnalyzedExplain(sql); }
+    @Override public String rewriteExplain(String sql, ExplainMode mode) { return mysql.rewriteExplain(sql, mode); }
     @Override public void applyConnectTimeout(Properties properties, long timeoutMillis) {
         mysql.applyConnectTimeout(properties, timeoutMillis);
     }

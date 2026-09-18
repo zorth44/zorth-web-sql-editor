@@ -564,6 +564,16 @@ export const handlers = [
       ],
       primaryKey: { name: 'PRIMARY', columns: ['id'] },
       indexes: [{ name: 'PRIMARY', unique: true, type: 'OTHER', columns: ['id'] }],
+      stats: {
+        engine: 'InnoDB',
+        estimatedRows: 12,
+        dataBytes: 16384,
+        indexBytes: 2048,
+        autoIncrement: 13,
+        createTime: '2020-01-01T00:00:00Z',
+        updateTime: null,
+        comment: '订单明细',
+      },
       ddl: `CREATE TABLE \`${table}\` (
   \`id\` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   \`amount\` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT '金额',

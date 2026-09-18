@@ -202,6 +202,72 @@ class BackendIntegrationTest {
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.details.fieldErrors[0].field").value("agent"));
     }
 
+    @Test void tableStatsAndExplainApisForAgentTools()throws Exception{
+        JsonNode created=create("token-a","Agent 表信息源");
+        String id=created.path("id").asText();
+        String database=MYSQL.getDatabaseName();
+        jdbc.update("create table if not exists zorth_agent_stats (id int primary key auto_increment, name varchar(20))");
+        mvc.perform(get("/api/v1/data-sources/"+id+"/table-detail").param("database",database).param("table","zorth_agent_stats")
+            .header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.ddl").value(org.hamcrest.Matchers.containsString("CREATE TABLE")))
+            .andExpect(jsonPath("$.stats.engine").value("InnoDB"))
+            .andExpect(jsonPath("$.stats.estimatedRows").isNumber())
+            .andExpect(jsonPath("$.stats.dataBytes").isNumber())
+            .andExpect(jsonPath("$.stats.Rows").doesNotExist());
+
+        String planId=java.util.UUID.randomUUID().toString();
+        MvcResult planned=mvc.perform(post("/api/v1/sql/explains").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+planId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(planned)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET"));
+        mvc.perform(get("/api/v1/sql/history/"+planId).header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.source").value("AI_AGENT_EXPLAIN"))
+            .andExpect(jsonPath("$.statement").value("EXPLAIN SELECT 1"));
+        assertThat(jdbc.queryForObject("select character_maximum_length from information_schema.columns where table_schema=database() and table_name='sql_execution_history' and column_name='source'",Integer.class)).isGreaterThanOrEqualTo(32);
+
+        mvc.perform(post("/api/v1/sql/explains").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+java.util.UUID.randomUUID()+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"EXPLAIN ANALYZE SELECT 1\"}"))
+            .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("EXPLAIN_ANALYZE_NOT_ALLOWED"));
+        mvc.perform(post("/api/v1/sql/explains").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+java.util.UUID.randomUUID()+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"INSERT INTO zorth_agent_stats(name) VALUES ('x')\"}"))
+            .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("EXPLAIN_STATEMENT_NOT_SUPPORTED"));
+        mvc.perform(post("/api/v1/sql/explains").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+java.util.UUID.randomUUID()+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\",\"source\":\"AI_AGENT\"}"))
+            .andExpect(status().isBadRequest());
+
+        String disabledId=java.util.UUID.randomUUID().toString();
+        mvc.perform(post("/api/v1/sql/explains:analyze").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+disabledId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\"}"))
+            .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("EXPLAIN_ANALYZE_DISABLED"));
+        assertThat(jdbc.queryForObject("select count(*) from sql_execution_history where id=?",Integer.class,disabledId)).isZero();
+
+        boolean original=editorProperties.getExplainAnalyze().isEnabled();
+        editorProperties.getExplainAnalyze().setEnabled(true);
+        try{
+            mvc.perform(post("/api/v1/sql/explains").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"executionId\":\""+java.util.UUID.randomUUID()+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"EXPLAIN ANALYZE SELECT 1\"}"))
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("EXPLAIN_ANALYZE_NOT_ALLOWED"));
+            String analyzeId=java.util.UUID.randomUUID().toString();
+            MvcResult analyzed=mvc.perform(post("/api/v1/sql/explains:analyze").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"executionId\":\""+analyzeId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\",\"timeoutSeconds\":60}"))
+                .andExpect(request().asyncStarted()).andReturn();
+            mvc.perform(asyncDispatch(analyzed)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET"));
+            mvc.perform(get("/api/v1/sql/history/"+analyzeId).header("Authorization","Bearer token-a"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source").value("AI_AGENT_EXPLAIN_ANALYZE"))
+                .andExpect(jsonPath("$.statement").value("EXPLAIN ANALYZE SELECT 1"));
+        }finally{editorProperties.getExplainAnalyze().setEnabled(original);}
+
+        String roAnalyze=java.util.UUID.randomUUID().toString();
+        MvcResult rejectedAnalyze=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+roAnalyze+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"EXPLAIN ANALYZE SELECT 1\",\"readOnly\":true}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(rejectedAnalyze)).andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("EXPLAIN_ANALYZE_NOT_ALLOWED"));
+        assertThat(jdbc.queryForObject("select count(*) from sql_execution_history where id=?",Integer.class,roAnalyze)).isZero();
+    }
+
     @Test void currentUserSqlScriptsArePrivateSearchableAndRenamable()throws Exception{
         JsonNode source=create("token-a","脚本数据源");
         String sourceId=source.path("id").asText();

@@ -326,6 +326,7 @@ describe('sql editor metadata completion catalog', () => {
         primaryKey: null,
         indexes: [],
         ddl: null,
+        stats: null,
       })
       await expect(pending).resolves.toEqual([])
       wrapper.unmount()

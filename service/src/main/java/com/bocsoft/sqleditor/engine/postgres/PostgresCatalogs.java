@@ -7,6 +7,7 @@ import com.bocsoft.sqleditor.metadata.api.IndexItem;
 import com.bocsoft.sqleditor.metadata.api.PrimaryKeyItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
+import com.bocsoft.sqleditor.metadata.api.TableStats;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.sql.Connection;
@@ -129,7 +130,7 @@ final class PostgresCatalogs {
         return new TableDetailResponse(
             database, table, columns,
             pkOrder.isEmpty() ? null : new PrimaryKeyItem(pkName, new ArrayList<String>(pkOrder.values())),
-            indexes, readDdl(connection, database, table, columns)
+            indexes, readDdl(connection, database, table, columns), readStats(connection, database, table)
         );
     }
 
@@ -199,6 +200,43 @@ final class PostgresCatalogs {
             }
         } catch (SQLException ignored) { }
         return null;
+    }
+
+    TableStats readStats(Connection connection, String database, String table) {
+        String sql = "SELECT CASE c.relkind WHEN 'r' THEN 'heap' WHEN 'p' THEN 'partitioned'"
+            + " WHEN 'm' THEN 'materialized_view' WHEN 'v' THEN 'view' WHEN 'f' THEN 'foreign'"
+            + " ELSE c.relkind::text END AS engine,"
+            + " CASE WHEN c.reltuples < 0 THEN NULL ELSE ROUND(c.reltuples)::bigint END AS estimated_rows,"
+            + " CASE WHEN c.relkind IN ('r','m','p','t') THEN pg_catalog.pg_relation_size(c.oid) ELSE NULL END AS data_bytes,"
+            + " CASE WHEN c.relkind IN ('r','m','p','t') THEN pg_catalog.pg_indexes_size(c.oid) ELSE NULL END AS index_bytes,"
+            + " obj_description(c.oid) AS comment"
+            + " FROM pg_catalog.pg_class c"
+            + " JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace"
+            + " WHERE n.nspname = ? AND c.relname = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database);
+            statement.setString(2, table);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return null;
+                return new TableStats(
+                    rs.getString("engine"),
+                    longValue(rs, "estimated_rows"),
+                    longValue(rs, "data_bytes"),
+                    longValue(rs, "index_bytes"),
+                    null,
+                    null,
+                    null,
+                    rs.getString("comment")
+                );
+            }
+        } catch (SQLException ignored) {
+            return null;
+        }
+    }
+
+    private Long longValue(ResultSet rs, String column) throws SQLException {
+        long value = rs.getLong(column);
+        return rs.wasNull() ? null : Long.valueOf(value);
     }
 
     private boolean system(String name) {

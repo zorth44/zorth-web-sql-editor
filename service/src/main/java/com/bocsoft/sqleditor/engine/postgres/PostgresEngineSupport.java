@@ -9,6 +9,7 @@ import com.bocsoft.sqleditor.engine.EngineDescriptor;
 import com.bocsoft.sqleditor.engine.EngineField;
 import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.ExplainMode;
 import com.bocsoft.sqleditor.engine.ResourceTreeLevel;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
@@ -29,6 +30,7 @@ public class PostgresEngineSupport implements EngineSupport {
     private final PostgresFailures failures = new PostgresFailures();
     private final PostgresSqlScanner scanner = new PostgresSqlScanner();
     private final PostgresCatalogs catalogs = new PostgresCatalogs();
+    private final PostgresExplain explain = new PostgresExplain();
 
     @Override public String id() { return EngineId.POSTGRESQL; }
     @Override public String family() { return "POSTGRES_WIRE"; }
@@ -87,6 +89,9 @@ public class PostgresEngineSupport implements EngineSupport {
     @Override public String requireSingle(String sql) { return scanner.requireSingle(sql); }
     @Override public List<String> split(String sql) { return scanner.split(sql); }
     @Override public String quoteIdentifier(String value) { return catalogs.quoteIdentifier(value); }
+
+    @Override public boolean isAnalyzedExplain(String sql) { return explain.isAnalyzedExplain(sql); }
+    @Override public String rewriteExplain(String sql, ExplainMode mode) { return explain.rewrite(sql, mode); }
 
     @Override public void applyConnectTimeout(Properties properties, long timeoutMillis) {
         int seconds = (int) Math.max(1L, (timeoutMillis + 999L) / 1000L);

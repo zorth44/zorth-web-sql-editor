@@ -13,6 +13,7 @@ import com.bocsoft.sqleditor.datasource.SavedDataSource;
 import com.bocsoft.sqleditor.datasource.TargetConnectionProvider;
 import com.bocsoft.sqleditor.datasource.connection.ConnectionConfiguration;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.bocsoft.sqleditor.execution.api.SqlColumn;
 import com.bocsoft.sqleditor.execution.api.SqlExecutionRequest;
 import com.bocsoft.sqleditor.history.ExecutionHistoryService;
@@ -190,6 +191,51 @@ class SqlExecutionServiceTest {
             .extracting("code").isEqualTo("VALIDATION_FAILED");
         verify(history, never()).start(anyString(), any(), any(), any(), anyString(), anyString(), any(), anyString(), anyString(), any());
         assertThat(registry.count("ds-1")).isZero();
+    }
+
+    @Test void explainSourcesAreRejectedOnGenericExecution() {
+        SqlExecutionRequest request = request("SELECT 1");
+        request.setSource(ExecutionSource.AI_AGENT_EXPLAIN);
+        assertThatThrownBy(() -> service.execute(auth, request, "req", "10.0.0.1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("code").isEqualTo("VALIDATION_FAILED");
+        verify(history, never()).start(anyString(), any(), any(), any(), anyString(), anyString(), any(), anyString(), anyString(), any());
+    }
+
+    @Test void readOnlyRejectsExplainAnalyzeBeforeAcquire() {
+        when(targets.engine(dataSource)).thenReturn(new MysqlEngineSupport());
+        SqlExecutionRequest request = request("EXPLAIN ANALYZE SELECT 1");
+        request.setReadOnly(true);
+        assertThatThrownBy(() -> service.execute(auth, request, "req", "10.0.0.1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("code").isEqualTo("EXPLAIN_ANALYZE_NOT_ALLOWED");
+        verify(history, never()).start(anyString(), any(), any(), any(), anyString(), anyString(), any(), anyString(), anyString(), any());
+        verify(targets, never()).borrow(any());
+        assertThat(registry.count("ds-1")).isZero();
+    }
+
+    @Test void omittedReadOnlyAllowsExplainAnalyzeToReachExecution() throws Exception {
+        when(targets.engine(dataSource)).thenReturn(new MysqlEngineSupport());
+        Connection connection = mock(Connection.class);
+        Statement statement = mock(Statement.class);
+        ResultSetReader reader = mock(ResultSetReader.class);
+        SqlEditorProperties properties = new SqlEditorProperties();
+        properties.getExecution().setMaxConcurrentGlobal(10);
+        properties.getExecution().setMaxConcurrentPerUser(5);
+        registry = new ExecutionRegistry(properties);
+        service = new SqlExecutionService(targets, new SqlStatementClassifier(), reader, registry, history,
+            properties, new SqlEditorMetrics(new SimpleMeterRegistry()));
+        when(targets.borrow(dataSource)).thenReturn(connection);
+        when(connection.createStatement()).thenReturn(statement);
+        when(statement.execute(anyString())).thenReturn(true);
+        when(statement.getResultSet()).thenReturn(mock(java.sql.ResultSet.class));
+        when(reader.read(any(), anyInt(), anyLong()))
+            .thenReturn(new ResultSetReader.ReadResult(Collections.<SqlColumn>emptyList(),
+                Collections.<java.util.List<Object>>emptyList(), false, 0));
+        SqlExecutionRequest request = request("EXPLAIN ANALYZE SELECT 1");
+        service.execute(auth, request, "req", "10.0.0.1");
+        verify(statement).execute("EXPLAIN ANALYZE SELECT 1");
+        verify(connection, never()).setReadOnly(true);
     }
 
     private SqlExecutionRequest request(String sql) {

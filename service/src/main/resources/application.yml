@@ -66,6 +66,9 @@ sql-editor:
     max-per-user: ${SQL_EDITOR_SCRIPTS_MAX_PER_USER:200}
   http:
     trusted-proxy-cidrs: []
+  explain-analyze:
+    enabled: ${SQL_EDITOR_EXPLAIN_ANALYZE_ENABLED:false}
+    timeout-seconds: ${SQL_EDITOR_EXPLAIN_ANALYZE_TIMEOUT_SECONDS:15}
 
 management:
   server:
