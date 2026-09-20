@@ -22,6 +22,8 @@ Mock 数据包含重复名称、连接失败、不可见 404、版本冲突和�
 
 ## 环境变量
 
+开发、测试和打包兜底仍可读 `VITE_*`。生产部署请用 `app-config.json`，由 Nginx 按环境挂载，不必为每个环境重新打包。
+
 | 变量                               | 说明                                              |
 | ---------------------------------- | ------------------------------------------------- |
 | `VITE_SQL_API_BASE`                | SQL 服务 base URL；同源部署可用 `/sql` 等相对路径 |
@@ -32,7 +34,40 @@ Mock 数据包含重复名称、连接失败、不可见 404、版本冲突和�
 | `VITE_LEGACY_PORTAL_URL`           | `needBind` 时前往老系统的地址                     |
 | `VITE_ENABLE_API_MOCK`             | 仅开发/测试允许为 `true`                          |
 
-生产环境必须明确提供 SQL、授权、AI 三个 API base 和老系统地址，并保持 Mock 关闭。建议由网关将前端、授权接口、SQL 接口和 AI 接口部署为同源，生产全程使用 HTTPS。开发代理变量 `VITE_DEV_*_PROXY_TARGET` 不得打进生产包。
+`VITE_DEV_*_PROXY_TARGET` 只用于本地 Vite 代理，不会打进生产包，也不能写进 `app-config.json`。生产禁止开启 Mock，运行时配置也无法打开它。
+
+## 运行时配置
+
+前端每次启动读取 `${BASE_URL}app-config.json`（默认构建会复制 `public/app-config.json`）。JSON 覆盖打包兜底值，改文件后刷新即可，无需重编。
+
+```json
+{
+  "sqlApiBase": "/sql",
+  "authApiBase": "/auth",
+  "aiApiBase": "/ai",
+  "authProductType": "chinaBank",
+  "legacyPortalUrl": "http://81.88.161.186:8505/account/bind",
+  "authBridgeAllowedOrigins": ["http://81.88.161.187:18088"]
+}
+```
+
+- `sqlApiBase` / `authApiBase` / `aiApiBase` 可以是同源绝对路径，对应 Nginx 的 `/sql/`、`/auth/`、`/ai/` 反代。
+- `legacyPortalUrl` 是账号绑定页，可以和门户前端不在同一个 Origin。
+- `authBridgeAllowedOrigins` 必须是打开 SQL Editor 的那个前端 Origin（协议、主机、端口，不含路径）。免密跳转的 opener 是门户，不是授权服务。
+- 读取失败或 5 秒超时则回退到打包时的 `VITE_*`；生产环境回退后仍缺必填项会停止启动。
+
+建议 Nginx 用外部文件，避免发布 dist 覆盖配置：
+
+```nginx
+location = /app-config.json {
+    alias /etc/nginx/sql-editor/app-config.json;
+    default_type application/json;
+    add_header Cache-Control "no-store" always;
+    expires off;
+}
+```
+
+该 `location =` 必须保留，不能让 `/` 的 SPA 回退或 `/auth/` 反代吃掉这个路径。修改 JSON 后刷新浏览器即可，不必 reload Nginx。
 
 ## 验证命令
 
@@ -43,10 +78,7 @@ pnpm typecheck
 pnpm test
 pnpm exec playwright install chromium
 pnpm e2e
-VITE_SQL_API_BASE=/sql VITE_AUTH_API_BASE=/auth VITE_AI_API_BASE=/ai \
-  VITE_LEGACY_PORTAL_URL=https://legacy.example.com/account/bind \
-  VITE_AUTH_BRIDGE_ALLOWED_ORIGINS=https://legacy.example.com \
-  VITE_ENABLE_API_MOCK=false pnpm build
+pnpm build
 ```
 
 ## 切换真实后端

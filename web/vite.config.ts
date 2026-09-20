@@ -4,16 +4,8 @@ import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
 
 function validateBuildEnvironment(mode: string): void {
   const env = loadEnv(mode, process.cwd(), '')
-  if (mode === 'production') {
-    const required = [
-      'VITE_SQL_API_BASE',
-      'VITE_AUTH_API_BASE',
-      'VITE_AI_API_BASE',
-      'VITE_LEGACY_PORTAL_URL',
-    ]
-    const missing = required.filter((key) => !env[key]?.trim())
-    if (missing.length) throw new Error(`生产环境缺少配置：${missing.join(', ')}`)
-    if (env.VITE_ENABLE_API_MOCK === 'true') throw new Error('生产环境禁止启用 API Mock')
+  if (mode === 'production' && env.VITE_ENABLE_API_MOCK === 'true') {
+    throw new Error('生产环境禁止启用 API Mock')
   }
 }
 

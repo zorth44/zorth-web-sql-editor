@@ -3,6 +3,7 @@
 interface ImportMetaEnv {
   readonly MODE: string
   readonly PROD: boolean
+  readonly BASE_URL: string
   readonly VITE_SQL_API_BASE?: string
   readonly VITE_AUTH_API_BASE?: string
   readonly VITE_AI_API_BASE?: string

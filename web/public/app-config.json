@@ -1,0 +1,8 @@
+{
+  "sqlApiBase": "/sql",
+  "authApiBase": "/auth",
+  "aiApiBase": "/ai",
+  "authProductType": "chinaBank",
+  "legacyPortalUrl": "http://localhost:8080/account/bind",
+  "authBridgeAllowedOrigins": ["http://localhost:8080"]
+}

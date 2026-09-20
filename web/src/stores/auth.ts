@@ -19,11 +19,15 @@ export const useAuthStore = defineStore('auth', () => {
   const remember = ref(false)
   const bindingRequired = ref(false)
 
-  async function validateSession(): Promise<Session> {
+  async function validateSession(options?: { force?: boolean }): Promise<Session> {
+    if (options?.force) {
+      await queryClient.cancelQueries({ queryKey: queryKeys.session })
+      queryClient.removeQueries({ queryKey: queryKeys.session })
+    }
     const value = await queryClient.fetchQuery({
       queryKey: queryKeys.session,
       queryFn: fetchSession,
-      staleTime: 5 * 60_000,
+      staleTime: options?.force ? 0 : 5 * 60_000,
     })
     if (!isSessionValid(value)) throw new Error('登录已过期，请重新登录')
     session.value = value

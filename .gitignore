@@ -17,5 +17,6 @@
 *.log
 pnpm-debug.log*
 npm-debug.log*
+*.tar.gz
 
 service/third-party/gbase/*.jar
