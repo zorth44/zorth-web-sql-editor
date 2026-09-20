@@ -56,6 +56,17 @@ sql-editor:
     max-concurrent-global: ${SQL_EDITOR_MAX_CONCURRENT_GLOBAL:50}
     max-statement-bytes: ${SQL_EDITOR_MAX_STATEMENT_BYTES:1048576}
     executor-pool-size: ${SQL_EDITOR_EXECUTOR_POOL_SIZE:50}
+  explain-analyze:
+    enabled: ${SQL_EDITOR_EXPLAIN_ANALYZE_ENABLED:false}
+    timeout-seconds: ${SQL_EDITOR_EXPLAIN_ANALYZE_TIMEOUT_SECONDS:15}
+  agent-api:
+    internal-caller-key-required: ${SQL_EDITOR_AGENT_INTERNAL_CALLER_KEY_REQUIRED:false}
+    internal-caller-key: ${SQL_EDITOR_AGENT_INTERNAL_CALLER_KEY:}
+    default-row-limit: ${SQL_EDITOR_AGENT_DEFAULT_ROW_LIMIT:200}
+    max-row-limit: ${SQL_EDITOR_AGENT_MAX_ROW_LIMIT:1000}
+    timeout-seconds: ${SQL_EDITOR_AGENT_TIMEOUT_SECONDS:15}
+    max-result-bytes: ${SQL_EDITOR_AGENT_MAX_RESULT_BYTES:1048576}
+    max-cell-bytes: ${SQL_EDITOR_AGENT_MAX_CELL_BYTES:4096}
   export:
     formula-protection: ${SQL_EDITOR_CSV_FORMULA_PROTECTION:true}
     null-literal: ${SQL_EDITOR_CSV_NULL_LITERAL:false}

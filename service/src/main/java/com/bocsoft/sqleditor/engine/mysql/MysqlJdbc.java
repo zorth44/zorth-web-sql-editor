@@ -94,6 +94,7 @@ final class MysqlJdbc {
     private void applySsl(Properties properties, String mode) {
         if ("DISABLED".equals(mode)) {
             properties.setProperty("useSSL", "false");
+            properties.setProperty("allowPublicKeyRetrieval", "true");
         } else if ("PREFERRED".equals(mode)) {
             properties.setProperty("useSSL", "true"); properties.setProperty("requireSSL", "false");
             properties.setProperty("verifyServerCertificate", "false");

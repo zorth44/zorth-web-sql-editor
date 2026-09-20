@@ -260,7 +260,7 @@ GET /api/v1/session
 | `data_source_name` | varchar(100) | 名称快照 |
 | `database_name` | varchar(64) | 数据库 |
 | `operation` | varchar(20) | `EXECUTE` 或 `EXPORT` |
-| `source` | varchar(20) | `WEB_SQL_EDITOR` 或 `AI_AGENT`，缺省 `WEB_SQL_EDITOR` |
+| `source` | varchar(32) | `WEB_SQL_EDITOR`、`AI_AGENT`、`AI_AGENT_EXPLAIN` 或 `AI_AGENT_EXPLAIN_ANALYZE`，缺省 `WEB_SQL_EDITOR` |
 | `statement_text` | mediumtext | SQL 原文 |
 | `statement_hash` | char(64) | SHA-256 |
 | `statement_type` | varchar(32) | SELECT/INSERT/UPDATE/DELETE/DDL/OTHER |
@@ -728,6 +728,18 @@ GET /api/v1/data-sources/{id}/table-detail?database=orders&table=order_item
 - `primaryKey`：名称和有序字段。
 - `indexes`：名称、是否唯一、类型和有序字段。
 - `ddl`：`SHOW CREATE TABLE` 返回的建表/建视图语句；读取失败时为 `null`。
+- `stats`：引擎中性表统计。字段为 `engine`、`estimatedRows`、`dataBytes`、`indexBytes`、`autoIncrement`、`createTime`、`updateTime`、`comment`。采集失败时整个 `stats` 为 `null`，不得返回 `Rows` / `Data_length` 等厂商字段名。MySQL/GBase 使用 `SHOW TABLE STATUS`；PostgreSQL 使用 `pg_class` / 关系大小，禁止 `SHOW TABLE STATUS`。
+
+### 11.4 Explain API
+
+```http
+POST /api/v1/sql/explains
+POST /api/v1/sql/explains:analyze
+```
+
+请求体与执行口类似，包含 `executionId`、`dataSourceId`、`database`、`statement`、可选 `timeoutSeconds`，不得包含 `readOnly`、`source`、`analyze`。计划口始终拒绝 ANALYZE（`422 EXPLAIN_ANALYZE_NOT_ALLOWED`），并把改写后的计划语句以 `source=AI_AGENT_EXPLAIN` 写入历史。实测口受 `sql-editor.explain-analyze.enabled`（缺省 `false`）控制，关闭时 `403 EXPLAIN_ANALYZE_DISABLED`；开启时超时上限为 `sql-editor.explain-analyze.timeout-seconds`（缺省 15），历史 `source=AI_AGENT_EXPLAIN_ANALYZE`。非 SELECT 返回 `422 EXPLAIN_STATEMENT_NOT_SUPPORTED`。拒绝发生在占用并发、写历史和借连接之前。
+
+Agent 面向的规范化计划见 `docs/agent-database-api.md`，不经过本 Web 口返回原始厂商计划。
 
 数据库名和表名只作为参数传给 `DatabaseMetaData` 或经过反引号转义的内部固定 SQL，禁止直接拼接未经校验的标识符。
 
@@ -832,9 +844,9 @@ Content-Type: application/json
 
 可选字段：
 
-- `readOnly`：缺省 `false`。`true` 时强制只读，见 §12.1。
+- `readOnly`：缺省 `false`。`true` 时强制只读，见 §12.1。只读请求若语句为 `EXPLAIN ANALYZE`（或引擎等价物）返回 `422 EXPLAIN_ANALYZE_NOT_ALLOWED`，不占并发、不写历史。
 - `timeoutSeconds`：缺省为配置 `sql-editor.execution.timeout-seconds`。小于 1 或大于该上限返回 `400 VALIDATION_FAILED`。
-- `source`：`WEB_SQL_EDITOR` 或 `AI_AGENT`，缺省 `WEB_SQL_EDITOR`。只写入历史，不当鉴权，也不隐含 `readOnly`。
+- `source`：通用执行口仅接受 `WEB_SQL_EDITOR` 或 `AI_AGENT`，缺省 `WEB_SQL_EDITOR`。只写入历史，不当鉴权，也不隐含 `readOnly`。计划口与实测口由服务端分别写入 `AI_AGENT_EXPLAIN` / `AI_AGENT_EXPLAIN_ANALYZE`，请求体不得包含 `source`。
 
 `executionId` 规则：
 

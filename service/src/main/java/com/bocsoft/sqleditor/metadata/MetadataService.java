@@ -7,6 +7,7 @@ import com.bocsoft.sqleditor.datasource.TargetConnectionProvider;
 import com.bocsoft.sqleditor.datasource.api.CursorPage;
 import com.bocsoft.sqleditor.datasource.connection.ConnectionUse;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
@@ -57,6 +58,19 @@ public class MetadataService {
         engine.validateIdentifier("database", database);
         engine.validateIdentifier("table", table);
         return jdbc(source, engine, c -> engine.tableDetail(c, database, table));
+    }
+
+    public CursorPage<ColumnSearchItem> columns(AuthContext auth, String id, String database, String keyword, int pageSize, String token) {
+        SavedDataSource source = targets.require(auth, id);
+        EngineSupport engine = targets.engine(source);
+        engine.validateIdentifier("database", database);
+        if (pageSize < 1 || pageSize > 200) throw ApiException.validation("pageSize", "OUT_OF_RANGE", "每页数量必须在 1 到 200 之间");
+        String q = normalize(keyword);
+        if (q.isEmpty()) throw ApiException.validation("keyword", "REQUIRED", "关键词不能为空");
+        String scope = id + "|columns|" + database + "|" + q + "|" + pageSize;
+        String after = cursors.decode(token, scope);
+        List<ColumnSearchItem> all = jdbc(source, engine, c -> engine.searchColumns(c, database, q));
+        return page(all, pageSize, after, scope, item -> item.cursorKey());
     }
 
     private <T> T jdbc(SavedDataSource source, EngineSupport engine, ConnectionUse.Work<T> work) {

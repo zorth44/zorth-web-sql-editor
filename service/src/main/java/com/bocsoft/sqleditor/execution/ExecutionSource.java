@@ -5,6 +5,8 @@ import com.bocsoft.sqleditor.common.ApiException;
 public final class ExecutionSource {
     public static final String WEB_SQL_EDITOR = "WEB_SQL_EDITOR";
     public static final String AI_AGENT = "AI_AGENT";
+    public static final String AI_AGENT_EXPLAIN = "AI_AGENT_EXPLAIN";
+    public static final String AI_AGENT_EXPLAIN_ANALYZE = "AI_AGENT_EXPLAIN_ANALYZE";
 
     private ExecutionSource() {}
 
@@ -13,5 +15,10 @@ public final class ExecutionSource {
         String value = raw.trim();
         if (WEB_SQL_EDITOR.equals(value) || AI_AGENT.equals(value)) return value;
         throw ApiException.validation("source", "INVALID", "source 仅支持 WEB_SQL_EDITOR 或 AI_AGENT");
+    }
+
+    public static boolean isKnown(String value) {
+        return WEB_SQL_EDITOR.equals(value) || AI_AGENT.equals(value)
+            || AI_AGENT_EXPLAIN.equals(value) || AI_AGENT_EXPLAIN_ANALYZE.equals(value);
     }
 }

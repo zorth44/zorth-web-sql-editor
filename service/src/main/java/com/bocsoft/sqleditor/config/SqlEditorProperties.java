@@ -21,6 +21,8 @@ public class SqlEditorProperties {
     @Valid private final Network network = new Network();
     @Valid private final Pools pools = new Pools();
     @Valid private final Execution execution = new Execution();
+    @Valid private final ExplainAnalyze explainAnalyze = new ExplainAnalyze();
+    @Valid private final AgentApi agentApi = new AgentApi();
     @Valid private final Export export = new Export();
     @Valid private final History history = new History();
     @Valid private final Scripts scripts = new Scripts();
@@ -32,6 +34,8 @@ public class SqlEditorProperties {
     public Network getNetwork() { return network; }
     public Pools getPools() { return pools; }
     public Execution getExecution() { return execution; }
+    public ExplainAnalyze getExplainAnalyze() { return explainAnalyze; }
+    public AgentApi getAgentApi() { return agentApi; }
     public Export getExport() { return export; }
     public History getHistory() { return history; }
     public Scripts getScripts() { return scripts; }
@@ -163,6 +167,39 @@ public class SqlEditorProperties {
         public int getMaxConcurrentGlobal(){return maxConcurrentGlobal;} public void setMaxConcurrentGlobal(int v){maxConcurrentGlobal=v;}
         public int getMaxStatementBytes(){return maxStatementBytes;} public void setMaxStatementBytes(int v){maxStatementBytes=v;}
         public int getExecutorPoolSize(){return executorPoolSize;} public void setExecutorPoolSize(int v){executorPoolSize=v;}
+    }
+
+    public static class ExplainAnalyze {
+        private boolean enabled = false;
+        @Min(1) @Max(3600) private int timeoutSeconds = 15;
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public int getTimeoutSeconds() { return timeoutSeconds; }
+        public void setTimeoutSeconds(int timeoutSeconds) { this.timeoutSeconds = timeoutSeconds; }
+    }
+
+    public static class AgentApi {
+        private boolean internalCallerKeyRequired = false;
+        private String internalCallerKey = "";
+        @Min(1) @Max(100000) private int defaultRowLimit = 200;
+        @Min(1) @Max(100000) private int maxRowLimit = 1000;
+        @Min(1) @Max(3600) private int timeoutSeconds = 15;
+        @Min(1024) private long maxResultBytes = 1048576L;
+        @Min(64) private int maxCellBytes = 4096;
+        public boolean isInternalCallerKeyRequired() { return internalCallerKeyRequired; }
+        public void setInternalCallerKeyRequired(boolean v) { internalCallerKeyRequired = v; }
+        public String getInternalCallerKey() { return internalCallerKey; }
+        public void setInternalCallerKey(String v) { internalCallerKey = v; }
+        public int getDefaultRowLimit() { return defaultRowLimit; }
+        public void setDefaultRowLimit(int v) { defaultRowLimit = v; }
+        public int getMaxRowLimit() { return maxRowLimit; }
+        public void setMaxRowLimit(int v) { maxRowLimit = v; }
+        public int getTimeoutSeconds() { return timeoutSeconds; }
+        public void setTimeoutSeconds(int v) { timeoutSeconds = v; }
+        public long getMaxResultBytes() { return maxResultBytes; }
+        public void setMaxResultBytes(long v) { maxResultBytes = v; }
+        public int getMaxCellBytes() { return maxCellBytes; }
+        public void setMaxCellBytes(int v) { maxCellBytes = v; }
     }
     public static class Export {
         private boolean formulaProtection=true; private boolean nullLiteral=false;

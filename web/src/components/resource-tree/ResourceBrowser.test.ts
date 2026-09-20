@@ -371,6 +371,7 @@ describe('resource navigator', () => {
         primaryKey: null,
         indexes: [],
         ddl: null,
+        stats: null,
       })
       await flushPromises()
       expect(

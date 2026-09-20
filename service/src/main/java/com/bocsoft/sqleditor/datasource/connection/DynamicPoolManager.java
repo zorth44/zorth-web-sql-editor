@@ -45,7 +45,13 @@ public class DynamicPoolManager implements PoolLifecycle {
             }
         }
         entry.touch(); Connection connection=entry.dataSource.getConnection();recordWait(started,"success");return connection;
-        } catch (SQLException | RuntimeException exception) { recordWait(started,"failed");throw exception; }
+        } catch (SQLException exception) { recordWait(started,"failed"); throw exception;
+        } catch (RuntimeException exception) {
+            recordWait(started,"failed");
+            SQLException sql = unwrapSql(exception);
+            if (sql != null) throw sql;
+            throw exception;
+        }
     }
 
     public void evict(String id, Connection connection) {
@@ -76,6 +82,16 @@ public class DynamicPoolManager implements PoolLifecycle {
     }
 
     private void recordWait(long started,String outcome){Timer.builder("sql_editor_target_pool_borrow_wait").tag("outcome",outcome).register(registry).record(Duration.ofNanos(Math.max(0,System.nanoTime()-started)));}
+
+    private static SQLException unwrapSql(Throwable failure) {
+        Throwable current = failure;
+        int depth = 0;
+        while (current != null && depth++ < 12) {
+            if (current instanceof SQLException) return (SQLException) current;
+            current = current.getCause();
+        }
+        return null;
+    }
 
     private static final class PoolEntry{
         private final long version;private final HikariDataSource dataSource;private volatile long lastAccessNanos;

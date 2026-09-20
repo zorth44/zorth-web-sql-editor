@@ -26,7 +26,8 @@ public class AuthContextFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/v1/");
+        return !(request.getRequestURI().startsWith("/api/v1/")
+            || request.getRequestURI().startsWith("/internal/api/v1/agent/"));
     }
 
     @Override

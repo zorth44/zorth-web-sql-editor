@@ -140,6 +140,28 @@ class PostgresEngineIntegrationTest {
 
         executeSelect(id, "sales", "SELECT * FROM order_item");
         executeSelect(id, "public", "SELECT $tag$ hello; world $tag$ AS v");
+
+        mvc.perform(get("/internal/api/v1/agent/data-sources/" + id + "/columns")
+                .param("database", "sales").param("keyword", "name").header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].table").value("order_item"))
+            .andExpect(jsonPath("$.items[0].jdbcType").isString());
+        mvc.perform(get("/api/v1/data-sources/" + id + "/table-detail").param("database", "sales").param("table", "order_item")
+                .header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.stats").exists());
+        String explainId = UUID.randomUUID().toString();
+        MvcResult explained = mvc.perform(post("/internal/api/v1/agent/data-sources/" + id + "/sql/explain")
+                .header("Authorization", "Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"executionId\":\"" + explainId + "\",\"sql\":\"SELECT * FROM order_item\",\"database\":\"sales\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(explained)).andExpect(status().isOk()).andExpect(jsonPath("$.supported").value(true));
+        String queryId = UUID.randomUUID().toString();
+        MvcResult queried = mvc.perform(post("/internal/api/v1/agent/data-sources/" + id + "/sql/query")
+                .header("Authorization", "Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"executionId\":\"" + queryId + "\",\"sql\":\"SELECT * FROM order_item\",\"database\":\"sales\",\"maxRows\":10}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(queried)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET"));
     }
 
     private void executeSelect(String dataSourceId, String database, String sql) throws Exception {

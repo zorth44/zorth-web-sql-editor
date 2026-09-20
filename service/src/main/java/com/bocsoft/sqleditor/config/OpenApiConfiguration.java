@@ -11,7 +11,8 @@ public class OpenApiConfiguration {
     @Bean
     public OpenAPI sqlEditorOpenApi() {
         return new OpenAPI()
-            .info(new Info().title("Zorth Web SQL Service API").version("v1"))
+            .info(new Info().title("Zorth Web SQL Service API").version("v1")
+                .description("Web SQL Editor APIs under /api/v1 and Agent database capabilities under /internal/api/v1/agent. Agent explain is plan-only and depends on engine rewriteExplain."))
             .schemaRequirement("bearerAuth", new SecurityScheme()
                 .type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("Token"));
     }

@@ -169,6 +169,16 @@ export interface IndexItem {
   type: string
   columns: string[]
 }
+export interface TableStats {
+  engine: string | null
+  estimatedRows: number | null
+  dataBytes: number | null
+  indexBytes: number | null
+  autoIncrement: number | null
+  createTime: string | null
+  updateTime: string | null
+  comment: string | null
+}
 export interface TableDetail {
   database: string
   table: string
@@ -176,6 +186,7 @@ export interface TableDetail {
   primaryKey: PrimaryKeyItem | null
   indexes: IndexItem[]
   ddl: string | null
+  stats: TableStats | null
 }
 
 export interface SqlColumn {
@@ -220,7 +231,7 @@ export interface SqlExecutionRequest {
 
 export type ExecutionStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'TIMEOUT'
 export type StatementType = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'REPLACE' | 'DDL' | 'OTHER'
-export type ExecutionSource = 'WEB_SQL_EDITOR' | 'AI_AGENT'
+export type ExecutionSource = 'WEB_SQL_EDITOR' | 'AI_AGENT' | 'AI_AGENT_EXPLAIN' | 'AI_AGENT_EXPLAIN_ANALYZE'
 export interface HistorySummary {
   id: string
   dataSourceId: string

@@ -1,12 +1,15 @@
 package com.bocsoft.sqleditor.engine.postgres;
 
 import com.bocsoft.sqleditor.common.ApiException;
+import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.metadata.api.ColumnItem;
+import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.IndexItem;
 import com.bocsoft.sqleditor.metadata.api.PrimaryKeyItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
+import com.bocsoft.sqleditor.metadata.api.TableStats;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.sql.Connection;
@@ -129,8 +132,45 @@ final class PostgresCatalogs {
         return new TableDetailResponse(
             database, table, columns,
             pkOrder.isEmpty() ? null : new PrimaryKeyItem(pkName, new ArrayList<String>(pkOrder.values())),
-            indexes, readDdl(connection, database, table, columns)
+            indexes, readDdl(connection, database, table, columns), readStats(connection, database, table)
         );
+    }
+
+    List<ColumnSearchItem> searchColumns(Connection connection, String database, String keyword) throws SQLException {
+        ensureNamespace(connection, database);
+        String like = "%" + escapeLike(keyword) + "%";
+        String sql = "SELECT c.relname AS table_name, a.attname AS column_name, "
+            + "pg_catalog.format_type(a.atttypid, a.atttypmod) AS type_name, "
+            + "NOT a.attnotnull AS nullable, "
+            + "col_description(c.oid, a.attnum) AS comment, t.typname AS data_type "
+            + "FROM pg_catalog.pg_attribute a "
+            + "JOIN pg_catalog.pg_class c ON c.oid = a.attrelid "
+            + "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
+            + "JOIN pg_catalog.pg_type t ON t.oid = a.atttypid "
+            + "WHERE n.nspname = ? AND a.attnum > 0 AND NOT a.attisdropped "
+            + "AND c.relkind IN ('r','p','v','m','f') "
+            + "AND (a.attname ILIKE ? ESCAPE '!' OR COALESCE(col_description(c.oid, a.attnum),'') ILIKE ? ESCAPE '!') "
+            + "ORDER BY c.relname, a.attname";
+        List<ColumnSearchItem> out = new ArrayList<ColumnSearchItem>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database);
+            statement.setString(2, like);
+            statement.setString(3, like);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new ColumnSearchItem(
+                        database,
+                        rs.getString("table_name"),
+                        rs.getString("column_name"),
+                        jdbcTypeNameFromPg(rs.getString("data_type")),
+                        rs.getString("type_name"),
+                        rs.getBoolean("nullable"),
+                        rs.getString("comment")
+                    ));
+                }
+            }
+        }
+        return out;
     }
 
     void ensureNamespace(Connection connection, String database) throws SQLException {
@@ -199,6 +239,59 @@ final class PostgresCatalogs {
             }
         } catch (SQLException ignored) { }
         return null;
+    }
+
+    private TableStats readStats(Connection connection, String database, String table) {
+        String sql = "SELECT c.reltuples::bigint AS estimated_rows, "
+            + "pg_catalog.pg_relation_size(c.oid) AS data_bytes, "
+            + "pg_catalog.pg_indexes_size(c.oid) AS index_bytes, "
+            + "obj_description(c.oid, 'pg_class') AS comment "
+            + "FROM pg_catalog.pg_class c "
+            + "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
+            + "WHERE n.nspname = ? AND c.relname = ? AND c.relkind IN ('r','p')";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database);
+            statement.setString(2, table);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return null;
+                Long rows = rs.getLong("estimated_rows");
+                if (rs.wasNull()) rows = null;
+                Long data = rs.getLong("data_bytes");
+                if (rs.wasNull()) data = null;
+                Long indexes = rs.getLong("index_bytes");
+                if (rs.wasNull()) indexes = null;
+                return new TableStats(EngineId.POSTGRESQL, rows, data, indexes, null, null, null, rs.getString("comment"));
+            }
+        } catch (SQLException ignored) {
+            return null;
+        }
+    }
+
+    private String escapeLike(String value) {
+        return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    }
+
+    private String jdbcTypeNameFromPg(String dataType) {
+        if (dataType == null) return "OTHER";
+        String t = dataType.toLowerCase(Locale.ROOT);
+        if ("int8".equals(t) || "bigint".equals(t)) return "BIGINT";
+        if ("int4".equals(t) || "int".equals(t) || "integer".equals(t)) return "INTEGER";
+        if ("int2".equals(t) || "smallint".equals(t) || "smallserial".equals(t)) return "SMALLINT";
+        if ("serial".equals(t) || "serial4".equals(t)) return "INTEGER";
+        if ("bigserial".equals(t) || "serial8".equals(t)) return "BIGINT";
+        if ("numeric".equals(t) || "decimal".equals(t)) return "DECIMAL";
+        if ("float4".equals(t) || "real".equals(t)) return "REAL";
+        if ("float8".equals(t) || "double precision".equals(t)) return "DOUBLE";
+        if ("bool".equals(t) || "boolean".equals(t)) return "BOOLEAN";
+        if ("varchar".equals(t) || "character varying".equals(t)) return "VARCHAR";
+        if ("bpchar".equals(t) || "char".equals(t) || "character".equals(t)) return "CHAR";
+        if ("text".equals(t)) return "LONGVARCHAR";
+        if ("bytea".equals(t)) return "BINARY";
+        if ("date".equals(t)) return "DATE";
+        if ("time".equals(t) || "timetz".equals(t)) return "TIME";
+        if ("timestamp".equals(t) || "timestamptz".equals(t)) return "TIMESTAMP";
+        if ("json".equals(t) || "jsonb".equals(t) || "uuid".equals(t)) return "VARCHAR";
+        return "OTHER";
     }
 
     private boolean system(String name) {

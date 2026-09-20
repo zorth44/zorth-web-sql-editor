@@ -1,8 +1,10 @@
 package com.bocsoft.sqleditor.engine;
 
+import com.bocsoft.sqleditor.common.ApiException;
 import com.bocsoft.sqleditor.datasource.connection.ConnectionConfiguration;
 import com.bocsoft.sqleditor.datasource.connection.JdbcTarget;
 import com.bocsoft.sqleditor.datasource.connection.ResolvedTarget;
+import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
@@ -11,6 +13,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import org.springframework.http.HttpStatus;
 
 public interface EngineSupport {
     String id();
@@ -34,6 +37,22 @@ public interface EngineSupport {
     List<TableItem> listTables(Connection connection, String database, String keyword, String[] types) throws SQLException;
     TableDetailResponse tableDetail(Connection connection, String database, String table) throws SQLException;
     void ensureNamespace(Connection connection, String database) throws SQLException;
+
+    default List<ColumnSearchItem> searchColumns(Connection connection, String database, String keyword) throws SQLException {
+        throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "METADATA_QUERY_FAILED", "当前引擎不支持跨表字段搜索");
+    }
+
+    default boolean isAnalyzedExplain(String sql) {
+        return false;
+    }
+
+    default String rewriteExplain(String sql, ExplainMode mode) {
+        throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "EXPLAIN_STATEMENT_NOT_SUPPORTED", "当前引擎不支持计划改写");
+    }
+
+    default PlanEvidence normalizePlan(List<String> columnNames, List<List<Object>> rows) {
+        return PlanEvidence.unsupported("当前引擎无法规范化执行计划");
+    }
 
     String requireSingle(String sql);
     List<String> split(String sql);

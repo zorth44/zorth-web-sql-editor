@@ -9,7 +9,10 @@ import com.bocsoft.sqleditor.engine.EngineDescriptor;
 import com.bocsoft.sqleditor.engine.EngineField;
 import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.ExplainMode;
+import com.bocsoft.sqleditor.engine.PlanEvidence;
 import com.bocsoft.sqleditor.engine.ResourceTreeLevel;
+import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
@@ -29,6 +32,7 @@ public class PostgresEngineSupport implements EngineSupport {
     private final PostgresFailures failures = new PostgresFailures();
     private final PostgresSqlScanner scanner = new PostgresSqlScanner();
     private final PostgresCatalogs catalogs = new PostgresCatalogs();
+    private final PostgresExplain explain = new PostgresExplain();
 
     @Override public String id() { return EngineId.POSTGRESQL; }
     @Override public String family() { return "POSTGRES_WIRE"; }
@@ -82,7 +86,16 @@ public class PostgresEngineSupport implements EngineSupport {
     @Override public TableDetailResponse tableDetail(Connection connection, String database, String table) throws SQLException {
         return catalogs.tableDetail(connection, database, table);
     }
+    @Override public List<ColumnSearchItem> searchColumns(Connection connection, String database, String keyword) throws SQLException {
+        return catalogs.searchColumns(connection, database, keyword);
+    }
     @Override public void ensureNamespace(Connection connection, String database) throws SQLException { catalogs.ensureNamespace(connection, database); }
+
+    @Override public boolean isAnalyzedExplain(String sql) { return explain.isAnalyzedExplain(sql); }
+    @Override public String rewriteExplain(String sql, ExplainMode mode) { return explain.rewriteExplain(sql, mode); }
+    @Override public PlanEvidence normalizePlan(List<String> columnNames, List<List<Object>> rows) {
+        return explain.normalizePlan(columnNames, rows);
+    }
 
     @Override public String requireSingle(String sql) { return scanner.requireSingle(sql); }
     @Override public List<String> split(String sql) { return scanner.split(sql); }

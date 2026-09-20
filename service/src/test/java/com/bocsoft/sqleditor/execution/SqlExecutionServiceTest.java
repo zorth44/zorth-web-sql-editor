@@ -116,7 +116,7 @@ class SqlExecutionServiceTest {
         when(connection.createStatement()).thenReturn(statement);
         when(statement.execute(anyString())).thenReturn(true);
         when(statement.getResultSet()).thenReturn(mock(java.sql.ResultSet.class));
-        when(reader.read(any(), anyInt(), anyLong()))
+        when(reader.read(any(), anyInt(), anyLong(), anyInt()))
             .thenReturn(new ResultSetReader.ReadResult(Collections.singletonList(new SqlColumn("n", "n", "INTEGER", "INT")),
                 Collections.singletonList(Collections.<Object>singletonList(1)), false, 8));
         SqlExecutionRequest request = request(sql);
@@ -140,6 +140,25 @@ class SqlExecutionServiceTest {
             .isInstanceOf(ApiException.class)
             .extracting("code").isEqualTo("READ_ONLY_VIOLATION");
         verify(history).failure(any(), eq("FAILED"), anyLong(), any());
+    }
+
+    @Test void agentPathRedactsDriverMessages() throws Exception {
+        Connection connection = mock(Connection.class);
+        Statement statement = mock(Statement.class);
+        when(targets.borrow(dataSource)).thenReturn(connection);
+        when(connection.createStatement()).thenReturn(statement);
+        when(statement.execute(anyString())).thenThrow(new java.sql.SQLException("Access denied for token-a at jdbc:mysql://secret-host/db"));
+        ExecutionCommand command = new ExecutionCommand(
+            UUID.randomUUID().toString(), "ds-1", "orders", "SELECT 1",
+            100, 10, 1024, 256, true, ExecutionSource.AI_AGENT, true);
+        assertThatThrownBy(() -> service.run(auth, command, "req", "10.0.0.1"))
+            .isInstanceOf(ApiException.class)
+            .satisfies(error -> {
+                ApiException exception = (ApiException) error;
+                assertThat(exception.getCode()).isEqualTo("SQL_EXECUTION_FAILED");
+                assertThat(exception.getMessage()).isEqualTo("SQL 执行失败");
+                assertThat(exception.getMessage()).doesNotContain("token-a").doesNotContain("secret-host");
+            });
     }
 
     @Test void timeoutSecondsMustBeWithinConfiguredRange() {
@@ -173,7 +192,7 @@ class SqlExecutionServiceTest {
         when(connection.createStatement()).thenReturn(statement);
         when(statement.execute(anyString())).thenReturn(true);
         when(statement.getResultSet()).thenReturn(mock(java.sql.ResultSet.class));
-        when(reader.read(any(), anyInt(), anyLong()))
+        when(reader.read(any(), anyInt(), anyLong(), anyInt()))
             .thenReturn(new ResultSetReader.ReadResult(Collections.<SqlColumn>emptyList(),
                 Collections.<java.util.List<Object>>emptyList(), false, 0));
         SqlExecutionRequest request = request("SELECT 1");
@@ -189,6 +208,18 @@ class SqlExecutionServiceTest {
             .isInstanceOf(ApiException.class)
             .extracting("code").isEqualTo("VALIDATION_FAILED");
         verify(history, never()).start(anyString(), any(), any(), any(), anyString(), anyString(), any(), anyString(), anyString(), any());
+        assertThat(registry.count("ds-1")).isZero();
+    }
+
+    @Test void readOnlyRejectsAnalyzedExplainBeforeAcquire() throws Exception {
+        when(engine.isAnalyzedExplain(anyString())).thenReturn(true);
+        SqlExecutionRequest request = request("EXPLAIN ANALYZE SELECT 1");
+        request.setReadOnly(true);
+        assertThatThrownBy(() -> service.execute(auth, request, "req", "10.0.0.1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("code").isEqualTo("EXPLAIN_ANALYZE_NOT_ALLOWED");
+        verify(history, never()).start(anyString(), any(), any(), any(), anyString(), anyString(), any(), anyString(), anyString(), any());
+        verify(targets, never()).borrow(any());
         assertThat(registry.count("ds-1")).isZero();
     }
 

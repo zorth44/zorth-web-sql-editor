@@ -47,35 +47,54 @@ public class SqlExecutionService {
     }
 
     public int effectiveTimeoutSeconds(SqlExecutionRequest request) {
-        Integer requested = request.getTimeoutSeconds();
-        int configured = limits.getTimeoutSeconds();
-        if (requested == null) return configured;
-        if (requested < 1 || requested > configured) {
-            throw ApiException.validation("timeoutSeconds", "OUT_OF_RANGE", "超时秒数必须在 1 到配置上限之间");
-        }
-        return requested;
+        return clampTimeout(request.getTimeoutSeconds(), limits.getTimeoutSeconds());
     }
 
     public long asyncTimeoutMs(SqlExecutionRequest request) {
         return (effectiveTimeoutSeconds(request) + 5L) * 1000L;
     }
 
+    public long asyncTimeoutMs(int timeoutSeconds) {
+        return (timeoutSeconds + 5L) * 1000L;
+    }
+
     public SqlExecutionResponse execute(AuthContext auth, SqlExecutionRequest request, String requestId, String clientIp) {
-        String id = uuid(request.getExecutionId());
         SavedDataSource source = targets.require(auth, request.getDataSourceId());
         EngineSupport engine = targets.engine(source);
         String sql = engine.requireSingle(request.getStatement());
+        int rowLimit = request.getRowLimit() == null ? limits.getDefaultRowLimit() : request.getRowLimit();
+        if (rowLimit < 1 || rowLimit > limits.getMaxRowLimit()) {
+            throw ApiException.validation("rowLimit", "OUT_OF_RANGE", "返回行数必须在允许范围内");
+        }
+        ExecutionCommand command = new ExecutionCommand(
+            request.getExecutionId(), request.getDataSourceId(), request.getDatabase(), sql,
+            rowLimit, effectiveTimeoutSeconds(request), limits.getMaxResultBytes(), Integer.MAX_VALUE,
+            Boolean.TRUE.equals(request.getReadOnly()), ExecutionSource.normalize(request.getSource()), false);
+        return run(auth, command, requestId, clientIp).getResponse();
+    }
+
+    public ExecutionOutcome run(AuthContext auth, ExecutionCommand command, String requestId, String clientIp) {
+        String id = uuid(command.getExecutionId());
+        SavedDataSource source = targets.require(auth, command.getDataSourceId());
+        EngineSupport engine = targets.engine(source);
+        String sql = engine.requireSingle(command.getStatement());
         if (sql.getBytes(StandardCharsets.UTF_8).length > limits.getMaxStatementBytes()) {
             throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "STATEMENT_TOO_LARGE", "SQL 超过大小上限");
         }
-        int rowLimit = request.getRowLimit() == null ? limits.getDefaultRowLimit() : request.getRowLimit();
-        if (rowLimit < 1 || rowLimit > limits.getMaxRowLimit()) throw ApiException.validation("rowLimit", "OUT_OF_RANGE", "返回行数必须在允许范围内");
-        String database = cleanDatabase(engine, request.getDatabase());
+        int rowLimit = command.getRowLimit();
+        if (rowLimit < 1) throw ApiException.validation("rowLimit", "OUT_OF_RANGE", "返回行数必须在允许范围内");
+        String database = cleanDatabase(engine, command.getDatabase());
         StatementType type = classifier.classify(sql);
         if (database == null && requiresDatabase(type, sql)) throw ApiException.validation("database", "REQUIRED", "请选择数据库");
-        int timeoutSeconds = effectiveTimeoutSeconds(request);
-        String executionSource = ExecutionSource.normalize(request.getSource());
-        boolean readOnly = Boolean.TRUE.equals(request.getReadOnly());
+        int timeoutSeconds = command.getTimeoutSeconds();
+        String executionSource = command.getSource();
+        if (!ExecutionSource.isKnown(executionSource)) {
+            throw ApiException.validation("source", "INVALID", "source 仅支持 WEB_SQL_EDITOR 或 AI_AGENT");
+        }
+        boolean readOnly = command.isReadOnly();
+        if (readOnly && engine.isAnalyzedExplain(sql)) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "EXPLAIN_ANALYZE_NOT_ALLOWED", "只读模式不允许 ANALYZE 执行计划");
+        }
         if (readOnly && type != StatementType.SELECT) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "READ_ONLY_VIOLATION", "只读模式只允许查询语句");
         }
@@ -103,11 +122,12 @@ public class SqlExecutionService {
                 throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "READ_ONLY_VIOLATION", "只读模式只允许查询语句", details(id, null));
             }
             SqlExecutionResponse response;
+            ResultSetReader.ReadResult read = null;
             if (hasResult) {
                 try (ResultSet rs = statement.getResultSet()) {
-                    ResultSetReader.ReadResult result = reader.read(rs, rowLimit, limits.getMaxResultBytes());
-                    response = SqlExecutionResponse.result(id, result.getColumns(), result.getRows(), result.isTruncated(), duration);
-                    history.success(record, "RESULT_SET", result.getRows().size(), null, result.isTruncated(), duration);
+                    read = reader.read(rs, rowLimit, command.getMaxResultBytes(), command.getMaxCellBytes());
+                    response = SqlExecutionResponse.result(id, read.getColumns(), read.getRows(), read.isTruncated(), duration);
+                    history.success(record, "RESULT_SET", read.getRows().size(), null, read.isTruncated(), duration);
                 }
             } else {
                 long count = statement.getUpdateCount();
@@ -117,7 +137,7 @@ public class SqlExecutionService {
                 history.success(record, kind, 0, affected, false, duration);
             }
             metrics.execution("success", type.name(), duration);
-            return response;
+            return new ExecutionOutcome(response, read);
         } catch (ApiException e) {
             throw e;
         } catch (SQLTimeoutException e) {
@@ -134,7 +154,8 @@ public class SqlExecutionService {
             }
             if (record != null) history.failure(record, "FAILED", d, e);
             metrics.execution("failed", type.name(), d);
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "SQL_EXECUTION_FAILED", safe(e), details(id, e));
+            String message = command.isRedactDatabaseErrors() ? "SQL 执行失败" : safe(e);
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "SQL_EXECUTION_FAILED", message, details(id, e));
         } finally {
             close(statement);
             if (connection != null) try { targets.release(source, connection); } catch (SQLException ignored) { }
@@ -148,6 +169,14 @@ public class SqlExecutionService {
         ExecutionHistoryRecord r = history.owned(id, auth.getUserId());
         if (r == null) throw new ApiException(HttpStatus.NOT_FOUND, "EXECUTION_NOT_FOUND", "执行不存在");
         throw new ApiException(HttpStatus.CONFLICT, "EXECUTION_ALREADY_FINISHED", "执行已经结束");
+    }
+
+    public int clampTimeout(Integer requested, int configured) {
+        if (requested == null) return configured;
+        if (requested < 1 || requested > configured) {
+            throw ApiException.validation("timeoutSeconds", "OUT_OF_RANGE", "超时秒数必须在 1 到配置上限之间");
+        }
+        return requested;
     }
 
     private String uuid(String id) {

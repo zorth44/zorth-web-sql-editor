@@ -8,7 +8,10 @@ import com.bocsoft.sqleditor.engine.EngineDescriptor;
 import com.bocsoft.sqleditor.engine.EngineField;
 import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.ExplainMode;
+import com.bocsoft.sqleditor.engine.PlanEvidence;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
+import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
@@ -80,8 +83,16 @@ public class Gbase8aEngineSupport implements EngineSupport {
     @Override public TableDetailResponse tableDetail(Connection connection, String database, String table) throws SQLException {
         return mysql.tableDetail(connection, database, table);
     }
+    @Override public List<ColumnSearchItem> searchColumns(Connection connection, String database, String keyword) throws SQLException {
+        return mysql.searchColumns(connection, database, keyword);
+    }
     @Override public void ensureNamespace(Connection connection, String database) throws SQLException {
         mysql.ensureNamespace(connection, database);
+    }
+    @Override public boolean isAnalyzedExplain(String sql) { return mysql.isAnalyzedExplain(sql); }
+    @Override public String rewriteExplain(String sql, ExplainMode mode) { return mysql.rewriteExplain(sql, mode); }
+    @Override public PlanEvidence normalizePlan(List<String> columnNames, List<List<Object>> rows) {
+        return mysql.normalizePlan(columnNames, rows);
     }
     @Override public String requireSingle(String sql) { return mysql.requireSingle(sql); }
     @Override public List<String> split(String sql) { return mysql.split(sql); }

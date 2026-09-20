@@ -56,6 +56,10 @@ class NetworkAndJdbcSecurityTest {
         assertThat(properties.getProperty("useUnicode")).isEqualTo("true");
         assertThat(properties.getProperty("requireSSL")).isEqualTo("true");
         assertThat(properties.getProperty("password")).isEqualTo("secret");
+        assertThat(properties.getProperty("allowPublicKeyRetrieval")).isNull();
+        JdbcTarget disabled=builder.build(new ConnectionConfiguration("db",3306,"user","secret","orders","DISABLED",10,user));
+        assertThat(disabled.copyProperties().getProperty("allowPublicKeyRetrieval")).isEqualTo("true");
+        assertThat(disabled.copyProperties().getProperty("useSSL")).isEqualTo("false");
     }
 
     @Test void rejectsPropertyInjectionAndSanitizesFailures(){

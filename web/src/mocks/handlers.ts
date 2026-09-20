@@ -569,6 +569,16 @@ export const handlers = [
   \`amount\` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT '金额',
   PRIMARY KEY (\`id\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单明细'`,
+      stats: {
+        engine: 'MYSQL',
+        estimatedRows: 2,
+        dataBytes: 16384,
+        indexBytes: 16384,
+        autoIncrement: 3,
+        createTime: null,
+        updateTime: null,
+        comment: '订单明细',
+      },
     })
   }),
   http.post(sql('/api/v1/sql/executions'), async ({ request }) => {

@@ -16,7 +16,7 @@ public class SecurityConfiguration {
             .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
             .authorizeRequests()
             .antMatchers("/actuator/health/**", "/actuator/prometheus", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-            .antMatchers("/api/v1/**").authenticated()
+            .antMatchers("/api/v1/**", "/internal/api/v1/agent/**").authenticated()
             .anyRequest().denyAll().and()
             .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

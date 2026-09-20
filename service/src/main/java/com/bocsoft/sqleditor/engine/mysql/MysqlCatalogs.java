@@ -1,19 +1,24 @@
 package com.bocsoft.sqleditor.engine.mysql;
 
 import com.bocsoft.sqleditor.common.ApiException;
+import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.metadata.api.ColumnItem;
+import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.IndexItem;
 import com.bocsoft.sqleditor.metadata.api.PrimaryKeyItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
+import com.bocsoft.sqleditor.metadata.api.TableStats;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -129,8 +134,39 @@ final class MysqlCatalogs {
         return new TableDetailResponse(
             database, table, columns,
             pkOrder.isEmpty() ? null : new PrimaryKeyItem(pkName, new ArrayList<String>(pkOrder.values())),
-            indexes, readDdl(connection, database, table)
+            indexes, readDdl(connection, database, table), readStats(connection, database, table)
         );
+    }
+
+    List<ColumnSearchItem> searchColumns(Connection connection, String database, String keyword) throws SQLException {
+        ensureNamespace(connection, database);
+        String like = "%" + escapeLike(keyword) + "%";
+        String sql = "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_COMMENT "
+            + "FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? "
+            + "AND (COLUMN_NAME LIKE ? ESCAPE '!' OR IFNULL(COLUMN_COMMENT,'') LIKE ? ESCAPE '!') "
+            + "ORDER BY TABLE_NAME, COLUMN_NAME";
+        List<ColumnSearchItem> out = new ArrayList<ColumnSearchItem>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database);
+            statement.setString(2, like);
+            statement.setString(3, like);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    String typeName = rs.getString("COLUMN_TYPE");
+                    if (typeName == null || typeName.trim().isEmpty()) typeName = rs.getString("DATA_TYPE");
+                    out.add(new ColumnSearchItem(
+                        database,
+                        rs.getString("TABLE_NAME"),
+                        rs.getString("COLUMN_NAME"),
+                        jdbcTypeNameFromDataType(rs.getString("DATA_TYPE")),
+                        typeName,
+                        !"NO".equalsIgnoreCase(rs.getString("IS_NULLABLE")),
+                        rs.getString("COLUMN_COMMENT")
+                    ));
+                }
+            }
+        }
+        return out;
     }
 
     void ensureNamespace(Connection connection, String database) throws SQLException {
@@ -176,6 +212,68 @@ final class MysqlCatalogs {
             if (rs.next()) return rs.getString(2);
         } catch (SQLException ignored) { }
         return null;
+    }
+
+    private TableStats readStats(Connection connection, String database, String table) {
+        String sql = "SHOW TABLE STATUS FROM " + quoteIdentifier(database) + " WHERE Name = " + quoteLiteral(table);
+        try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(sql)) {
+            if (!rs.next()) return null;
+            return new TableStats(
+                EngineId.MYSQL,
+                longValue(rs, "Rows"),
+                longValue(rs, "Data_length"),
+                longValue(rs, "Index_length"),
+                longValue(rs, "Auto_increment"),
+                timestamp(rs, "Create_time"),
+                timestamp(rs, "Update_time"),
+                rs.getString("Comment")
+            );
+        } catch (SQLException ignored) {
+            return null;
+        }
+    }
+
+    private String quoteLiteral(String value) {
+        return "'" + value.replace("\\", "\\\\").replace("'", "''") + "'";
+    }
+
+    private String escapeLike(String value) {
+        return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    }
+
+    private Long longValue(ResultSet rs, String column) throws SQLException {
+        long value = rs.getLong(column);
+        return rs.wasNull() ? null : Long.valueOf(value);
+    }
+
+    private String timestamp(ResultSet rs, String column) throws SQLException {
+        Timestamp value = rs.getTimestamp(column);
+        return value == null ? null : value.toInstant().toString();
+    }
+
+    private String jdbcTypeNameFromDataType(String dataType) {
+        if (dataType == null) return "OTHER";
+        String t = dataType.toLowerCase(Locale.ROOT);
+        if ("bigint".equals(t)) return "BIGINT";
+        if ("int".equals(t) || "integer".equals(t) || "mediumint".equals(t)) return "INTEGER";
+        if ("smallint".equals(t)) return "SMALLINT";
+        if ("tinyint".equals(t)) return "TINYINT";
+        if ("decimal".equals(t) || "numeric".equals(t) || "dec".equals(t)) return "DECIMAL";
+        if ("double".equals(t) || "double precision".equals(t)) return "DOUBLE";
+        if ("float".equals(t)) return "REAL";
+        if ("bit".equals(t)) return "BIT";
+        if ("char".equals(t)) return "CHAR";
+        if ("varchar".equals(t)) return "VARCHAR";
+        if ("tinytext".equals(t) || "text".equals(t) || "mediumtext".equals(t) || "longtext".equals(t)) return "LONGVARCHAR";
+        if ("binary".equals(t)) return "BINARY";
+        if ("varbinary".equals(t)) return "VARBINARY";
+        if ("tinyblob".equals(t) || "blob".equals(t) || "mediumblob".equals(t) || "longblob".equals(t)) return "BLOB";
+        if ("date".equals(t)) return "DATE";
+        if ("time".equals(t)) return "TIME";
+        if ("datetime".equals(t) || "timestamp".equals(t)) return "TIMESTAMP";
+        if ("json".equals(t)) return "VARCHAR";
+        if ("year".equals(t)) return "DATE";
+        return "OTHER";
     }
 
     private String jdbcTypeName(int type) {

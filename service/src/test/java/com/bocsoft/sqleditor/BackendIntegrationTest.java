@@ -269,6 +269,81 @@ class BackendIntegrationTest {
         mvc.perform(get("/api/v1/sql/scripts/"+id).header("Authorization","Bearer token-a")).andExpect(status().isNotFound());
     }
 
+    @Test void agentDatabaseApiIsReadOnlyBoundedAndProductScoped()throws Exception{
+        JsonNode created=create("token-a","Agent API 源");
+        String id=created.path("id").asText();
+        String database=MYSQL.getDatabaseName();
+        mvc.perform(get("/internal/api/v1/agent/data-sources").header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].id").value(id))
+            .andExpect(jsonPath("$.items[0].username").doesNotExist())
+            .andExpect(jsonPath("$.items[0].passwordConfigured").doesNotExist());
+        mvc.perform(get("/internal/api/v1/agent/data-sources/"+id).header("Authorization","Bearer token-b"))
+            .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("DATA_SOURCE_NOT_FOUND"));
+        mvc.perform(get("/internal/api/v1/agent/data-sources").header("X-Request-Id",java.util.UUID.randomUUID().toString()))
+            .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/tables").param("database",database).header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.items").isArray());
+        mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/columns").param("database",database).param("keyword","id").header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.items").isArray());
+        MvcResult detail=mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/table-detail").param("database",database).param("table","sql_data_source").header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.columns[0].jdbcType").isString()).andReturn();
+        String detailJson=detail.getResponse().getContentAsString();
+        assertThat(detailJson).doesNotContain("passwordCiphertext").doesNotContain("Data_length");
+        String validateId=java.util.UUID.randomUUID().toString();
+        mvc.perform(post("/internal/api/v1/agent/data-sources/"+id+"/sql/validate").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sql\":\"SELECT 1\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.valid").value(true)).andExpect(jsonPath("$.statementType").value("SELECT"));
+        mvc.perform(post("/internal/api/v1/agent/data-sources/"+id+"/sql/validate").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sql\":\"INSERT INTO t VALUES (1)\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.valid").value(false));
+        String explainId=java.util.UUID.randomUUID().toString();
+        MvcResult explained=mvc.perform(post("/internal/api/v1/agent/data-sources/"+id+"/sql/explain").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+explainId+"\",\"sql\":\"SELECT 1\",\"database\":\""+database+"\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(explained)).andExpect(status().isOk()).andExpect(jsonPath("$.supported").isBoolean());
+        mvc.perform(get("/api/v1/sql/history/"+explainId).header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.source").value("AI_AGENT_EXPLAIN"));
+        String queryId=java.util.UUID.randomUUID().toString();
+        MvcResult queried=mvc.perform(post("/internal/api/v1/agent/data-sources/"+id+"/sql/query").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+queryId+"\",\"sql\":\"SELECT 1\",\"database\":\""+database+"\",\"maxRows\":10}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(queried)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET")).andExpect(jsonPath("$.executionId").value(queryId));
+        mvc.perform(get("/api/v1/sql/history/"+queryId).header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.source").value("AI_AGENT"));
+        String writeId=java.util.UUID.randomUUID().toString();
+        MvcResult rejected=mvc.perform(post("/internal/api/v1/agent/data-sources/"+id+"/sql/query").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+writeId+"\",\"sql\":\"INSERT INTO t VALUES (1)\",\"database\":\""+database+"\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(rejected)).andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("READ_ONLY_VIOLATION"));
+        assertThat(jdbc.queryForObject("select count(*) from sql_execution_history where id=?",Integer.class,writeId)).isZero();
+        mvc.perform(post("/internal/api/v1/agent/data-sources/"+id+"/sql/query").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+java.util.UUID.randomUUID()+"\",\"sql\":\"SELECT 1\",\"readOnly\":false}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.details.fieldErrors[0].field").value("readOnly"));
+        String missingId=java.util.UUID.randomUUID().toString();
+        MvcResult missing=mvc.perform(post("/internal/api/v1/agent/data-sources/"+id+"/sql/query").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+missingId+"\",\"sql\":\"SELECT * FROM no_such_agent_table\",\"database\":\""+database+"\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        String missingBody=mvc.perform(asyncDispatch(missing)).andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("SQL_EXECUTION_FAILED")).andReturn().getResponse().getContentAsString();
+        assertThat(missingBody).contains("SQL 执行失败").doesNotContain(MYSQL.getPassword()).doesNotContain("token-a");
+        String planId=java.util.UUID.randomUUID().toString();
+        MvcResult planned=mvc.perform(post("/api/v1/sql/explains").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+planId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(planned)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET"));
+        mvc.perform(get("/api/v1/sql/history/"+planId).header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.source").value("AI_AGENT_EXPLAIN"));
+        String analyzeId=java.util.UUID.randomUUID().toString();
+        MvcResult analyzeDisabled=mvc.perform(post("/api/v1/sql/explains:analyze").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+analyzeId+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"SELECT 1\"}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(analyzeDisabled)).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("EXPLAIN_ANALYZE_DISABLED"));
+        String analyzeReadOnly=java.util.UUID.randomUUID().toString();
+        MvcResult blocked=mvc.perform(post("/api/v1/sql/executions").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"executionId\":\""+analyzeReadOnly+"\",\"dataSourceId\":\""+id+"\",\"database\":\""+database+"\",\"statement\":\"EXPLAIN ANALYZE SELECT 1\",\"readOnly\":true}"))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(blocked)).andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("EXPLAIN_ANALYZE_NOT_ALLOWED"));
+        MvcResult tableDetail=mvc.perform(get("/api/v1/data-sources/"+id+"/table-detail").param("database",database).param("table","sql_data_source").header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk()).andReturn();
+        JsonNode stats=json.readTree(tableDetail.getResponse().getContentAsString()).path("stats");
+        assertThat(stats.isMissingNode()).isFalse();
+        assertThat(tableDetail.getResponse().getContentAsString()).doesNotContain("Data_length");
+    }
+
     private JsonNode create(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payload(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andExpect(header().string("Location",org.hamcrest.Matchers.startsWith("/api/v1/data-sources/"))).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private JsonNode createWithoutDefaultDatabase(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payloadWithoutDefaultDatabase(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andReturn();return json.readTree(result.getResponse().getContentAsString());}
     private static String payload(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
