@@ -101,6 +101,32 @@ class AgentApiContractTest {
     }
 
     @Test
+    void listsDatabasesAsNamespacesWithoutCredentials() throws Exception {
+        when(metadata.databases(any(), eq("ds-1"), eq(""), eq(100), eq(null), eq(false)))
+            .thenReturn(new CursorPage<>(Collections.singletonList(
+                new com.bocsoft.sqleditor.metadata.api.DatabaseItem("business")), null));
+        mvc.perform(get("/internal/api/v1/agent/data-sources/ds-1/databases")
+                .header("X-Request-Id", UUID.randomUUID().toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].name").value("business"))
+            .andExpect(jsonPath("$.items[0].kind").value("NAMESPACE"))
+            .andExpect(jsonPath("$.items[0].username").doesNotExist());
+    }
+
+    @Test
+    void acceptsOptionalSchemaOnValidate() throws Exception {
+        when(sql.validate(any(), eq("ds-1"), any()))
+            .thenReturn(new com.bocsoft.sqleditor.agentapi.api.AgentSqlValidateResponse(
+                true, "SELECT", true, false, Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
+        mvc.perform(post("/internal/api/v1/agent/data-sources/ds-1/sql/validate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sql\":\"SELECT 1\",\"database\":\"business\",\"schema\":\"business\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.valid").value(true));
+        verify(sql).validate(any(), eq("ds-1"), any());
+    }
+
+    @Test
     void rejectsUnknownQueryFields() throws Exception {
         mvc.perform(post("/internal/api/v1/agent/data-sources/ds-1/sql/query")
                 .contentType(MediaType.APPLICATION_JSON)

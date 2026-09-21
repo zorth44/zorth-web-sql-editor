@@ -6,6 +6,7 @@ public class AgentSqlExplainRequest {
     @NotBlank private String executionId;
     @NotBlank private String sql;
     private String database;
+    private String schema;
     private Integer timeoutSeconds;
 
     public String getExecutionId() { return executionId; }
@@ -14,6 +15,8 @@ public class AgentSqlExplainRequest {
     public void setSql(String v) { sql = v; }
     public String getDatabase() { return database; }
     public void setDatabase(String v) { database = v; }
+    public String getSchema() { return schema; }
+    public void setSchema(String v) { schema = v; }
     public Integer getTimeoutSeconds() { return timeoutSeconds; }
     public void setTimeoutSeconds(Integer v) { timeoutSeconds = v; }
 }

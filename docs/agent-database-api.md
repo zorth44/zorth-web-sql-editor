@@ -25,6 +25,7 @@ When `internal-caller-key-required` is true, requests must also send `X-Internal
 | --- | --- | --- |
 | GET | `/internal/api/v1/agent/data-sources` | Visible datasource summaries |
 | GET | `/internal/api/v1/agent/data-sources/{id}` | Datasource detail without credentials/JDBC properties |
+| GET | `/internal/api/v1/agent/data-sources/{id}/databases` | NAMESPACE listing (`keyword`, `pageSize`, `pageToken`, `includeSystem`) — MySQL catalogs or PostgreSQL schemas as `kind=NAMESPACE` |
 | GET | `/internal/api/v1/agent/data-sources/{id}/tables` | Table search (`database`, `keyword`, `types`, `pageSize`, `pageToken`) |
 | GET | `/internal/api/v1/agent/data-sources/{id}/columns` | Cross-table column search (`database`, `keyword` required) |
 | GET | `/internal/api/v1/agent/data-sources/{id}/table-detail` | Columns, keys, indexes, optional `ddl`/`stats` |
@@ -33,6 +34,30 @@ When `internal-caller-key-required` is true, requests must also send `X-Internal
 | POST | `/internal/api/v1/agent/data-sources/{id}/sql/query` | Bounded read-only SELECT |
 
 Unknown JSON fields return `400 VALIDATION_FAILED` / `UNKNOWN_FIELD`. Query and explain bodies must not include `readOnly` or `source`. Query always executes with `readOnly=true` and history `source=AI_AGENT`. Explain history is `AI_AGENT_EXPLAIN`.
+
+### SQL body namespace selectors
+
+Validate, explain, and query bodies accept optional `database` and optional `schema`. Both are aliases for the single Web NAMESPACE selector (MySQL catalog or PostgreSQL schema) applied through `applyNamespace`.
+
+Resolution:
+
+1. Trim; blank is absent.
+2. Only one present → use that value.
+3. Both present and equal → use that value.
+4. Both present and unequal → `400 VALIDATION_FAILED` / `CONFLICTING_NAMESPACE` (no silent preference).
+
+Validate accepts `schema` for JSON binding but does not borrow a connection or apply NAMESPACE for safety evaluation.
+
+### Explain `riskLevel`
+
+When plan evidence is sufficient, explain responses include optional `riskLevel` (`LOW` | `MEDIUM` | `HIGH`). Classification is evidence-only (first match wins):
+
+| `riskLevel` | Rule |
+| --- | --- |
+| omit / null | `supported=false`, or none of `fullScan`, `estimatedRows`, and findings are present |
+| `HIGH` | `fullScan=true`, finding code `FULL_TABLE_SCAN` or `FULL_SCAN`, or `estimatedRows >= 100000` |
+| `MEDIUM` | `estimatedRows >= 10000`, or other non-empty findings that did not classify HIGH |
+| `LOW` | `supported=true` with explicit `fullScan=false` and no HIGH/MEDIUM triggers |
 
 ## Limits
 
@@ -54,7 +79,7 @@ A client may lower `maxRows` and `timeoutSeconds` only. Oversized cells become `
 | --- | --- | --- |
 | `UNAUTHENTICATED` | 401 | Missing/invalid Bearer, or missing internal caller key when required |
 | `DATA_SOURCE_NOT_FOUND` | 404 | Datasource missing or in another product |
-| `VALIDATION_FAILED` | 400 | Bounds, unknown fields, malformed JSON |
+| `VALIDATION_FAILED` | 400 | Bounds, unknown fields, malformed JSON, conflicting `database`/`schema` |
 | `MULTI_STATEMENT_NOT_SUPPORTED` | 400 | More than one statement |
 | `READ_ONLY_VIOLATION` | 422 | DML/DDL/other at query time |
 | `EXPLAIN_STATEMENT_NOT_SUPPORTED` | 422 | Not a supported SELECT, or SHOW/EXPLAIN as Agent SQL |
@@ -97,13 +122,4 @@ docker build -t zorth-web-sql-service:<tag> .
 
 The image listens on 8080. Target MySQL 8 with `sslMode=DISABLED` uses `allowPublicKeyRetrieval=true` so caching_sha2_password works from a container IP, not only localhost.
 
-Compatible consumer change: `bddf-agentscope` / `integrate-web-sql-database-service`.
-
-Local black-box (2026-09-20):
-
-| Side | Version |
-| --- | --- |
-| Provider image | `zorth-web-sql-service:add-agent-database-tool-api` |
-| Provider commit | `3502c10add31146cc41cca86da06a10fcf1611b8` (working tree: `add-agent-database-tool-api`) |
-| Consumer commit | `a47b43c59e651f7e2e3d19d849fa83fcd7ec5812` (working tree: `integrate-web-sql-database-service`) |
-| Result | `mvn test -Pdatasource-blackbox` — 4 tests passed |
+Compatible consumer change: `bddf-agentscope` / `align-database-tools-sql-editor-contract`.

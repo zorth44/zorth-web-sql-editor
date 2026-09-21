@@ -3,6 +3,7 @@ package com.bocsoft.sqleditor.agentapi;
 import com.bocsoft.sqleditor.agentapi.api.AgentColumnItem;
 import com.bocsoft.sqleditor.agentapi.api.AgentDataSourceDetail;
 import com.bocsoft.sqleditor.agentapi.api.AgentDataSourceSummary;
+import com.bocsoft.sqleditor.agentapi.api.AgentDatabaseItem;
 import com.bocsoft.sqleditor.agentapi.api.AgentFinding;
 import com.bocsoft.sqleditor.agentapi.api.AgentSqlExplainResponse;
 import com.bocsoft.sqleditor.agentapi.api.AgentSqlValidateResponse;
@@ -20,6 +21,7 @@ import com.bocsoft.sqleditor.execution.SqlSafetyAssessment;
 import com.bocsoft.sqleditor.execution.SqlTableRef;
 import com.bocsoft.sqleditor.metadata.api.ColumnItem;
 import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
+import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
 import java.util.ArrayList;
@@ -46,6 +48,14 @@ public class AgentApiMapper {
         List<AgentDataSourceSummary> items = new ArrayList<AgentDataSourceSummary>();
         for (DataSourceListItemResponse item : page.getItems()) items.add(summary(item));
         return new CursorPage<AgentDataSourceSummary>(items, page.getNextPageToken());
+    }
+
+    public CursorPage<AgentDatabaseItem> databases(CursorPage<DatabaseItem> page) {
+        List<AgentDatabaseItem> items = new ArrayList<AgentDatabaseItem>();
+        for (DatabaseItem item : page.getItems()) {
+            items.add(new AgentDatabaseItem(item.getName(), item.getKind()));
+        }
+        return new CursorPage<AgentDatabaseItem>(items, page.getNextPageToken());
     }
 
     public CursorPage<AgentTableItem> tables(CursorPage<TableItem> page) {
@@ -93,7 +103,8 @@ public class AgentApiMapper {
             }
         }
         return new AgentSqlExplainResponse(evidence.isSupported(), evidence.getEstimatedRows(), evidence.getFullScan(),
-            evidence.getUsedIndexes(), evidence.getTables(), findings, evidence.getReason());
+            evidence.getUsedIndexes(), evidence.getTables(), findings, evidence.getReason(),
+            AgentExplainRisk.from(evidence));
     }
 
     private List<AgentTableRef> tableRefs(List<SqlTableRef> tables) {

@@ -59,10 +59,11 @@ public class AgentSqlService {
                                            String requestId, String clientIp) {
         EngineSupport engine = engine(auth, dataSourceId);
         safety.requireSafeSelect(engine, request.getSql());
+        String namespace = AgentNamespaceResolver.resolve(request.getDatabase(), request.getSchema());
         SqlExplainRequest forwarded = new SqlExplainRequest();
         forwarded.setExecutionId(request.getExecutionId());
         forwarded.setDataSourceId(dataSourceId);
-        forwarded.setDatabase(request.getDatabase());
+        forwarded.setDatabase(namespace);
         forwarded.setStatement(request.getSql());
         forwarded.setTimeoutSeconds(request.getTimeoutSeconds());
         return mapper.explain(explains.planDetailed(auth, forwarded, requestId, clientIp).getEvidence());
@@ -74,6 +75,7 @@ public class AgentSqlService {
         SqlEditorProperties.Execution web = properties.getExecution();
         EngineSupport engine = engine(auth, dataSourceId);
         String sql = safety.requireSafeSelect(engine, request.getSql());
+        String namespace = AgentNamespaceResolver.resolve(request.getDatabase(), request.getSchema());
         int maxRowsCap = Math.min(agent.getMaxRowLimit(), web.getMaxRowLimit());
         int requestedRows = request.getMaxRows() == null ? Math.min(agent.getDefaultRowLimit(), maxRowsCap) : request.getMaxRows();
         if (requestedRows < 1) {
@@ -85,7 +87,7 @@ public class AgentSqlService {
         long bytes = Math.min(agent.getMaxResultBytes(), web.getMaxResultBytes());
         int cellBytes = agent.getMaxCellBytes();
         ExecutionCommand command = new ExecutionCommand(
-            request.getExecutionId(), dataSourceId, request.getDatabase(), sql,
+            request.getExecutionId(), dataSourceId, namespace, sql,
             requestedRows, timeout, bytes, cellBytes, true, ExecutionSource.AI_AGENT, true);
         ExecutionOutcome outcome = executions.run(auth, command, requestId, clientIp);
         SqlExecutionResponse response = outcome.getResponse();

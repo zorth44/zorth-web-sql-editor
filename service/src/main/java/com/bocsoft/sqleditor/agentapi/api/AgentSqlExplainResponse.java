@@ -11,9 +11,16 @@ public class AgentSqlExplainResponse {
     private final List<TablePlanEntry> tables;
     private final List<AgentFinding> findings;
     private final String reason;
+    private final String riskLevel;
 
     public AgentSqlExplainResponse(boolean supported, Long estimatedRows, Boolean fullScan, List<String> usedIndexes,
                                    List<TablePlanEntry> tables, List<AgentFinding> findings, String reason) {
+        this(supported, estimatedRows, fullScan, usedIndexes, tables, findings, reason, null);
+    }
+
+    public AgentSqlExplainResponse(boolean supported, Long estimatedRows, Boolean fullScan, List<String> usedIndexes,
+                                   List<TablePlanEntry> tables, List<AgentFinding> findings, String reason,
+                                   String riskLevel) {
         this.supported = supported;
         this.estimatedRows = estimatedRows;
         this.fullScan = fullScan;
@@ -21,6 +28,7 @@ public class AgentSqlExplainResponse {
         this.tables = tables;
         this.findings = findings;
         this.reason = reason;
+        this.riskLevel = riskLevel;
     }
 
     public boolean isSupported() { return supported; }
@@ -30,4 +38,5 @@ public class AgentSqlExplainResponse {
     public List<TablePlanEntry> getTables() { return tables; }
     public List<AgentFinding> getFindings() { return findings; }
     public String getReason() { return reason; }
+    public String getRiskLevel() { return riskLevel; }
 }

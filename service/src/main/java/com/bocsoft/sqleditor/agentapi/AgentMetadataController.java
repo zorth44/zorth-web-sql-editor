@@ -3,6 +3,7 @@ package com.bocsoft.sqleditor.agentapi;
 import com.bocsoft.sqleditor.agentapi.api.AgentColumnItem;
 import com.bocsoft.sqleditor.agentapi.api.AgentDataSourceDetail;
 import com.bocsoft.sqleditor.agentapi.api.AgentDataSourceSummary;
+import com.bocsoft.sqleditor.agentapi.api.AgentDatabaseItem;
 import com.bocsoft.sqleditor.agentapi.api.AgentTableDetail;
 import com.bocsoft.sqleditor.agentapi.api.AgentTableItem;
 import com.bocsoft.sqleditor.auth.CurrentAuth;
@@ -43,6 +44,16 @@ public class AgentMetadataController {
     @Operation(summary = "Get a visible datasource without credentials or JDBC properties")
     public AgentDataSourceDetail get(@PathVariable String id) {
         return mapper.detail(dataSources.get(CurrentAuth.get(), id));
+    }
+
+    @GetMapping("/data-sources/{id}/databases")
+    @Operation(summary = "List NAMESPACE items (MySQL catalogs or PostgreSQL schemas) for a visible datasource")
+    public CursorPage<AgentDatabaseItem> databases(@PathVariable String id,
+                                                   @RequestParam(defaultValue = "") String keyword,
+                                                   @RequestParam(defaultValue = "100") int pageSize,
+                                                   @RequestParam(required = false) String pageToken,
+                                                   @RequestParam(defaultValue = "false") boolean includeSystem) {
+        return mapper.databases(metadata.databases(CurrentAuth.get(), id, keyword, pageSize, pageToken, includeSystem));
     }
 
     @GetMapping("/data-sources/{id}/tables")
