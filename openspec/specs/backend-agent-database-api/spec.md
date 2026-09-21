@@ -33,7 +33,7 @@ Every Agent API request SHALL require the original `Authorization: Bearer` crede
 - **THEN** the service returns the existing correlated unauthenticated error before invoking a capability
 
 ### Requirement: Agent API exposes bounded datasource and metadata discovery
-The API SHALL expose datasource list/detail, namespace (databases) listing, table list/search, table detail, and cross-table column search for visible datasources. `GET /internal/api/v1/agent/data-sources/{id}/databases` SHALL reuse the same NAMESPACE listing semantics as Web `GET /api/v1/data-sources/{id}/databases` (MySQL catalogs or PostgreSQL schemas as `kind=NAMESPACE`), including optional keyword/pagination/`includeSystem` query parameters supported by the shared metadata service. Responses SHALL use stable cursor pagination and Agent DTOs, SHALL represent JDBC types by canonical names, and MUST NOT include passwords, encrypted credentials, JDBC URLs, raw DDL unless explicitly documented for table detail, or connection properties not required by the Tool contract.
+The API SHALL expose datasource list/detail, namespace listing, table list/search, enriched table detail, cross-table column search, and one-hop table relationship discovery for visible datasources. `GET /internal/api/v1/agent/data-sources/{id}/databases` SHALL reuse the same NAMESPACE listing semantics as Web `GET /api/v1/data-sources/{id}/databases` (MySQL catalogs or PostgreSQL schemas as `kind=NAMESPACE`), including optional keyword/pagination/`includeSystem` query parameters supported by the shared metadata service. `GET .../{id}/relationships` SHALL require database and table, accept direction `BOTH`/`OUTBOUND`/`INBOUND`, pageSize and opaque pageToken, and return stable canonical source/target edges. Responses SHALL use hard limits and Agent DTOs, SHALL represent JDBC types and evidence by canonical names, and MUST NOT include passwords, encrypted credentials, JDBC URLs, raw DDL/default/check expressions, statistics, vendor objects, or connection properties not required by the Tool contract.
 
 #### Scenario: Datasources and tables are discovered
 - **WHEN** an authorized Agent lists datasources and searches tables with bounded page sizes
@@ -43,13 +43,21 @@ The API SHALL expose datasource list/detail, namespace (databases) listing, tabl
 - **WHEN** an authorized Agent calls `GET /internal/api/v1/agent/data-sources/{id}/databases` for a visible datasource
 - **THEN** the service returns a cursor page of NAMESPACE items with the same engine-specific listing and system-namespace hiding behavior as the Web databases endpoint
 
-#### Scenario: Table detail is requested
+#### Scenario: Enriched table detail is requested
 - **WHEN** an authorized Agent requests a visible table
-- **THEN** the response contains normalized columns, keys, indexes, optional safe DDL/statistics, and canonical string JDBC type names
+- **THEN** the response contains normalized columns, primary keys, bounded unique keys, outbound foreign keys, cropped indexes and explicit per-section coverage without raw DDL/default/check/statistics fields
 
 #### Scenario: Columns are searched
 - **WHEN** an authorized Agent searches a column keyword within a namespace
 - **THEN** the engine/catalog layer returns a bounded page of matching table-column summaries without controller-level table-detail fan-out
+
+#### Scenario: One-hop relationships are requested
+- **WHEN** an authorized Agent requests BOTH direction relationships for one visible table
+- **THEN** the service returns one stable cursor page of imported/exported canonical edges and does not recursively inspect adjacent tables
+
+#### Scenario: Relationship capability is unsupported
+- **WHEN** the selected engine cannot reliably provide relationship metadata
+- **THEN** the API returns stable capability-not-supported or UNAVAILABLE coverage rather than a fabricated COMPLETE empty result
 
 ### Requirement: Agent SQL validation is authoritative and non-executing
 `POST /internal/api/v1/agent/data-sources/{id}/sql/validate` SHALL inspect the exact input using a reusable service-side safety evaluator and SHALL return `valid`, statement type, read-only status, multi-statement status, referenced tables when known, warnings, and violations. The request body SHALL accept optional `database` and optional `schema` as known JSON fields; presence of `schema` MUST NOT cause `UNKNOWN_FIELD`. Optional namespace fields do not change validation's non-executing nature. `valid=true` SHALL require exactly one supported read-only SELECT. Validation MUST NOT borrow a target connection or execute business SQL.
@@ -131,12 +139,31 @@ Agent operations SHALL use stable documented error codes and correlated error en
 - **THEN** the Agent response and ordinary logs contain only a stable safe code/message and request correlation
 
 ### Requirement: Provider owns executable compatibility tests
-The service SHALL provide MVC contract tests and Testcontainers integration tests covering all Agent endpoints, authentication, product isolation, MySQL behavior, supported PostgreSQL behavior, read-only rejection, pagination, canonical data types, limits, and errors. It SHALL document a deterministic black-box startup/seed flow that consumer repositories can run without an LLM or production authentication bypass.
+The service SHALL provide MVC contract tests and Testcontainers integration tests covering every Agent endpoint, authentication, product isolation, MySQL behavior, supported PostgreSQL behavior, read-only rejection, pagination, canonical data types, limits, errors, enriched table detail, and one-hop relationships. Relationship integration tests SHALL cover ordered composite foreign keys, inbound/outbound direction, uniqueness evidence, confirmed empty, truncation and unsupported capability. The service SHALL document a deterministic black-box startup/seed flow usable by consumer repositories without an LLM or authentication bypass.
 
 #### Scenario: Provider integration suite runs
-- **WHEN** Docker is available and the Agent API integration suite starts Auth WireMock, metadata storage, and target databases
-- **THEN** it creates a datasource through the public management API and verifies the Agent API against real JDBC metadata and execution
+- **WHEN** Docker is available and the Agent API integration suite starts Auth WireMock, metadata storage, and MySQL/PostgreSQL targets
+- **THEN** it creates datasources through the public management API and verifies enriched table detail and relationship APIs against real JDBC metadata
+
+#### Scenario: Unsupported GBase relationship metadata
+- **WHEN** GBase 8a has not passed equivalent real-driver relationship scenarios
+- **THEN** its Agent relationship operation reports capability-not-supported and does not reuse unverified MySQL-family assumptions
 
 #### Scenario: Consumer provisions a black-box datasource
 - **WHEN** a pinned packaged service is started for the Agent repository
-- **THEN** the consumer can use a deterministic Token and public API calls to create its datasource and execute all declared capability scenarios
+- **THEN** the consumer can seed composite key fixtures and verify all declared metadata capability scenarios
+
+### Requirement: Agent relationship envelopes preserve evidence and completeness
+Each relationship SHALL contain source/target database, table, ordered columns, direction relative to the requested table, optional real constraintName, stable evidence, and optional evidence-backed cardinality. Source and target column arrays MUST be nonempty and equal in length. Coverage SHALL be `COMPLETE`, `TRUNCATED`, or `UNAVAILABLE`; pagination/truncation state MUST be internally consistent.
+
+#### Scenario: Composite outbound foreign key is returned
+- **WHEN** a visible table contains a two-column imported foreign key
+- **THEN** the API returns one OUTBOUND edge with both ordered source/target pairs and `evidence=FOREIGN_KEY`
+
+#### Scenario: Ordinary index resembles a relationship
+- **WHEN** same-named indexed columns exist without a declared reference
+- **THEN** the API returns no relationship for that coincidence
+
+#### Scenario: Metadata is truncated
+- **WHEN** matches exceed the effective page or section limit
+- **THEN** the API returns only the bounded data, `coverage=TRUNCATED`, appliedLimit and an opaque nextPageToken where paging applies

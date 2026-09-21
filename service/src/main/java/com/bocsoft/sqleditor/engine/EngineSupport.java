@@ -6,6 +6,9 @@ import com.bocsoft.sqleditor.datasource.connection.JdbcTarget;
 import com.bocsoft.sqleditor.datasource.connection.ResolvedTarget;
 import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
+import com.bocsoft.sqleditor.metadata.api.RelationshipEdge;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintLimits;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintMetadata;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
 import java.sql.Connection;
@@ -13,6 +16,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 
 public interface EngineSupport {
@@ -37,6 +41,25 @@ public interface EngineSupport {
     List<TableItem> listTables(Connection connection, String database, String keyword, String[] types) throws SQLException;
     TableDetailResponse tableDetail(Connection connection, String database, String table) throws SQLException;
     void ensureNamespace(Connection connection, String database) throws SQLException;
+
+    default boolean supportsRelationshipMetadata() {
+        return false;
+    }
+
+    default TableConstraintMetadata tableConstraints(Connection connection, String database, String table,
+                                                     TableConstraintLimits limits) throws SQLException {
+        return TableConstraintMetadata.unavailable();
+    }
+
+    default List<RelationshipEdge> importedRelationships(Connection connection, String database, String table,
+                                                         Set<String> requestedUniqueSets, int limit) throws SQLException {
+        throw capabilityNotSupported();
+    }
+
+    default List<RelationshipEdge> exportedRelationships(Connection connection, String database, String table,
+                                                         Set<String> requestedUniqueSets, int limit) throws SQLException {
+        throw capabilityNotSupported();
+    }
 
     default List<ColumnSearchItem> searchColumns(Connection connection, String database, String keyword) throws SQLException {
         throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "METADATA_QUERY_FAILED", "当前引擎不支持跨表字段搜索");
@@ -68,5 +91,9 @@ public interface EngineSupport {
 
     default boolean streamingRequiresAutoCommitOff() {
         return false;
+    }
+
+    static ApiException capabilityNotSupported() {
+        return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "CAPABILITY_NOT_SUPPORTED", "当前引擎不支持表关系元数据");
     }
 }

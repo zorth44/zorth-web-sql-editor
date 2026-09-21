@@ -4,6 +4,7 @@ import com.bocsoft.sqleditor.agentapi.api.AgentColumnItem;
 import com.bocsoft.sqleditor.agentapi.api.AgentDataSourceDetail;
 import com.bocsoft.sqleditor.agentapi.api.AgentDataSourceSummary;
 import com.bocsoft.sqleditor.agentapi.api.AgentDatabaseItem;
+import com.bocsoft.sqleditor.agentapi.api.AgentRelationshipPage;
 import com.bocsoft.sqleditor.agentapi.api.AgentTableDetail;
 import com.bocsoft.sqleditor.agentapi.api.AgentTableItem;
 import com.bocsoft.sqleditor.auth.CurrentAuth;
@@ -76,9 +77,20 @@ public class AgentMetadataController {
     }
 
     @GetMapping("/data-sources/{id}/table-detail")
-    @Operation(summary = "Return normalized table detail including optional DDL and statistics")
+    @Operation(summary = "Return normalized table detail with bounded unique keys, outbound foreign keys, cropped indexes and coverage")
     public AgentTableDetail tableDetail(@PathVariable String id, @RequestParam String database,
                                         @RequestParam String table) {
-        return mapper.tableDetail(metadata.detail(CurrentAuth.get(), id, database, table));
+        return mapper.tableDetail(metadata.enrichedDetail(CurrentAuth.get(), id, database, table));
+    }
+
+    @GetMapping("/data-sources/{id}/relationships")
+    @Operation(summary = "Return one-hop imported/exported relationships for one visible table")
+    public AgentRelationshipPage relationships(@PathVariable String id,
+                                               @RequestParam String database,
+                                               @RequestParam String table,
+                                               @RequestParam(defaultValue = "BOTH") String direction,
+                                               @RequestParam(defaultValue = "50") int pageSize,
+                                               @RequestParam(required = false) String pageToken) {
+        return mapper.relationships(metadata.relationships(CurrentAuth.get(), id, database, table, direction, pageSize, pageToken));
     }
 }

@@ -56,4 +56,17 @@ class Gbase8aEngineTest {
             .doesNotContain("jdbc:gbase")
             .doesNotContain("secret");
     }
+
+    @Test void relationshipMetadataIsExplicitlyUnsupportedAndDoesNotReuseMysqlCompleteness() {
+        assertThat(gbase.supportsRelationshipMetadata()).isFalse();
+        assertThat(gbase.tableConstraints(null, "db", "t",
+            new com.bocsoft.sqleditor.metadata.api.TableConstraintLimits(8, 8, 8)).getUniqueKeys().getCoverage())
+            .isEqualTo("UNAVAILABLE");
+        assertThat(gbase.tableConstraints(null, "db", "t",
+            new com.bocsoft.sqleditor.metadata.api.TableConstraintLimits(8, 8, 8)).getForeignKeys().getCoverage())
+            .isEqualTo("UNAVAILABLE");
+        assertThatThrownBy(() -> gbase.importedRelationships(null, "db", "t", java.util.Collections.<String>emptySet(), 10))
+            .isInstanceOf(ApiException.class)
+            .extracting("code").isEqualTo("CAPABILITY_NOT_SUPPORTED");
+    }
 }

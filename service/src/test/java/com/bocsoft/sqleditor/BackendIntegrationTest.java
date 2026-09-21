@@ -17,6 +17,8 @@ import com.bocsoft.sqleditor.datasource.connection.ConnectionConfiguration;
 import com.bocsoft.sqleditor.datasource.connection.DynamicPoolManager;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ import java.util.concurrent.Future;
 import java.time.Instant;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -54,6 +57,12 @@ class BackendIntegrationTest {
 
     static { AUTH.start(); }
     @BeforeAll static void auth(){configureFor("localhost",AUTH.port());stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/internal/api/v1/auth/context")).withHeader("Authorization",equalTo("Bearer token-a")).willReturn(okJson(context("user-a","product-a","产品 A"))));stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/internal/api/v1/auth/context")).withHeader("Authorization",equalTo("Bearer token-b")).willReturn(okJson(context("user-b","product-b","产品 B"))));stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/internal/api/v1/auth/context")).atPriority(10).willReturn(unauthorized().withHeader("Content-Type","application/json").withBody("{\"code\":\"UNAUTHENTICATED\"}")));}
+    @BeforeEach void isolateMetadata() {
+        for (String id : jdbc.queryForList("select id from sql_data_source", String.class)) pools.invalidate(id);
+        jdbc.update("DELETE FROM sql_script");
+        jdbc.update("DELETE FROM sql_execution_history");
+        jdbc.update("DELETE FROM sql_data_source");
+    }
     @AfterAll static void stopAuth(){AUTH.stop();}
     @DynamicPropertySource static void properties(DynamicPropertyRegistry registry){registry.add("spring.datasource.url",MYSQL::getJdbcUrl);registry.add("spring.datasource.username",MYSQL::getUsername);registry.add("spring.datasource.password",MYSQL::getPassword);registry.add("sql-editor.auth.context-url",()->AUTH.baseUrl()+"/internal/api/v1/auth/context");registry.add("sql-editor.auth.internal-service-key",()->"integration-service-key");registry.add("sql-editor.auth.cache-ttl-seconds",()->0);registry.add("sql-editor.credentials.current-version",()->"v1");registry.add("sql-editor.credentials.keys.v1",()->KEY);registry.add("sql-editor.cursor.signing-key",()->KEY);registry.add("sql-editor.network.allowed-cidrs[0]",()->"127.0.0.0/8");registry.add("sql-editor.network.allowed-cidrs[1]",()->"::1/128");registry.add("sql-editor.network.denied-cidrs[0]",()->"192.0.2.0/24");registry.add("management.server.port",()->"-1");}
 
@@ -85,11 +94,11 @@ class BackendIntegrationTest {
         assertThat(jdbc.queryForObject("select password_ciphertext from sql_data_source where id=?",String.class,idA)).doesNotContain(MYSQL.getPassword());
         assertThat(jdbc.queryForObject("select version from sql_data_source where id=?",Long.class,idA)).isEqualTo(2L);
         mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON).content(payloadWithUnknown("third"))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.details.fieldErrors[0].field").value("productId"));
-        create("token-a","第三条");create("token-a","百分比%库");mvc.perform(get("/api/v1/data-sources").param("keyword","%").header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].name").value("百分比%库"));MvcResult page=mvc.perform(get("/api/v1/data-sources?pageSize=1").header("Authorization","Bearer token-a")).andExpect(status().isOk()).andReturn();String cursor=json.readTree(page.getResponse().getContentAsString()).path("nextPageToken").asText();assertThat(cursor).isNotBlank();mvc.perform(get("/api/v1/data-sources?pageSize=1&pageToken="+cursor).header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
+        create("token-a","第三条");create("token-a","百分比%库");mvc.perform(get("/api/v1/data-sources").param("keyword","%").header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].name").value("百分比%库"));MvcResult page=mvc.perform(get("/api/v1/data-sources?pageSize=1").header("Authorization","Bearer token-a")).andExpect(status().isOk()).andReturn();String cursor=json.readTree(page.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("nextPageToken").asText();assertThat(cursor).isNotBlank();mvc.perform(get("/api/v1/data-sources?pageSize=1&pageToken="+cursor).header("Authorization","Bearer token-a")).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
         mvc.perform(delete("/api/v1/data-sources/"+idB+"?version=1").header("Authorization","Bearer token-b")).andExpect(status().isNoContent()).andExpect(content().string(""));
     }
 
-    @Test void openApiAndOperationalSurfacesRemainSecretFree()throws Exception{MvcResult result=mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn();String openApi=result.getResponse().getContentAsString();assertThat(openApi).contains("\"writeOnly\":true").doesNotContain("passwordCiphertext").doesNotContain("passwordIv").doesNotContain("keyVersion").doesNotContain("internalServiceKey");mvc.perform(get("/actuator/env")).andExpect(status().is4xxClientError());mvc.perform(get("/actuator/configprops")).andExpect(status().is4xxClientError());mvc.perform(get("/actuator/heapdump")).andExpect(status().is4xxClientError());}
+    @Test void openApiAndOperationalSurfacesRemainSecretFree()throws Exception{MvcResult result=mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn();String openApi=result.getResponse().getContentAsString(StandardCharsets.UTF_8);assertThat(openApi).contains("\"writeOnly\":true").doesNotContain("passwordCiphertext").doesNotContain("passwordIv").doesNotContain("keyVersion").doesNotContain("internalServiceKey");mvc.perform(get("/actuator/env")).andExpect(status().is4xxClientError());mvc.perform(get("/actuator/configprops")).andExpect(status().is4xxClientError());mvc.perform(get("/actuator/heapdump")).andExpect(status().is4xxClientError());}
 
     @Test void listsVisibleDatabasesWhenDefaultDatabaseIsOmitted()throws Exception{
         JsonNode created=createWithoutDefaultDatabase("token-a","空默认库");
@@ -122,9 +131,13 @@ class BackendIntegrationTest {
             .andExpect(jsonPath("$.items[2].resourceTree[0].label").value("数据库"));
         JsonNode created=json.readTree(mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer token-a")
             .contentType(MediaType.APPLICATION_JSON).content(gbase8aPayload("GBase 8a 源")))
-            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
         assertThat(created.path("engine").asText()).isEqualTo("GBASE_8A");
         assertThat(created.path("defaultDatabase").isMissingNode() || created.path("defaultDatabase").isNull()).isTrue();
+        mvc.perform(get("/internal/api/v1/agent/data-sources/"+created.path("id").asText()+"/relationships")
+                .param("database","demo").param("table","orders").header("Authorization","Bearer token-a"))
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.code").value("CAPABILITY_NOT_SUPPORTED"));
     }
 
     private void executeSelect(String dataSourceId,String database,String sql)throws Exception{
@@ -211,7 +224,7 @@ class BackendIntegrationTest {
             .andExpect(status().isCreated()).andExpect(header().string("Location",org.hamcrest.Matchers.startsWith("/api/v1/sql/scripts/")))
             .andExpect(jsonPath("$.name").value("月报")).andExpect(jsonPath("$.statement").value("select 1 from orders"))
             .andExpect(jsonPath("$.connectionAvailable").value(true)).andExpect(jsonPath("$.version").value(1)).andReturn()
-            .getResponse().getContentAsString());
+            .getResponse().getContentAsString(StandardCharsets.UTF_8));
         String id=created.path("id").asText();
         mvc.perform(get("/api/v1/sql/scripts").header("Authorization","Bearer token-b")).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
         mvc.perform(get("/api/v1/sql/scripts/"+id).header("Authorization","Bearer token-b")).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("SCRIPT_NOT_FOUND"));
@@ -241,13 +254,13 @@ class BackendIntegrationTest {
 
         json.readTree(mvc.perform(post("/api/v1/sql/scripts").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
             .content(scriptPayload("月报对账",sourceId,database,"select count(*) from orders")))
-            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
         mvc.perform(get("/api/v1/sql/scripts").param("keyword","月报对账").header("Authorization","Bearer token-a"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(2));
         mvc.perform(get("/api/v1/sql/scripts").param("keyword","count(*)").header("Authorization","Bearer token-a"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
         MvcResult page=mvc.perform(get("/api/v1/sql/scripts?pageSize=1").header("Authorization","Bearer token-a")).andExpect(status().isOk()).andReturn();
-        String cursor=json.readTree(page.getResponse().getContentAsString()).path("nextPageToken").asText();
+        String cursor=json.readTree(page.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("nextPageToken").asText();
         assertThat(cursor).isNotBlank();
         mvc.perform(get("/api/v1/sql/scripts?pageSize=1&pageToken="+cursor).header("Authorization","Bearer token-a"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
@@ -287,7 +300,7 @@ class BackendIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.items").isArray());
         MvcResult detail=mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/table-detail").param("database",database).param("table","sql_data_source").header("Authorization","Bearer token-a"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.columns[0].jdbcType").isString()).andReturn();
-        String detailJson=detail.getResponse().getContentAsString();
+        String detailJson=detail.getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(detailJson).doesNotContain("passwordCiphertext").doesNotContain("Data_length");
         String validateId=java.util.UUID.randomUUID().toString();
         mvc.perform(post("/internal/api/v1/agent/data-sources/"+id+"/sql/validate").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
@@ -319,7 +332,7 @@ class BackendIntegrationTest {
         MvcResult missing=mvc.perform(post("/internal/api/v1/agent/data-sources/"+id+"/sql/query").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
             .content("{\"executionId\":\""+missingId+"\",\"sql\":\"SELECT * FROM no_such_agent_table\",\"database\":\""+database+"\"}"))
             .andExpect(request().asyncStarted()).andReturn();
-        String missingBody=mvc.perform(asyncDispatch(missing)).andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("SQL_EXECUTION_FAILED")).andReturn().getResponse().getContentAsString();
+        String missingBody=mvc.perform(asyncDispatch(missing)).andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("SQL_EXECUTION_FAILED")).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(missingBody).contains("SQL 执行失败").doesNotContain(MYSQL.getPassword()).doesNotContain("token-a");
         String planId=java.util.UUID.randomUUID().toString();
         MvcResult planned=mvc.perform(post("/api/v1/sql/explains").header("Authorization","Bearer token-a").contentType(MediaType.APPLICATION_JSON)
@@ -339,13 +352,100 @@ class BackendIntegrationTest {
         mvc.perform(asyncDispatch(blocked)).andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("EXPLAIN_ANALYZE_NOT_ALLOWED"));
         MvcResult tableDetail=mvc.perform(get("/api/v1/data-sources/"+id+"/table-detail").param("database",database).param("table","sql_data_source").header("Authorization","Bearer token-a"))
             .andExpect(status().isOk()).andReturn();
-        JsonNode stats=json.readTree(tableDetail.getResponse().getContentAsString()).path("stats");
+        JsonNode stats=json.readTree(tableDetail.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("stats");
         assertThat(stats.isMissingNode()).isFalse();
-        assertThat(tableDetail.getResponse().getContentAsString()).doesNotContain("Data_length");
+        assertThat(tableDetail.getResponse().getContentAsString(StandardCharsets.UTF_8)).doesNotContain("Data_length");
     }
 
-    private JsonNode create(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payload(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andExpect(header().string("Location",org.hamcrest.Matchers.startsWith("/api/v1/data-sources/"))).andReturn();return json.readTree(result.getResponse().getContentAsString());}
-    private JsonNode createWithoutDefaultDatabase(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payloadWithoutDefaultDatabase(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andReturn();return json.readTree(result.getResponse().getContentAsString());}
+    @Test void agentDiscoversBoundedMysqlRelationshipsWithoutGuessingIndexes() throws Exception {
+        seedMysqlRelationships();
+        JsonNode created=create("token-a","关系源");
+        String id=created.path("id").asText();
+        String database=MYSQL.getDatabaseName();
+        MvcResult detail=mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/table-detail")
+                .param("database",database).param("table","rel_customer").header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.uniqueKeys[*].name").value(org.hamcrest.Matchers.hasItems("uk_rel_email","ux_rel_code")))
+            .andExpect(jsonPath("$.coverage.uniqueKeys.status").value("COMPLETE"))
+            .andExpect(jsonPath("$.coverage.foreignKeys.status").value("COMPLETE"))
+            .andReturn();
+        String detailJson=detail.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(detailJson).contains("UNIQUE_CONSTRAINT").doesNotContain("passwordCiphertext");
+        mvc.perform(get("/api/v1/data-sources/"+id+"/table-detail").param("database",database).param("table","rel_customer")
+                .header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.uniqueKeys").doesNotExist())
+            .andExpect(jsonPath("$.foreignKeys").doesNotExist())
+            .andExpect(jsonPath("$.coverage").doesNotExist());
+        MvcResult child=mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/relationships")
+                .param("database",database).param("table","rel_child").param("direction","OUTBOUND")
+                .header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.coverage").value("COMPLETE"))
+            .andReturn();
+        JsonNode outbound=json.readTree(child.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(outbound.path("items").toString()).contains("rel_customer").contains("rel_parent");
+        JsonNode composite=null;
+        for (JsonNode item : outbound.path("items")) {
+            if (item.path("sourceColumns").isArray() && item.path("sourceColumns").size() == 2) composite=item;
+        }
+        assertThat(composite).isNotNull();
+        assertThat(composite.path("sourceColumns").get(0).asText()).isEqualTo("a");
+        assertThat(composite.path("sourceColumns").get(1).asText()).isEqualTo("b");
+        assertThat(composite.path("targetColumns").size()).isEqualTo(2);
+        assertThat(composite.path("evidence").asText()).isEqualTo("FOREIGN_KEY");
+        mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/relationships")
+                .param("database",database).param("table","rel_lookalike").param("direction","BOTH")
+                .header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items").isEmpty())
+            .andExpect(jsonPath("$.coverage").value("COMPLETE"));
+        MvcResult inbound=mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/relationships")
+                .param("database",database).param("table","rel_customer").param("direction","INBOUND").param("pageSize","2")
+                .header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(2))
+            .andExpect(jsonPath("$.coverage").value("TRUNCATED"))
+            .andExpect(jsonPath("$.nextPageToken").isNotEmpty())
+            .andReturn();
+        String token=json.readTree(inbound.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("nextPageToken").asText();
+        mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/relationships")
+                .param("database",database).param("table","rel_customer").param("direction","INBOUND").param("pageSize","2")
+                .param("pageToken",token).header("Authorization","Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)));
+        mvc.perform(get("/internal/api/v1/agent/data-sources/"+id+"/relationships")
+                .param("database",database).param("table","rel_customer").header("Authorization","Bearer token-b"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("DATA_SOURCE_NOT_FOUND"));
+    }
+
+    private void seedMysqlRelationships() throws Exception {
+        try (Connection connection=DriverManager.getConnection(MYSQL.getJdbcUrl(),MYSQL.getUsername(),MYSQL.getPassword());
+             Statement statement=connection.createStatement()) {
+            execIgnoreExisting(statement,"CREATE TABLE IF NOT EXISTS rel_customer (id INT PRIMARY KEY, email VARCHAR(64) NOT NULL, code VARCHAR(64) NOT NULL, CONSTRAINT uk_rel_email UNIQUE (email))");
+            execIgnoreExisting(statement,"CREATE UNIQUE INDEX ux_rel_code ON rel_customer (code)");
+            execIgnoreExisting(statement,"CREATE TABLE IF NOT EXISTS rel_parent (a INT NOT NULL, b INT NOT NULL, PRIMARY KEY (a,b))");
+            execIgnoreExisting(statement,"CREATE TABLE IF NOT EXISTS rel_child (id INT PRIMARY KEY, customer_id INT, a INT, b INT, CONSTRAINT fk_rel_customer FOREIGN KEY (customer_id) REFERENCES rel_customer(id), CONSTRAINT fk_rel_parent FOREIGN KEY (a,b) REFERENCES rel_parent(a,b))");
+            execIgnoreExisting(statement,"CREATE TABLE IF NOT EXISTS rel_lookalike (id INT PRIMARY KEY, customer_id INT)");
+            execIgnoreExisting(statement,"CREATE INDEX idx_rel_lookalike_customer ON rel_lookalike (customer_id)");
+            execIgnoreExisting(statement,"CREATE TABLE IF NOT EXISTS rel_ref1 (id INT PRIMARY KEY, customer_id INT, CONSTRAINT fk_rel_ref1 FOREIGN KEY (customer_id) REFERENCES rel_customer(id))");
+            execIgnoreExisting(statement,"CREATE TABLE IF NOT EXISTS rel_ref2 (id INT PRIMARY KEY, customer_id INT, CONSTRAINT fk_rel_ref2 FOREIGN KEY (customer_id) REFERENCES rel_customer(id))");
+            execIgnoreExisting(statement,"CREATE TABLE IF NOT EXISTS rel_ref3 (id INT PRIMARY KEY, customer_id INT, CONSTRAINT fk_rel_ref3 FOREIGN KEY (customer_id) REFERENCES rel_customer(id))");
+        }
+    }
+
+    private static void execIgnoreExisting(Statement statement,String sql) throws java.sql.SQLException {
+        try {
+            statement.execute(sql);
+        } catch (java.sql.SQLException exception) {
+            int code=exception.getErrorCode();
+            if (code != 1050 && code != 1061) throw exception;
+        }
+    }
+
+    private JsonNode create(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payload(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andExpect(header().string("Location",org.hamcrest.Matchers.startsWith("/api/v1/data-sources/"))).andReturn();return json.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));}
+    private JsonNode createWithoutDefaultDatabase(String token,String name)throws Exception{MvcResult result=mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(payloadWithoutDefaultDatabase(name,MYSQL.getPassword()))).andExpect(status().isCreated()).andReturn();return json.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));}
     private static String payload(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
     private static String payloadWithoutDefaultDatabase(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
     private static String gbase8aPayload(String name){return "{\"name\":\""+name+"\",\"engine\":\"GBASE_8A\",\"host\":\"127.0.0.1\",\"port\":5258,\"username\":\"gbase\",\"password\":\"secret\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"gbase8a\"}";}

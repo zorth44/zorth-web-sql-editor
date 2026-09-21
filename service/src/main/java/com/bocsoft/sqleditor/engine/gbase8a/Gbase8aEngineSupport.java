@@ -13,6 +13,8 @@ import com.bocsoft.sqleditor.engine.PlanEvidence;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintLimits;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintMetadata;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
 import java.sql.Connection;
@@ -82,6 +84,11 @@ public class Gbase8aEngineSupport implements EngineSupport {
     }
     @Override public TableDetailResponse tableDetail(Connection connection, String database, String table) throws SQLException {
         return mysql.tableDetail(connection, database, table);
+    }
+    @Override public boolean supportsRelationshipMetadata() { return false; }
+    @Override public TableConstraintMetadata tableConstraints(Connection connection, String database, String table,
+                                                              TableConstraintLimits limits) {
+        return TableConstraintMetadata.unavailable();
     }
     @Override public List<ColumnSearchItem> searchColumns(Connection connection, String database, String keyword) throws SQLException {
         return mysql.searchColumns(connection, database, keyword);

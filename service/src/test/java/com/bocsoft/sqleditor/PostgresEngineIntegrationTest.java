@@ -52,7 +52,14 @@ class PostgresEngineIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
 
-    static { AUTH.start(); }
+    static {
+        String extra = "localhost|127.*|[::1]";
+        String current = System.getProperty("socksNonProxyHosts");
+        System.setProperty("socksNonProxyHosts", current == null || current.isEmpty() ? extra : extra + "|" + current);
+        System.clearProperty("socksProxyHost");
+        System.clearProperty("socksProxyPort");
+        AUTH.start();
+    }
 
     @BeforeAll
     static void setup() throws Exception {
@@ -65,9 +72,20 @@ class PostgresEngineIntegrationTest {
             .willReturn(unauthorized().withHeader("Content-Type", "application/json").withBody("{\"code\":\"UNAUTHENTICATED\"}")));
         try (Connection connection = DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
              Statement statement = connection.createStatement()) {
-            statement.execute("CREATE SCHEMA sales");
-            statement.execute("CREATE TABLE sales.order_item (id int primary key, name text)");
-            statement.execute("INSERT INTO sales.order_item (id, name) VALUES (1, 'a')");
+            statement.execute("CREATE SCHEMA IF NOT EXISTS sales");
+            statement.execute("CREATE TABLE IF NOT EXISTS sales.order_item (id int primary key, name text)");
+            statement.execute("INSERT INTO sales.order_item (id, name) VALUES (1, 'a') ON CONFLICT DO NOTHING");
+            statement.execute("CREATE TABLE IF NOT EXISTS sales.customer (id int primary key, email text not null, code text not null, CONSTRAINT uk_rel_email UNIQUE (email))");
+            statement.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_rel_code ON sales.customer (code)");
+            statement.execute("CREATE TABLE IF NOT EXISTS sales.parent_comp (a int not null, b int not null, primary key (a,b))");
+            statement.execute("CREATE TABLE IF NOT EXISTS sales.child_rel (id int primary key, customer_id int references sales.customer(id), a int, b int)");
+            statement.execute("ALTER TABLE sales.child_rel DROP CONSTRAINT IF EXISTS fk_comp");
+            statement.execute("ALTER TABLE sales.child_rel ADD CONSTRAINT fk_comp FOREIGN KEY (a,b) REFERENCES sales.parent_comp(a,b)");
+            statement.execute("CREATE TABLE IF NOT EXISTS sales.lookalike (id int primary key, customer_id int)");
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_lookalike_customer ON sales.lookalike (customer_id)");
+            statement.execute("CREATE TABLE IF NOT EXISTS sales.ref1 (id int primary key, customer_id int references sales.customer(id))");
+            statement.execute("CREATE TABLE IF NOT EXISTS sales.ref2 (id int primary key, customer_id int references sales.customer(id))");
+            statement.execute("CREATE TABLE IF NOT EXISTS sales.ref3 (id int primary key, customer_id int references sales.customer(id))");
         }
     }
 
@@ -86,6 +104,7 @@ class PostgresEngineIntegrationTest {
         registry.add("sql-editor.cursor.signing-key", () -> KEY);
         registry.add("sql-editor.network.allowed-cidrs[0]", () -> "127.0.0.0/8");
         registry.add("sql-editor.network.allowed-cidrs[1]", () -> "::1/128");
+        registry.add("sql-editor.network.denied-cidrs[0]", () -> "192.0.2.0/24");
         registry.add("management.server.port", () -> "-1");
     }
 
@@ -106,7 +125,7 @@ class PostgresEngineIntegrationTest {
 
         JsonNode created = json.readTree(mvc.perform(post("/api/v1/data-sources").header("Authorization", "Bearer token-a")
                 .contentType(MediaType.APPLICATION_JSON).content(payload(POSTGRES.getPassword())))
-            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
         String id = created.path("id").asText();
         assertThat(created.path("engine").asText()).isEqualTo("POSTGRESQL");
         assertThat(created.path("defaultDatabase").asText()).isEqualTo("orders");
@@ -129,14 +148,14 @@ class PostgresEngineIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items[*].kind").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.equalTo("NAMESPACE"))))
             .andReturn();
-        String listed = databases.getResponse().getContentAsString();
+        String listed = databases.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         assertThat(listed).contains("\"name\":\"public\"").contains("\"name\":\"sales\"");
         assertThat(listed).doesNotContain("pg_catalog").doesNotContain("information_schema");
 
         mvc.perform(get("/api/v1/data-sources/" + id + "/tables").param("database", "sales").header("Authorization", "Bearer token-a"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items[0].name").value("order_item"))
-            .andExpect(jsonPath("$.items[0].database").value("sales"));
+            .andExpect(jsonPath("$.items[*].name").value(org.hamcrest.Matchers.hasItem("order_item")))
+            .andExpect(jsonPath("$.items[*].database").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.equalTo("sales"))));
 
         executeSelect(id, "sales", "SELECT * FROM order_item");
         executeSelect(id, "public", "SELECT $tag$ hello; world $tag$ AS v");
@@ -162,6 +181,43 @@ class PostgresEngineIntegrationTest {
                 .content("{\"executionId\":\"" + queryId + "\",\"sql\":\"SELECT * FROM order_item\",\"database\":\"sales\",\"maxRows\":10}"))
             .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(queried)).andExpect(status().isOk()).andExpect(jsonPath("$.kind").value("RESULT_SET"));
+
+        mvc.perform(get("/internal/api/v1/agent/data-sources/" + id + "/table-detail")
+                .param("database", "sales").param("table", "customer").header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.uniqueKeys[*].name").value(org.hamcrest.Matchers.hasItems("uk_rel_email", "ux_rel_code")))
+            .andExpect(jsonPath("$.coverage.uniqueKeys.status").value("COMPLETE"));
+        MvcResult child = mvc.perform(get("/internal/api/v1/agent/data-sources/" + id + "/relationships")
+                .param("database", "sales").param("table", "child_rel").param("direction", "OUTBOUND")
+                .header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.coverage").value("COMPLETE"))
+            .andReturn();
+        String childJson = child.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(childJson).contains("customer").contains("parent_comp").contains("FOREIGN_KEY");
+        mvc.perform(get("/internal/api/v1/agent/data-sources/" + id + "/relationships")
+                .param("database", "sales").param("table", "lookalike").param("direction", "BOTH")
+                .header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items").isEmpty())
+            .andExpect(jsonPath("$.coverage").value("COMPLETE"));
+        MvcResult inbound = mvc.perform(get("/internal/api/v1/agent/data-sources/" + id + "/relationships")
+                .param("database", "sales").param("table", "customer").param("direction", "INBOUND").param("pageSize", "2")
+                .header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(2))
+            .andExpect(jsonPath("$.coverage").value("TRUNCATED"))
+            .andReturn();
+        String token = json.readTree(inbound.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).path("nextPageToken").asText();
+        mvc.perform(get("/internal/api/v1/agent/data-sources/" + id + "/relationships")
+                .param("database", "sales").param("table", "customer").param("direction", "INBOUND")
+                .param("pageSize", "2").param("pageToken", token).header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)));
+        mvc.perform(get("/api/v1/data-sources/" + id + "/table-detail").param("database", "sales").param("table", "customer")
+                .header("Authorization", "Bearer token-a"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.uniqueKeys").doesNotExist());
     }
 
     private void executeSelect(String dataSourceId, String database, String sql) throws Exception {

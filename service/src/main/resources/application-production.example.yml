@@ -36,6 +36,10 @@ sql-editor:
     timeout-seconds: ${SQL_EDITOR_AGENT_TIMEOUT_SECONDS:15}
     max-result-bytes: ${SQL_EDITOR_AGENT_MAX_RESULT_BYTES:1048576}
     max-cell-bytes: ${SQL_EDITOR_AGENT_MAX_CELL_BYTES:4096}
+    max-unique-keys: ${SQL_EDITOR_AGENT_MAX_UNIQUE_KEYS:32}
+    max-foreign-keys: ${SQL_EDITOR_AGENT_MAX_FOREIGN_KEYS:32}
+    max-indexes: ${SQL_EDITOR_AGENT_MAX_INDEXES:64}
+    max-relationships-per-page: ${SQL_EDITOR_AGENT_MAX_RELATIONSHIPS_PER_PAGE:50}
   export:
     formula-protection: ${SQL_EDITOR_CSV_FORMULA_PROTECTION:true}
     null-literal: ${SQL_EDITOR_CSV_NULL_LITERAL:false}

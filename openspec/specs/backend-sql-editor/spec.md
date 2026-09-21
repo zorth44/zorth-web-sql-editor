@@ -18,7 +18,7 @@ The SQL service SHALL authorize every metadata request by data-source ID and the
 - **THEN** the service SHALL return `404 DATA_SOURCE_NOT_FOUND` without opening a target connection or revealing ownership
 
 ### Requirement: Navigable MySQL metadata
-The SQL service SHALL expose paginated database, table/view, and table-detail APIs using safe JDBC metadata access.
+The SQL service SHALL expose paginated database, table/view, table-detail, column-search, and bounded table-relationship capabilities using safe engine-dispatched JDBC metadata access. Existing Web endpoints SHALL retain their response contracts; canonical constraint and relationship aggregates SHALL be reusable by the Agent adapter.
 
 #### Scenario: List databases
 - **WHEN** `GET /api/v1/data-sources/{id}/databases` receives a valid keyword, page size, page Token, and `includeSystem` value
@@ -36,9 +36,28 @@ The SQL service SHALL expose paginated database, table/view, and table-detail AP
 - **WHEN** `GET /api/v1/data-sources/{id}/table-detail` receives a visible database and table
 - **THEN** it SHALL return ordered columns, primary-key fields, ordered indexes including uniqueness and type, and the table DDL from `SHOW CREATE TABLE`
 
+#### Scenario: Read reusable table constraints
+- **WHEN** reusable metadata requests a visible MySQL table
+- **THEN** the engine returns ordered columns, primary key, ordered indexes, bounded unique/outbound foreign keys and explicit coverage while the existing Web DTO remains compatible
+
+#### Scenario: Read one-hop relationships
+- **WHEN** reusable metadata requests inbound/outbound relationships for one visible table
+- **THEN** the engine returns bounded atomic edges without scanning a second relationship hop
+
 #### Scenario: Reject unsafe metadata input
-- **WHEN** a database/table identifier, type, page size, or cursor is malformed or tampered
+- **WHEN** a database/table identifier, type, direction, page size, limit or cursor is malformed or tampered
 - **THEN** the service SHALL return a stable validation/not-found error and SHALL NOT concatenate the value into executable SQL
+
+### Requirement: Reusable relationship metadata remains product isolated
+Every relationship or enriched schema operation SHALL authorize the datasource against the current product before borrowing a target connection. It SHALL use only that saved datasource and database account visibility, and ordinary logs/errors MUST NOT include constraint/index/relationship payloads, JDBC URLs, credentials, raw metadata SQL, or vendor exception text.
+
+#### Scenario: Read visible relationships
+- **WHEN** the current product requests relationships for its visible datasource and table
+- **THEN** reusable metadata reads only that target account's visible constraints under configured limits
+
+#### Scenario: Read another product's relationships
+- **WHEN** a datasource belongs to another product
+- **THEN** the service returns `404 DATA_SOURCE_NOT_FOUND` before target connection or metadata access
 
 ### Requirement: Database list is the NAMESPACE adapter
 `GET /api/v1/data-sources/{id}/databases` SHALL remain the list endpoint for the product `NAMESPACE` layer. The service SHALL NOT add a `/namespaces` or generic `/resources` tree in this change.
@@ -139,11 +158,15 @@ The SQL service SHALL convert target SQL and execution failures into stable API 
 - **THEN** diagnostics SHALL contain safe IDs, statement hash/type, duration, status, counts, and pool metrics but SHALL exclude SQL text, Token, password, JDBC URL, and result values
 
 ### Requirement: Engine-dispatched metadata and statement scanning
-Metadata listing and single-statement scanning SHALL use the data source's registered engine. For `MYSQL` the visible databases, system-schema hiding, `SHOW CREATE TABLE` DDL, backtick quoting, and comment/string-aware statement split SHALL match the existing MySQL behavior.
+Metadata listing, constraint/relationship discovery, and single-statement scanning SHALL use the datasource's registered engine. Shared metadata and Agent orchestrators MUST NOT branch on engine ids, issue vendor metadata SQL, directly inspect JDBC metadata, or fall back from an unsupported engine to MySQL-family behavior. For `MYSQL` the visible databases, system-schema hiding, `SHOW CREATE TABLE` DDL, backtick quoting, and comment/string-aware statement split SHALL match the existing MySQL behavior.
 
 #### Scenario: Browse MySQL metadata through the engine
-- **WHEN** `GET /api/v1/data-sources/{id}/databases`, `/tables`, or `/table-detail` runs against a MYSQL data source
-- **THEN** the response SHALL remain the documented MySQL metadata contract, including hiding `information_schema`, `performance_schema`, `mysql`, and `sys` by default and returning table DDL from `SHOW CREATE TABLE`
+- **WHEN** metadata or relationships run against a MYSQL datasource
+- **THEN** the MYSQL engine owns catalog/constraint operations and system-schema hiding, and Web `/databases`, `/tables`, and `/table-detail` SHALL remain the documented MySQL metadata contract, including hiding `information_schema`, `performance_schema`, `mysql`, and `sys` by default and returning table DDL from `SHOW CREATE TABLE`
+
+#### Scenario: Browse PostgreSQL metadata through the engine
+- **WHEN** metadata or relationships run against a POSTGRESQL datasource
+- **THEN** the POSTGRESQL engine owns schema-based catalog/constraint operations
 
 #### Scenario: Reject extra statements with the engine scanner
 - **WHEN** execution text contains more than one non-empty statement after the MYSQL engine ignores delimiters in strings, quoted identifiers, and comments

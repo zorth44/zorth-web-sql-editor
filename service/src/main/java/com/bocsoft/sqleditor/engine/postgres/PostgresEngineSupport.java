@@ -14,6 +14,9 @@ import com.bocsoft.sqleditor.engine.PlanEvidence;
 import com.bocsoft.sqleditor.engine.ResourceTreeLevel;
 import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
+import com.bocsoft.sqleditor.metadata.api.RelationshipEdge;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintLimits;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintMetadata;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
 import java.sql.Connection;
@@ -22,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -85,6 +89,19 @@ public class PostgresEngineSupport implements EngineSupport {
     }
     @Override public TableDetailResponse tableDetail(Connection connection, String database, String table) throws SQLException {
         return catalogs.tableDetail(connection, database, table);
+    }
+    @Override public boolean supportsRelationshipMetadata() { return true; }
+    @Override public TableConstraintMetadata tableConstraints(Connection connection, String database, String table,
+                                                              TableConstraintLimits limits) throws SQLException {
+        return catalogs.tableConstraints(connection, database, table, limits);
+    }
+    @Override public List<RelationshipEdge> importedRelationships(Connection connection, String database, String table,
+                                                                  Set<String> requestedUniqueSets, int limit) throws SQLException {
+        return catalogs.importedRelationships(connection, database, table, requestedUniqueSets, limit);
+    }
+    @Override public List<RelationshipEdge> exportedRelationships(Connection connection, String database, String table,
+                                                                  Set<String> requestedUniqueSets, int limit) throws SQLException {
+        return catalogs.exportedRelationships(connection, database, table, requestedUniqueSets, limit);
     }
     @Override public List<ColumnSearchItem> searchColumns(Connection connection, String database, String keyword) throws SQLException {
         return catalogs.searchColumns(connection, database, keyword);

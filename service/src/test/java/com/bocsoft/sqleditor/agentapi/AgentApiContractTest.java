@@ -19,6 +19,7 @@ import com.bocsoft.sqleditor.agentapi.api.AgentSqlQueryResponse;
 import com.bocsoft.sqleditor.agentapi.api.AgentQueryMasking;
 import com.bocsoft.sqleditor.agentapi.api.AgentQueryTruncation;
 import com.bocsoft.sqleditor.auth.AuthContext;
+import com.bocsoft.sqleditor.common.ApiException;
 import com.bocsoft.sqleditor.common.GlobalExceptionHandler;
 import com.bocsoft.sqleditor.common.RequestIdFilter;
 import com.bocsoft.sqleditor.datasource.DataSourceService;
@@ -26,6 +27,17 @@ import com.bocsoft.sqleditor.datasource.api.CursorPage;
 import com.bocsoft.sqleditor.datasource.api.DataSourceListItemResponse;
 import com.bocsoft.sqleditor.execution.SqlExecutionService;
 import com.bocsoft.sqleditor.metadata.MetadataService;
+import com.bocsoft.sqleditor.metadata.api.ColumnItem;
+import com.bocsoft.sqleditor.metadata.api.ForeignKeyItem;
+import com.bocsoft.sqleditor.metadata.api.IndexItem;
+import com.bocsoft.sqleditor.metadata.api.MetadataSection;
+import com.bocsoft.sqleditor.metadata.api.PrimaryKeyItem;
+import com.bocsoft.sqleditor.metadata.api.RelationshipEdge;
+import com.bocsoft.sqleditor.metadata.api.RelationshipPage;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintMetadata;
+import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
+import com.bocsoft.sqleditor.metadata.api.TableMetadata;
+import com.bocsoft.sqleditor.metadata.api.UniqueKeyItem;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -156,5 +168,76 @@ class AgentApiContractTest {
             .andExpect(jsonPath("$.executionId").value(executionId))
             .andExpect(jsonPath("$.kind").value("RESULT_SET"))
             .andExpect(jsonPath("$.masking.applied").value(false));
+    }
+
+    @Test
+    void tableDetailIncludesBoundedConstraintsAndOmitsVendorFields() throws Exception {
+        TableDetailResponse detail = new TableDetailResponse("sales", "orders",
+            Collections.singletonList(new ColumnItem("id", "int", "INTEGER", 11, 11, 0, false, "1", null, null, 1, true)),
+            new PrimaryKeyItem("PRIMARY", Collections.singletonList("id")),
+            Collections.singletonList(new IndexItem("PRIMARY", true, "OTHER", Collections.singletonList("id"))),
+            "CREATE TABLE secret", null);
+        TableConstraintMetadata constraints = new TableConstraintMetadata(
+            MetadataSection.complete(Collections.singletonList(new UniqueKeyItem("uk_email", Collections.singletonList("email"), "UNIQUE_CONSTRAINT")), 32),
+            MetadataSection.complete(Collections.singletonList(new ForeignKeyItem("fk_customer", Collections.singletonList("customer_id"),
+                "sales", "customer", Collections.singletonList("id"), "FOREIGN_KEY")), 32),
+            MetadataSection.complete(Collections.singletonList(new IndexItem("PRIMARY", true, "OTHER", Collections.singletonList("id"))), 64));
+        when(metadata.enrichedDetail(any(), eq("ds-1"), eq("sales"), eq("orders")))
+            .thenReturn(new TableMetadata(detail, constraints));
+        mvc.perform(get("/internal/api/v1/agent/data-sources/ds-1/table-detail")
+                .param("database", "sales").param("table", "orders"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.uniqueKeys[0].name").value("uk_email"))
+            .andExpect(jsonPath("$.uniqueKeys[0].evidence").value("UNIQUE_CONSTRAINT"))
+            .andExpect(jsonPath("$.foreignKeys[0].targetTable").value("customer"))
+            .andExpect(jsonPath("$.coverage.uniqueKeys.status").value("COMPLETE"))
+            .andExpect(jsonPath("$.coverage.uniqueKeys.appliedLimit").value(32))
+            .andExpect(jsonPath("$.appliedLimits.uniqueKeys").value(32))
+            .andExpect(jsonPath("$.ddl").doesNotExist())
+            .andExpect(jsonPath("$.stats").doesNotExist())
+            .andExpect(jsonPath("$.password").doesNotExist())
+            .andExpect(jsonPath("$.jdbcUrl").doesNotExist());
+    }
+
+    @Test
+    void relationshipsReturnOpaquePagesAndRejectInvalidDirection() throws Exception {
+        RelationshipEdge edge = new RelationshipEdge("sales", "orders", Collections.singletonList("customer_id"),
+            "sales", "customer", Collections.singletonList("id"), "OUTBOUND", "fk_customer", "FOREIGN_KEY", "MANY_TO_ONE");
+        when(metadata.relationships(any(), eq("ds-1"), eq("sales"), eq("orders"), eq("OUTBOUND"), eq(1), eq(null)))
+            .thenReturn(new RelationshipPage(Collections.singletonList(edge), "opaque-token", "TRUNCATED", 1));
+        mvc.perform(get("/internal/api/v1/agent/data-sources/ds-1/relationships")
+                .param("database", "sales").param("table", "orders").param("direction", "OUTBOUND").param("pageSize", "1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].direction").value("OUTBOUND"))
+            .andExpect(jsonPath("$.items[0].sourceColumns[0]").value("customer_id"))
+            .andExpect(jsonPath("$.items[0].targetColumns[0]").value("id"))
+            .andExpect(jsonPath("$.coverage").value("TRUNCATED"))
+            .andExpect(jsonPath("$.nextPageToken").value("opaque-token"))
+            .andExpect(jsonPath("$.items[0].sortKey").doesNotExist());
+        when(metadata.relationships(any(), eq("ds-1"), eq("sales"), eq("orders"), eq("SIDEWAYS"), eq(50), eq(null)))
+            .thenThrow(ApiException.validation("direction", "INVALID", "仅支持 BOTH、OUTBOUND 和 INBOUND"));
+        mvc.perform(get("/internal/api/v1/agent/data-sources/ds-1/relationships")
+                .param("database", "sales").param("table", "orders").param("direction", "SIDEWAYS"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void relationshipsRequireDatabaseAndTableAndTreatUnsupportedAndCrossProductSafely() throws Exception {
+        mvc.perform(get("/internal/api/v1/agent/data-sources/ds-1/relationships").param("table", "orders"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        when(metadata.relationships(any(), eq("ds-1"), eq("sales"), eq("orders"), eq("BOTH"), eq(50), eq(null)))
+            .thenThrow(new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "CAPABILITY_NOT_SUPPORTED", "当前引擎不支持表关系元数据"));
+        mvc.perform(get("/internal/api/v1/agent/data-sources/ds-1/relationships")
+                .param("database", "sales").param("table", "orders"))
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.code").value("CAPABILITY_NOT_SUPPORTED"));
+        when(metadata.relationships(any(), eq("ds-other"), eq("sales"), eq("orders"), eq("BOTH"), eq(50), eq(null)))
+            .thenThrow(ApiException.notFound());
+        mvc.perform(get("/internal/api/v1/agent/data-sources/ds-other/relationships")
+                .param("database", "sales").param("table", "orders"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("DATA_SOURCE_NOT_FOUND"));
     }
 }

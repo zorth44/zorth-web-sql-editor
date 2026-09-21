@@ -2,11 +2,15 @@ package com.bocsoft.sqleditor.engine.postgres;
 
 import com.bocsoft.sqleditor.common.ApiException;
 import com.bocsoft.sqleditor.engine.EngineId;
+import com.bocsoft.sqleditor.engine.JdbcConstraintReader;
 import com.bocsoft.sqleditor.metadata.api.ColumnItem;
 import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
 import com.bocsoft.sqleditor.metadata.api.IndexItem;
 import com.bocsoft.sqleditor.metadata.api.PrimaryKeyItem;
+import com.bocsoft.sqleditor.metadata.api.RelationshipEdge;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintLimits;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintMetadata;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
 import com.bocsoft.sqleditor.metadata.api.TableStats;
@@ -136,6 +140,25 @@ final class PostgresCatalogs {
         );
     }
 
+    TableConstraintMetadata tableConstraints(Connection connection, String database, String table,
+                                             TableConstraintLimits limits) throws SQLException {
+        ensureNamespace(connection, database);
+        return JdbcConstraintReader.read(connection, null, database, database, table, limits,
+            uniqueConstraintNames(connection, database, table));
+    }
+
+    List<RelationshipEdge> importedRelationships(Connection connection, String database, String table,
+                                                 Set<String> requestedUniqueSets, int limit) throws SQLException {
+        ensureNamespace(connection, database);
+        return JdbcConstraintReader.imported(connection, null, database, database, table, requestedUniqueSets, limit);
+    }
+
+    List<RelationshipEdge> exportedRelationships(Connection connection, String database, String table,
+                                                 Set<String> requestedUniqueSets, int limit) throws SQLException {
+        ensureNamespace(connection, database);
+        return JdbcConstraintReader.exported(connection, null, database, database, table, requestedUniqueSets, limit);
+    }
+
     List<ColumnSearchItem> searchColumns(Connection connection, String database, String keyword) throws SQLException {
         ensureNamespace(connection, database);
         String like = "%" + escapeLike(keyword) + "%";
@@ -204,6 +227,25 @@ final class PostgresCatalogs {
 
     String quoteIdentifier(String value) {
         return "\"" + value.replace("\"", "\"\"") + "\"";
+    }
+
+    private Set<String> uniqueConstraintNames(Connection connection, String database, String table) {
+        String sql = "SELECT c.conname FROM pg_catalog.pg_constraint c "
+            + "JOIN pg_catalog.pg_class t ON t.oid = c.conrelid "
+            + "JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace "
+            + "WHERE n.nspname = ? AND t.relname = ? AND c.contype = 'u'";
+        Set<String> names = new HashSet<String>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database);
+            statement.setString(2, table);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    String name = rs.getString(1);
+                    if (name != null && !name.trim().isEmpty()) names.add(name);
+                }
+            }
+        } catch (SQLException ignored) { }
+        return names;
     }
 
     private String readDdl(Connection connection, String database, String table, List<ColumnItem> columns) {

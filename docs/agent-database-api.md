@@ -28,7 +28,8 @@ When `internal-caller-key-required` is true, requests must also send `X-Internal
 | GET | `/internal/api/v1/agent/data-sources/{id}/databases` | NAMESPACE listing (`keyword`, `pageSize`, `pageToken`, `includeSystem`) — MySQL catalogs or PostgreSQL schemas as `kind=NAMESPACE` |
 | GET | `/internal/api/v1/agent/data-sources/{id}/tables` | Table search (`database`, `keyword`, `types`, `pageSize`, `pageToken`) |
 | GET | `/internal/api/v1/agent/data-sources/{id}/columns` | Cross-table column search (`database`, `keyword` required) |
-| GET | `/internal/api/v1/agent/data-sources/{id}/table-detail` | Columns, keys, indexes, optional `ddl`/`stats` |
+| GET | `/internal/api/v1/agent/data-sources/{id}/table-detail` | Columns, keys, indexes, optional `ddl`/`stats`, plus bounded `uniqueKeys`, outbound `foreignKeys`, per-section `coverage` and `appliedLimits` |
+| GET | `/internal/api/v1/agent/data-sources/{id}/relationships` | One-hop imported/exported edges for one table (`database`, `table`, `direction`, `pageSize`, `pageToken`) |
 | POST | `/internal/api/v1/agent/data-sources/{id}/sql/validate` | Non-executing safety facts |
 | POST | `/internal/api/v1/agent/data-sources/{id}/sql/explain` | Normalized plan-only explain |
 | POST | `/internal/api/v1/agent/data-sources/{id}/sql/query` | Bounded read-only SELECT |
@@ -73,6 +74,90 @@ sql-editor:
 
 A client may lower `maxRows` and `timeoutSeconds` only. Oversized cells become `{ "truncated": true, "byteLength": N }`. Row/byte caps stop collection and set `truncation`.
 
+Metadata section and relationship page caps:
+
+```yaml
+sql-editor:
+  agent-api:
+    max-unique-keys: 32
+    max-foreign-keys: 32
+    max-indexes: 64
+    max-relationships-per-page: 50
+```
+
+A client may request a smaller relationship `pageSize` but cannot raise the provider cap. Truncated sections and pages set `coverage=TRUNCATED` and include `appliedLimit`. Confirmed empty sections use `coverage=COMPLETE`. Engines that cannot supply unique/foreign-key/relationship metadata use `coverage=UNAVAILABLE` on table-detail sections, or `422 CAPABILITY_NOT_SUPPORTED` on `/relationships`. Ordinary indexes never create relationships. Unique keys use `UNIQUE_CONSTRAINT` only when the catalog proves a constraint; otherwise `UNIQUE_INDEX`.
+
+### Table detail additions
+
+`GET /internal/api/v1/agent/data-sources/{id}/table-detail` keeps existing column, primary-key, `ddl`, and `stats` fields. Additive structured fields:
+
+```json
+{
+  "uniqueKeys": [
+    { "name": "uk_email", "columns": ["email"], "evidence": "UNIQUE_CONSTRAINT" }
+  ],
+  "foreignKeys": [
+    {
+      "constraintName": "fk_customer",
+      "columns": ["customer_id"],
+      "targetDatabase": "sales",
+      "targetTable": "customer",
+      "targetColumns": ["id"],
+      "evidence": "FOREIGN_KEY"
+    }
+  ],
+  "coverage": {
+    "uniqueKeys": { "status": "COMPLETE", "appliedLimit": 32 },
+    "foreignKeys": { "status": "COMPLETE", "appliedLimit": 32 },
+    "indexes": { "status": "COMPLETE", "appliedLimit": 64 }
+  },
+  "appliedLimits": {
+    "uniqueKeys": 32,
+    "foreignKeys": 32,
+    "indexes": 64
+  }
+}
+```
+
+New structures omit raw DDL, default/check expressions, statistics, and vendor storage details. Web `/api/v1/**` table-detail is unchanged.
+
+### Relationships
+
+```http
+GET /internal/api/v1/agent/data-sources/{id}/relationships
+  ?database=<namespace>&table=<table>
+  &direction=BOTH|OUTBOUND|INBOUND
+  &pageSize=<1..provider-max>&pageToken=<opaque>
+```
+
+`database` and `table` are required. `direction` defaults to `BOTH`. `OUTBOUND` uses imported keys; `INBOUND` uses exported keys. Composite foreign keys are one ordered edge (equal-length source/target column arrays) and are never split across pages. Cursors bind datasource, product, namespace, table, direction, sort position, and expiry; tampering returns `400 VALIDATION_FAILED`.
+
+```json
+{
+  "items": [
+    {
+      "sourceDatabase": "sales",
+      "sourceTable": "orders",
+      "sourceColumns": ["customer_id"],
+      "targetDatabase": "sales",
+      "targetTable": "customer",
+      "targetColumns": ["id"],
+      "direction": "OUTBOUND",
+      "constraintName": "fk_customer",
+      "evidence": "FOREIGN_KEY",
+      "cardinality": "MANY_TO_ONE"
+    }
+  ],
+  "nextPageToken": null,
+  "coverage": "COMPLETE",
+  "appliedLimit": 50
+}
+```
+
+The operation does not recursively inspect adjacent tables. GBase 8a currently reports `CAPABILITY_NOT_SUPPORTED` until equivalent real-driver tests pass. Do not treat MySQL-family fallback as complete relationship metadata.
+
+Compatible consumer change: `bddf-agentscope` / `add-schema-relationships-tools`.
+
 ## Error codes
 
 | Code | HTTP | When |
@@ -88,6 +173,7 @@ A client may lower `maxRows` and `timeoutSeconds` only. Oversized cells become `
 | `EXECUTION_ID_CONFLICT` | 409 | Reused execution ID |
 | `EXECUTION_LIMIT_EXCEEDED` | 429 | Concurrency quota |
 | `SQL_EXECUTION_FAILED` | 422 | Target failure; Agent message is redacted |
+| `CAPABILITY_NOT_SUPPORTED` | 422 | Engine cannot supply relationship metadata |
 
 ## Black-box seed flow (Agent repository)
 
@@ -112,6 +198,14 @@ Use the returned `id` as `{id}` for every Agent call.
 5. Exercise Agent endpoints with the same Bearer and an `X-Request-Id` UUID. For query/explain generate a fresh `executionId` UUID.
 6. Pin the provider version (Git SHA or image tag) in the Agent repository black-box profile. Do not compile against this service's Java classes.
 
+Provider pin used by `bddf-agentscope` `-Pdatasource-blackbox`:
+
+| Field | Value |
+| --- | --- |
+| Provider change | `add-agent-schema-relationships-api` |
+| Git SHA | `9d420ea947bf9940954417e511d3aab009115631` (image built from this working tree) |
+| Packaged image | `zorth-web-sql-service:add-agent-schema-relationships-api` |
+
 Packaged image:
 
 ```bash
@@ -122,4 +216,4 @@ docker build -t zorth-web-sql-service:<tag> .
 
 The image listens on 8080. Target MySQL 8 with `sslMode=DISABLED` uses `allowPublicKeyRetrieval=true` so caching_sha2_password works from a container IP, not only localhost.
 
-Compatible consumer change: `bddf-agentscope` / `align-database-tools-sql-editor-contract`.
+Compatible consumer change: `bddf-agentscope` / `add-schema-relationships-tools` (replaces the previous `align-database-tools-sql-editor-contract` consumer once both contract suites pass).

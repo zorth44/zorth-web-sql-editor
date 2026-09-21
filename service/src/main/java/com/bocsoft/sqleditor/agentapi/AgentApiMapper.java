@@ -7,6 +7,10 @@ import com.bocsoft.sqleditor.agentapi.api.AgentDatabaseItem;
 import com.bocsoft.sqleditor.agentapi.api.AgentFinding;
 import com.bocsoft.sqleditor.agentapi.api.AgentSqlExplainResponse;
 import com.bocsoft.sqleditor.agentapi.api.AgentSqlValidateResponse;
+import com.bocsoft.sqleditor.agentapi.api.AgentRelationshipPage;
+import com.bocsoft.sqleditor.agentapi.api.AgentSectionCoverage;
+import com.bocsoft.sqleditor.agentapi.api.AgentTableCoverage;
+import com.bocsoft.sqleditor.agentapi.api.AgentTableLimits;
 import com.bocsoft.sqleditor.agentapi.api.AgentTableColumn;
 import com.bocsoft.sqleditor.agentapi.api.AgentTableDetail;
 import com.bocsoft.sqleditor.agentapi.api.AgentTableItem;
@@ -22,8 +26,15 @@ import com.bocsoft.sqleditor.execution.SqlTableRef;
 import com.bocsoft.sqleditor.metadata.api.ColumnItem;
 import com.bocsoft.sqleditor.metadata.api.ColumnSearchItem;
 import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
+import com.bocsoft.sqleditor.metadata.api.ForeignKeyItem;
+import com.bocsoft.sqleditor.metadata.api.IndexItem;
+import com.bocsoft.sqleditor.metadata.api.MetadataCoverage;
+import com.bocsoft.sqleditor.metadata.api.MetadataSection;
+import com.bocsoft.sqleditor.metadata.api.RelationshipPage;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
+import com.bocsoft.sqleditor.metadata.api.TableMetadata;
+import com.bocsoft.sqleditor.metadata.api.UniqueKeyItem;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -75,18 +86,35 @@ public class AgentApiMapper {
         return new CursorPage<AgentColumnItem>(items, page.getNextPageToken());
     }
 
-    public AgentTableDetail tableDetail(TableDetailResponse source) {
+    public AgentTableDetail tableDetail(TableMetadata source) {
+        TableDetailResponse detail = source.getDetail();
         List<AgentTableColumn> columns = new ArrayList<AgentTableColumn>();
-        if (source.getColumns() != null) {
-            for (ColumnItem column : source.getColumns()) {
+        if (detail.getColumns() != null) {
+            for (ColumnItem column : detail.getColumns()) {
                 columns.add(new AgentTableColumn(column.getName(), column.getJdbcType(), column.getTypeName(),
                     column.getLength(), column.getPrecision(), column.getScale(), column.isNullable(),
                     column.isPrimaryKey(), column.getDefaultValue(), column.getExtra(), column.getComment(),
                     column.getOrdinal()));
             }
         }
-        return new AgentTableDetail(source.getDatabase(), source.getTable(), columns, source.getPrimaryKey(),
-            source.getIndexes(), source.getDdl(), source.getStats());
+        MetadataSection<UniqueKeyItem> uniqueKeys = source.getConstraints().getUniqueKeys();
+        MetadataSection<ForeignKeyItem> foreignKeys = source.getConstraints().getForeignKeys();
+        MetadataSection<IndexItem> indexes = source.getConstraints().getIndexes();
+        return new AgentTableDetail(detail.getDatabase(), detail.getTable(), columns, detail.getPrimaryKey(),
+            uniqueKeys.getItems(), foreignKeys.getItems(), indexes.getItems(), null, null,
+            new AgentTableCoverage(section(uniqueKeys), section(foreignKeys), section(indexes)),
+            new AgentTableLimits(uniqueKeys.getAppliedLimit(), foreignKeys.getAppliedLimit(), indexes.getAppliedLimit()));
+    }
+
+    public AgentRelationshipPage relationships(RelationshipPage page) {
+        return new AgentRelationshipPage(page.getItems(), page.getNextPageToken(), page.getCoverage(), page.getAppliedLimit());
+    }
+
+    private AgentSectionCoverage section(MetadataSection<?> section) {
+        if (section == null || section.getCoverage() == null) {
+            return new AgentSectionCoverage(MetadataCoverage.UNAVAILABLE, null);
+        }
+        return new AgentSectionCoverage(section.getCoverage(), section.getAppliedLimit());
     }
 
     public AgentSqlValidateResponse validation(SqlSafetyAssessment assessment) {

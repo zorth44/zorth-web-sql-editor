@@ -58,6 +58,10 @@ public class SqlEditorProperties {
         if (execution.executorPoolSize < execution.maxConcurrentGlobal) {
             throw new IllegalStateException("Execution pool must cover the global execution limit");
         }
+        if (agentApi.maxUniqueKeys < 1 || agentApi.maxForeignKeys < 1 || agentApi.maxIndexes < 1
+            || agentApi.maxRelationshipsPerPage < 1) {
+            throw new IllegalStateException("Agent metadata section and relationship page limits must be positive");
+        }
         validateKeyMaterial(credentials.keys, "Credential key", true);
         validateSingleKey(cursor.signingKey, "Cursor signing key");
         validateCidrs(network.allowedCidrs);
@@ -186,6 +190,10 @@ public class SqlEditorProperties {
         @Min(1) @Max(3600) private int timeoutSeconds = 15;
         @Min(1024) private long maxResultBytes = 1048576L;
         @Min(64) private int maxCellBytes = 4096;
+        @Min(1) @Max(200) private int maxUniqueKeys = 32;
+        @Min(1) @Max(200) private int maxForeignKeys = 32;
+        @Min(1) @Max(200) private int maxIndexes = 64;
+        @Min(1) @Max(200) private int maxRelationshipsPerPage = 50;
         public boolean isInternalCallerKeyRequired() { return internalCallerKeyRequired; }
         public void setInternalCallerKeyRequired(boolean v) { internalCallerKeyRequired = v; }
         public String getInternalCallerKey() { return internalCallerKey; }
@@ -200,6 +208,14 @@ public class SqlEditorProperties {
         public void setMaxResultBytes(long v) { maxResultBytes = v; }
         public int getMaxCellBytes() { return maxCellBytes; }
         public void setMaxCellBytes(int v) { maxCellBytes = v; }
+        public int getMaxUniqueKeys() { return maxUniqueKeys; }
+        public void setMaxUniqueKeys(int v) { maxUniqueKeys = v; }
+        public int getMaxForeignKeys() { return maxForeignKeys; }
+        public void setMaxForeignKeys(int v) { maxForeignKeys = v; }
+        public int getMaxIndexes() { return maxIndexes; }
+        public void setMaxIndexes(int v) { maxIndexes = v; }
+        public int getMaxRelationshipsPerPage() { return maxRelationshipsPerPage; }
+        public void setMaxRelationshipsPerPage(int v) { maxRelationshipsPerPage = v; }
     }
     public static class Export {
         private boolean formulaProtection=true; private boolean nullLiteral=false;
