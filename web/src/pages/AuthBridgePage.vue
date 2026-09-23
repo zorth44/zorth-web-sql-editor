@@ -64,7 +64,7 @@ onBeforeUnmount(() => window.removeEventListener('message', receive))
 <template>
   <main class="grid min-h-screen place-items-center bg-canvas p-8">
     <section class="panel w-full max-w-lg p-10 text-center" role="status" aria-live="polite">
-      <h1 class="text-2xl font-semibold">连接 Zorth SQL Editor</h1>
+      <h1 class="text-2xl font-semibold">连接 Bddf SQL Editor</h1>
       <p v-if="state === 'no-opener'" class="mt-4 text-muted">
         未检测到原系统窗口。请从门户首页点击「SQL Editor」，不要直接打开或刷新本页。
       </p>

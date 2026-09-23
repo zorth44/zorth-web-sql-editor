@@ -20,7 +20,7 @@ async function logout(): Promise<void> {
         <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand-fill text-white">
           <Database :size="18" />
         </span>
-        Zorth SQL Editor
+        Bddf SQL Editor
       </RouterLink>
       <nav class="ml-8 flex items-center gap-1" aria-label="主导航">
         <RouterLink

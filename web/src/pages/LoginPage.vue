@@ -55,7 +55,7 @@ function cancelSelection(): void {
       <div class="flex items-center gap-3 text-xl font-semibold">
         <span class="grid h-10 w-10 place-items-center rounded-xl bg-brand-fill"
           ><KeyRound :size="22" /></span
-        >Zorth SQL Editor
+        >Bddf SQL Editor
       </div>
       <div>
         <p class="mb-4 text-sm font-semibold uppercase tracking-[0.24em] text-teal-300">
