@@ -5,7 +5,16 @@
       "Shell(npx --no-install openspec --version 2 > /dev/null)",
       "Shell(openspec:*)",
       "Shell(for c in add-hive-engine add-kerberos-zk-discovery add-iceberg-engine; do echo \"=== $c ===\"; openspec validate \"$c\" --type change --strict --no-interactive 2>&1; done)",
-      "Shell(git:*)"
+      "Shell(git:*)",
+      "Shell(2:*)",
+      "Shell(find:*)",
+      "Shell(for:*)",
+      "Shell(do:*)",
+      "Shell(grep:*)",
+      "Shell(done:*)",
+      "Shell(mkdir:*)",
+      "Shell(cp:*)",
+      "Shell(rm:*)"
     ],
     "deny": [],
     "defaultMode": "default"
