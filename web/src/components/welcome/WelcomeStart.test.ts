@@ -19,7 +19,7 @@ async function render() {
 describe('welcome start', () => {
   it('offers SQL editor and data-source entry points', async () => {
     const wrapper = await render()
-    expect(wrapper.get('[data-testid="welcome-start"]').text()).toContain('Zorth SQL Editor')
+    expect(wrapper.get('[data-testid="welcome-start"]').text()).toContain('Bddf SQL Editor')
     expect(wrapper.get('[data-testid="welcome-open-sql"]').text()).toContain('打开 SQL 编辑器')
     expect(wrapper.get('[data-testid="welcome-data-sources"]').attributes('href')).toBe(
       '/data-sources',

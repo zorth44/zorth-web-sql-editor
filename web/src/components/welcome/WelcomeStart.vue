@@ -8,7 +8,7 @@ defineEmits<{ 'open-sql': [] }>()
   <div class="welcome-start" data-testid="welcome-start">
     <Database class="welcome-watermark" :size="420" stroke-width="1" aria-hidden="true" />
     <div class="welcome-copy">
-      <h1 class="welcome-title">Zorth SQL Editor</h1>
+      <h1 class="welcome-title">Bddf SQL Editor</h1>
       <h2 class="welcome-heading">开始</h2>
       <div class="welcome-tiles">
         <button
