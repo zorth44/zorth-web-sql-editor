@@ -5,7 +5,7 @@
 Define the target-database engine registry and how saved or unsaved connections dispatch JDBC, metadata, statement scanning, connection-failure classification, and session restore through a registered `EngineSupport`.
 ## Requirements
 ### Requirement: Registered engine dispatch
-The SQL service SHALL resolve every target-database JDBC, metadata, statement-scan, connection-failure, and session-restore operation through a registered `EngineSupport` identified by the data source `engine` value. At startup the registry SHALL contain `MYSQL`, `POSTGRESQL`, `GBASE_8A`, and `HIVE` in that order. Unknown or unsupported engines MUST fail closed and MUST NOT fall back to another engine's behavior.
+The SQL service SHALL resolve every target-database JDBC, metadata, constraint/relationship discovery, statement-scan, connection-failure, and session-restore operation through a registered `EngineSupport` identified by the data source `engine` value. At startup the registry SHALL contain `MYSQL`, `POSTGRESQL`, `GBASE_8A`, `HIVE`, and `HIVE_KERBEROS` in that order. Unknown or unsupported engines MUST fail closed and MUST NOT fall back to another engine's behavior.
 
 #### Scenario: Dispatch a saved MySQL data source
 - **WHEN** a visible data source with `engine=MYSQL` is tested, browsed, executed against, or used for export
@@ -22,6 +22,10 @@ The SQL service SHALL resolve every target-database JDBC, metadata, statement-sc
 #### Scenario: Dispatch a saved Hive data source
 - **WHEN** a visible data source with `engine=HIVE` is tested, browsed, executed against, or used for export
 - **THEN** the service SHALL use the HIVE engine implementation with databases as NAMESPACE
+
+#### Scenario: Dispatch a saved Kerberos Hive data source
+- **WHEN** a visible data source with `engine=HIVE_KERBEROS` is tested, browsed, executed against, or used for export
+- **THEN** the service SHALL use the HIVE_KERBEROS engine implementation with databases as NAMESPACE and SHALL connect through the Kerberos + ZooKeeper connector
 
 #### Scenario: Reject an unregistered engine on write
 - **WHEN** a create or update submits `engine` other than a registered id
@@ -68,6 +72,21 @@ Saved connection configuration used to build JDBC targets and borrow pools SHALL
 #### Scenario: Test an unsaved configuration with engine
 - **WHEN** a test body includes `engine` equal to a registered id
 - **THEN** the service SHALL dispatch that engine and SHALL NOT ignore the field in favor of MYSQL
+
+### Requirement: Engine declares connection acquisition model
+Each `EngineSupport` SHALL let an engine declare how a target connection is acquired, so orchestrators never branch on engine id. It SHALL expose `requiresHostResolution()`, `usesPooledConnections()`, and `openConnection(JdbcTarget)`. The defaults SHALL keep host resolution, pooled connections, and `DriverManager.getConnection`, so existing engines are unchanged. `TargetConnectionProvider` and `ShortLivedConnectionTester` SHALL acquire connections through `openConnection`, and `JdbcConfigurationBuilder` SHALL skip host resolution when `requiresHostResolution()` is false.
+
+#### Scenario: Pooled engine is unchanged
+- **WHEN** MYSQL, POSTGRESQL, GBASE_8A, or HIVE is used
+- **THEN** the service SHALL resolve the host, borrow from the dynamic pool, and behave exactly as before the change
+
+#### Scenario: Non-host engine skips network resolution
+- **WHEN** an engine reports `requiresHostResolution()=false`
+- **THEN** building its JDBC target SHALL NOT call `NetworkPolicy.resolve` on a submitted host
+
+#### Scenario: Orchestrators stay engine-neutral
+- **WHEN** metadata, execution, export, or connection test acquires a connection
+- **THEN** the service SHALL call `EngineSupport.openConnection` and the data-source/pool/test orchestrators SHALL NOT contain an engine-id branch
 
 ### Requirement: Engine declares streaming autocommit need
 Each `EngineSupport` SHALL tell the SQL service whether JDBC streaming export requires `autoCommit=false` so a positive `streamingFetchSize()` can open a server cursor. The default SHALL be that autocommit may stay on. Export orchestration SHALL call this method and SHALL NOT branch on engine id strings such as `POSTGRESQL`.
