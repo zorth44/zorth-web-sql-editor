@@ -32,7 +32,11 @@ The SQL editor SHALL set Monaco language from the bound data source engine's `ed
 
 #### Scenario: Open a Hive-bound tab
 - **WHEN** the active tab is bound to a HIVE data source
-- **THEN** Monaco SHALL use language `hive`
+- **THEN** Monaco SHALL use language `hive`, falling back to `mysql` when Monaco has no `hive` grammar, and SHALL remain editable
+
+#### Scenario: Register the Hive editor language
+- **WHEN** the catalog declares `editorLanguage=hive` for a HIVE data source
+- **THEN** the frontend SHALL accept `hive` as a registered editor language and SHALL format Hive SQL with the `mysql` dialect
 
 #### Scenario: Open an unbound welcome-created tab
 - **WHEN** a SQL tab has no data source yet

@@ -5,7 +5,7 @@
 Define the SQL workspace: the resource navigator and lazy metadata browsing for visible data sources, connection-bound recoverable tabs, Monaco editing from the engine catalog, execution and cancellation interaction, result presentation, CSV export, the current-user history workspace, and current-user saved SQL scripts.
 ## Requirements
 ### Requirement: Catalog-driven NAMESPACE navigator
-The resource tree SHALL treat the first layer under a data source as `NAMESPACE` and SHALL load it through the selected engine's catalog `listEndpoint`. For MYSQL, POSTGRESQL, and GBASE_8A that endpoint is the existing databases API. Tree labels and filter placeholders SHALL come from that engine's `resourceTree` entry.
+The resource tree SHALL treat the first layer under a data source as `NAMESPACE` and SHALL load it through the selected engine's catalog `listEndpoint`. For MYSQL, POSTGRESQL, GBASE_8A, and HIVE that endpoint is the existing databases API. Tree labels and filter placeholders SHALL come from that engine's `resourceTree` entry.
 
 #### Scenario: Expand MYSQL namespaces through databases
 - **WHEN** the user expands a data source whose `engine` is MYSQL
@@ -19,16 +19,20 @@ The resource tree SHALL treat the first layer under a data source as `NAMESPACE`
 - **WHEN** the user expands a data source whose `engine` is GBASE_8A
 - **THEN** the frontend SHALL call the same databases API and render each item as a NAMESPACE node using the MYSQL-family catalog labels (数据库 / 筛选数据库)
 
+#### Scenario: Expand Hive namespaces through databases
+- **WHEN** the user expands a data source whose `engine` is HIVE
+- **THEN** the frontend SHALL call the same databases API and render each item as a NAMESPACE node using the Hive catalog labels (数据库 / 筛选数据库)
+
 #### Scenario: Bind the editor from a NAMESPACE node
 - **WHEN** the user selects a NAMESPACE or a table under it
-- **THEN** the workspace SHALL bind the active tab using the existing `dataSourceId` and `database` URL parameters, where `database` holds the NAMESPACE name (MySQL/GBase 8a catalog or PostgreSQL schema)
+- **THEN** the workspace SHALL bind the active tab using the existing `dataSourceId` and `database` URL parameters, where `database` holds the NAMESPACE name (MySQL/GBase 8a/Hive catalog or PostgreSQL schema)
 
 #### Scenario: Ignore unknown tree kinds
 - **WHEN** a catalog `resourceTree` contains a kind other than NAMESPACE, TABLE, or VIEW
 - **THEN** the frontend SHALL skip that level without failing the tree render
 
 ### Requirement: Editor language from engine catalog
-The SQL editor SHALL set Monaco language from the bound data source engine's `editorLanguage`. MYSQL and GBASE_8A SHALL use `mysql`. POSTGRESQL SHALL use `pgsql`. If the catalog is unavailable or the language is not registered, the editor SHALL fall back to `mysql` and remain editable.
+The SQL editor SHALL set Monaco language from the bound data source engine's `editorLanguage`. MYSQL and GBASE_8A SHALL use `mysql`. POSTGRESQL SHALL use `pgsql`. HIVE SHALL use `hive`. If the catalog is unavailable or the language is not registered, the editor SHALL fall back to `mysql` and remain editable.
 
 #### Scenario: Open a MYSQL-bound tab
 - **WHEN** the active tab is bound to a MYSQL data source
@@ -41,6 +45,14 @@ The SQL editor SHALL set Monaco language from the bound data source engine's `ed
 #### Scenario: Open a GBase 8a-bound tab
 - **WHEN** the active tab is bound to a GBASE_8A data source
 - **THEN** Monaco SHALL use language `mysql`
+
+#### Scenario: Open a Hive-bound tab
+- **WHEN** the active tab is bound to a HIVE data source
+- **THEN** Monaco SHALL use language `hive`, falling back to `mysql` when Monaco has no `hive` grammar, and SHALL remain editable
+
+#### Scenario: Register the Hive editor language
+- **WHEN** the catalog declares `editorLanguage=hive` for a HIVE data source
+- **THEN** the frontend SHALL accept `hive` as a registered editor language and SHALL format Hive SQL with the `mysql` dialect
 
 #### Scenario: Open an unbound welcome-created tab
 - **WHEN** a SQL tab has no data source yet

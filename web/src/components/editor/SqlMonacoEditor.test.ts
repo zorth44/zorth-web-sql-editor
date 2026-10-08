@@ -201,7 +201,7 @@ describe('sql monaco editor', () => {
     const unbound = await render()
     expect(fake.createdLanguage).toBe('mysql')
     unbound.unmount()
-    const unknown = await render({ language: 'hive' })
+    const unknown = await render({ language: 'cassandra' })
     expect(fake.createdLanguage).toBe('mysql')
     unknown.unmount()
   })
@@ -209,6 +209,14 @@ describe('sql monaco editor', () => {
   it('creates Monaco as pgsql for PostgreSQL', async () => {
     const wrapper = await render({ language: 'pgsql' })
     expect(fake.createdLanguage).toBe('pgsql')
+    wrapper.unmount()
+  })
+
+  it('falls back to mysql for a Hive-bound tab and stays editable', async () => {
+    const wrapper = await render({ language: 'hive' })
+    expect(fake.createdLanguage).toBe('mysql')
+    expect(fake.provider?.triggerCharacters).toEqual(['.'])
+    expect(wrapper.vm.getRunnableScript()).toBe('select 1;\nselect 2;')
     wrapper.unmount()
   })
 

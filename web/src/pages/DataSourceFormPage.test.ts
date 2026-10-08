@@ -128,4 +128,35 @@ describe('data-source form create experience', () => {
     expect(wrapper.find('#property-ApplicationName').exists()).toBe(false)
     wrapper.unmount()
   })
+
+  it('renders Hive from the descriptor: port 10000, optional namespace, metastore only', async () => {
+    const { wrapper } = await renderFormPage('/data-sources/new')
+    expect(wrapper.get('[data-testid="engine-type-HIVE"]').text()).toContain('Hive')
+
+    await wrapper.get('#ds-engine-HIVE').setValue()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="engine-type-HIVE"]').classes()).toContain(
+      'engine-type-card-selected',
+    )
+    expect((wrapper.get('#ds-port').element as HTMLInputElement).value).toBe('10000')
+    expect(wrapper.get('label[for="ds-defaultDatabase"]').text()).toBe('默认数据库')
+    expect(wrapper.get('label[for="ds-defaultDatabase"]').text()).not.toContain('*')
+    expect((wrapper.get('#ds-defaultDatabase').element as HTMLInputElement).placeholder).toBe(
+      '手工输入，可留空',
+    )
+
+    await wrapper.get('[data-testid="advanced-jdbc"]').trigger('click')
+    expect(wrapper.find('[id="property-hive.metastore.uris"]').exists()).toBe(true)
+    expect(wrapper.find('#property-ApplicationName').exists()).toBe(false)
+    expect(wrapper.find('#property-serverTimezone').exists()).toBe(false)
+
+    await wrapper.get('#ds-engine-POSTGRESQL').setValue()
+    await flushPromises()
+    expect(wrapper.find('#property-ApplicationName').exists()).toBe(true)
+    await wrapper.get('#ds-engine-HIVE').setValue()
+    await flushPromises()
+    expect(wrapper.find('#property-ApplicationName').exists()).toBe(false)
+    expect(wrapper.find('[id="property-hive.metastore.uris"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
 })

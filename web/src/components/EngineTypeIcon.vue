@@ -4,6 +4,8 @@ import mysqlMark from '@/assets/engines/mysql-mark.svg'
 import postgresqlLogo from '@/assets/engines/postgresql.svg'
 import gbase8aLogo from '@/assets/engines/gbase-8a.svg'
 import gbase8aMark from '@/assets/engines/gbase-8a-mark.svg'
+import hiveLogo from '@/assets/engines/hive.svg'
+import hiveMark from '@/assets/engines/hive-mark.svg'
 
 withDefaults(defineProps<{ engine: string; size?: number; variant?: 'card' | 'tree' }>(), {
   size: 48,
@@ -21,6 +23,7 @@ withDefaults(defineProps<{ engine: string; size?: number; variant?: 'card' | 'tr
       <img v-if="engine === 'MYSQL'" :src="mysqlMark" alt="" />
       <img v-else-if="engine === 'POSTGRESQL'" :src="postgresqlLogo" alt="" />
       <img v-else-if="engine === 'GBASE_8A'" :src="gbase8aMark" alt="" />
+      <img v-else-if="engine === 'HIVE'" :src="hiveMark" alt="" />
       <svg v-else viewBox="0 0 16 16" width="16" height="16">
         <ellipse cx="8" cy="4.2" rx="5.6" ry="2.1" fill="#0f766e" />
         <path
@@ -40,6 +43,7 @@ withDefaults(defineProps<{ engine: string; size?: number; variant?: 'card' | 'tr
         alt=""
       />
       <img v-else-if="engine === 'GBASE_8A'" :src="gbase8aLogo" width="88" height="56" alt="" />
+      <img v-else-if="engine === 'HIVE'" :src="hiveLogo" width="88" height="56" alt="" />
       <svg v-else viewBox="0 0 48 48" :width="size" :height="size">
         <rect width="48" height="48" rx="12" fill="#0F766E" />
         <ellipse cx="24" cy="16.5" rx="12" ry="5" fill="#5EEAD4" />

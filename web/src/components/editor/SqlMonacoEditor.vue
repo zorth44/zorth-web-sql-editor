@@ -7,6 +7,7 @@ import 'monaco-editor/features/register.all'
 import 'monaco-editor/languages/definitions/mysql/register'
 import 'monaco-editor/languages/definitions/pgsql/register'
 import {
+  HIVE_EDITOR_LANGUAGE,
   MYSQL_EDITOR_LANGUAGE,
   PG_EDITOR_LANGUAGE,
   formatterLanguageFor,
@@ -55,10 +56,14 @@ watch(
 function monacoTheme(): string {
   return theme.scheme === 'dark' ? 'vs-dark' : 'vs'
 }
+const MONACO_LANGUAGE_FALLBACKS: Record<string, string> = {
+  [HIVE_EDITOR_LANGUAGE]: MYSQL_EDITOR_LANGUAGE,
+}
 function resolvedLanguage(): string {
-  return props.language === PG_EDITOR_LANGUAGE || props.language === MYSQL_EDITOR_LANGUAGE
-    ? props.language
-    : MYSQL_EDITOR_LANGUAGE
+  const requested = props.language
+  if (requested === PG_EDITOR_LANGUAGE || requested === MYSQL_EDITOR_LANGUAGE) return requested
+  if (requested && MONACO_LANGUAGE_FALLBACKS[requested]) return MONACO_LANGUAGE_FALLBACKS[requested]
+  return MYSQL_EDITOR_LANGUAGE
 }
 
 function selectedText(): string {

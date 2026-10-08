@@ -38,6 +38,10 @@ The create and edit forms SHALL load `GET /api/v1/engines` and SHALL render engi
 - **WHEN** GBase 8a is selected
 - **THEN** the form SHALL use port default 5258, keep `defaultDatabase` optional, show MYSQL-family `propertyFields`, and SHALL NOT keep POSTGRESQL JDBC keys such as `ApplicationName`
 
+#### Scenario: Render Hive fields from the descriptor
+- **WHEN** Hive is selected
+- **THEN** the form SHALL use port default 10000, keep `defaultDatabase` optional, show only the Hive `propertyFields` (such as `hive.metastore.uris`), and SHALL NOT keep POSTGRESQL JDBC keys such as `ApplicationName`
+
 #### Scenario: Submit the selected engine
 - **WHEN** the user creates, updates, or tests from the form
 - **THEN** the request SHALL send `engine` equal to the selected catalog id and SHALL NOT hard-code `'MYSQL'` in the mapper

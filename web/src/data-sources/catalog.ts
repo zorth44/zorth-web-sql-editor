@@ -3,8 +3,13 @@ import type { EngineDescriptor, ResourceTreeLevel, SslMode } from '@/types/contr
 
 export const MYSQL_EDITOR_LANGUAGE = 'mysql' as const
 export const PG_EDITOR_LANGUAGE = 'pgsql' as const
+export const HIVE_EDITOR_LANGUAGE = 'hive' as const
 
-const REGISTERED_EDITOR_LANGUAGES = new Set<string>([MYSQL_EDITOR_LANGUAGE, PG_EDITOR_LANGUAGE])
+const REGISTERED_EDITOR_LANGUAGES = new Set<string>([
+  MYSQL_EDITOR_LANGUAGE,
+  PG_EDITOR_LANGUAGE,
+  HIVE_EDITOR_LANGUAGE,
+])
 
 export function engineById(
   items: EngineDescriptor[] | undefined,

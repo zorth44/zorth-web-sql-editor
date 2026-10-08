@@ -6,7 +6,11 @@ import { initialDataSources } from '@/mocks/fixtures'
 import { saveToken } from '@/auth/token-storage'
 import * as metadataApi from '@/api/metadata'
 import type { DataSourceListItem, EngineDescriptor } from '@/types/contracts'
-import { mysqlEngineDescriptor, postgresEngineDescriptor } from '@/mocks/engines'
+import {
+  hiveEngineDescriptor,
+  mysqlEngineDescriptor,
+  postgresEngineDescriptor,
+} from '@/mocks/engines'
 
 const sources = initialDataSources as DataSourceListItem[]
 
@@ -212,6 +216,35 @@ describe('resource navigator', () => {
     expect(
       wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').attributes('placeholder'),
     ).toBe('筛选模式')
+    wrapper.unmount()
+  })
+
+  it('labels Hive NAMESPACE filters as databases and skips unknown tree kinds', async () => {
+    const hiveSource = { ...sources[0], engine: 'HIVE' } as DataSourceListItem
+    const engines = [
+      {
+        ...hiveEngineDescriptor,
+        resourceTree: [
+          ...hiveEngineDescriptor.resourceTree,
+          { kind: 'PARTITION', label: '分区', parentKind: 'TABLE' },
+        ],
+      },
+    ]
+    const wrapper = await renderBrowser({
+      sources: [hiveSource],
+      engines,
+      dataSourceId: 'ds-orders-a',
+      database: 'orders',
+    })
+    expect(
+      wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').attributes('placeholder'),
+    ).toBe('筛选数据库')
+    expect(
+      wrapper.get('[data-testid="navigator-table-filter-ds-orders-a"]').attributes('placeholder'),
+    ).toBe('筛选表名')
+    expect(wrapper.text()).toContain('表')
+    expect(wrapper.text()).toContain('视图')
+    expect(wrapper.text()).not.toContain('分区')
     wrapper.unmount()
   })
 
