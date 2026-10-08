@@ -11,6 +11,22 @@ The create and edit forms SHALL load `GET /api/v1/engines` and SHALL render engi
 - **WHEN** the user selects any engine in the catalog
 - **THEN** the form model SHALL initialize, render, and serialize exactly the connection fields that engine descriptor declares, and the form, model, and validation SHALL NOT hard-code any engine-specific connection field name
 
+#### Scenario: Render MYSQL fields from the descriptor
+- **WHEN** MYSQL is selected
+- **THEN** the form SHALL show a type select populated from catalog `displayName` values, connection fields for host/port/username/password/`defaultDatabase`/sslMode/timeout using descriptor labels, and only the MYSQL `propertyFields`
+
+#### Scenario: Render POSTGRESQL fields from the descriptor
+- **WHEN** PostgreSQL is selected
+- **THEN** the form SHALL use port default 5432, require `defaultDatabase`, show only POSTGRESQL `propertyFields`, and SHALL NOT keep MYSQL JDBC keys such as `serverTimezone`
+
+#### Scenario: Render GBase 8a fields from the descriptor
+- **WHEN** GBase 8a is selected
+- **THEN** the form SHALL use port default 5258, keep `defaultDatabase` optional, show MYSQL-family `propertyFields`, and SHALL NOT keep POSTGRESQL JDBC keys such as `ApplicationName`
+
+#### Scenario: Render Hive fields from the descriptor
+- **WHEN** Hive is selected
+- **THEN** the form SHALL use port default 10000, keep `defaultDatabase` optional, show only the Hive `propertyFields` (such as `hive.metastore.uris`), and SHALL NOT keep POSTGRESQL JDBC keys such as `ApplicationName`
+
 #### Scenario: Render Kerberos Hive fields from the descriptor
 - **WHEN** Kerberos Hive (`HIVE_KERBEROS`) is selected
 - **THEN** the form SHALL show an environment selector, a keytab file field, an optional queue field, and an optional default database, and SHALL NOT show host, port, username, password, or SSL controls
@@ -37,3 +53,15 @@ The create/edit form SHALL validate name, description, and the selected engine's
 #### Scenario: Allow a duplicate name
 - **WHEN** the entered name matches another data-source name
 - **THEN** the frontend SHALL allow submission because IDs, not names, are unique
+
+#### Scenario: Select connection options
+- **WHEN** the user edits engine, default namespace, SSL, or JDBC properties
+- **THEN** engine SHALL be chosen from the catalog, default namespace SHALL be the `DEFAULT_NAMESPACE` field (`defaultDatabase`) as manual text, SSL SHALL be one of the selected engine's catalogued values (MYSQL: DISABLED/PREFERRED/REQUIRED), and the form SHALL expose only that engine's `propertyFields` with catalogued values
+
+#### Scenario: Exclude fixed or unsafe JDBC controls
+- **WHEN** the JDBC property controls are rendered or a request is mapped
+- **THEN** keys absent from the selected engine's `propertyFields`, including `useUnicode`, `allowPublicKeyRetrieval`, SSL flags, credentials, timeouts, and other undeclared properties, SHALL NOT be user-configurable or submitted through `properties`
+
+#### Scenario: Map backend field errors
+- **WHEN** a write returns `VALIDATION_FAILED.details.fieldErrors`
+- **THEN** the frontend SHALL associate recognized errors with their form controls and display unrecognized errors in a safe summary

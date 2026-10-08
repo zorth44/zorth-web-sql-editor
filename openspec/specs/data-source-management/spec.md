@@ -24,7 +24,11 @@ The create and edit forms SHALL load `GET /api/v1/engines` and SHALL render engi
 
 #### Scenario: Load the catalog before create
 - **WHEN** the user opens the create data-source page
-- **THEN** the frontend SHALL fetch the engine catalog, default the type to the first registered engine (MYSQL), and initialize port, SSL, and JDBC defaults from that descriptor
+- **THEN** the frontend SHALL fetch the engine catalog, default the type to the first registered engine (MYSQL), and initialize defaults from that descriptor
+
+#### Scenario: Initialize fields from the selected descriptor
+- **WHEN** the user selects any engine in the catalog
+- **THEN** the form model SHALL initialize, render, and serialize exactly the connection fields that engine descriptor declares, and the form, model, and validation SHALL NOT hard-code any engine-specific connection field name
 
 #### Scenario: Render MYSQL fields from the descriptor
 - **WHEN** MYSQL is selected
@@ -42,9 +46,13 @@ The create and edit forms SHALL load `GET /api/v1/engines` and SHALL render engi
 - **WHEN** Hive is selected
 - **THEN** the form SHALL use port default 10000, keep `defaultDatabase` optional, show only the Hive `propertyFields` (such as `hive.metastore.uris`), and SHALL NOT keep POSTGRESQL JDBC keys such as `ApplicationName`
 
+#### Scenario: Render Kerberos Hive fields from the descriptor
+- **WHEN** Kerberos Hive (`HIVE_KERBEROS`) is selected
+- **THEN** the form SHALL show an environment selector, a keytab file field, an optional queue field, and an optional default database, and SHALL NOT show host, port, username, password, or SSL controls
+
 #### Scenario: Submit the selected engine
 - **WHEN** the user creates, updates, or tests from the form
-- **THEN** the request SHALL send `engine` equal to the selected catalog id and SHALL NOT hard-code `'MYSQL'` in the mapper
+- **THEN** the request SHALL send `engine` equal to the selected catalog id, SHALL send only the connection fields that engine's descriptor declares, and SHALL NOT hard-code `'MYSQL'` in the mapper
 
 ### Requirement: PostgreSQL default database is required on the form
 When the selected engine marks `defaultDatabase` required, the frontend SHALL block create/update/test until that field is non-empty.
@@ -117,11 +125,15 @@ The edit page SHALL load authoritative detail by ID rather than deriving a form 
 The create/edit form SHALL validate name, description, and the selected engine's catalogued connection and property fields before sending a mutation.
 
 #### Scenario: Validate core fields
-- **WHEN** the form is submitted
+- **WHEN** a host-based engine form is submitted
 - **THEN** name SHALL be 1–100 characters, host SHALL contain no protocol, port SHALL be 1–65535, username SHALL be 1–128 characters, password SHALL be at most 1024 characters, timeout SHALL be 1–30 seconds, and description SHALL be at most 500 characters
 
+#### Scenario: Validate Kerberos fields
+- **WHEN** a `HIVE_KERBEROS` form is submitted
+- **THEN** the frontend SHALL require the descriptor-declared required fields (environment, keytab file), SHALL NOT require a password, and SHALL validate the queue field length when present
+
 #### Scenario: Validate create password
-- **WHEN** a new data source is submitted without a password
+- **WHEN** a new host-based data source is submitted without a password
 - **THEN** the frontend SHALL block submission and identify the password field
 
 #### Scenario: Allow a duplicate name
