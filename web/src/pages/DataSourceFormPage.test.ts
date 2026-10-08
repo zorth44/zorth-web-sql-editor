@@ -191,6 +191,55 @@ describe('data-source form create experience', () => {
     wrapper.unmount()
   })
 
+  it('renders Iceberg fields from the descriptor and hides host-based fields', async () => {
+    const { wrapper } = await renderFormPage('/data-sources/new')
+    expect(wrapper.get('[data-testid="engine-type-ICEBERG"]').text()).toContain('Iceberg')
+
+    await wrapper.get('#ds-engine-ICEBERG').setValue()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="engine-type-ICEBERG"]').classes()).toContain(
+      'engine-type-card-selected',
+    )
+
+    expect(wrapper.get('#ds-environment').element.tagName).toBe('SELECT')
+    expect(
+      wrapper
+        .get('#ds-environment')
+        .findAll('option')
+        .map((option) => option.attributes('value')),
+    ).toEqual(['dev', 'func', 'pro'])
+    expect(wrapper.get('#ds-keytabFile').element.tagName).toBe('INPUT')
+    expect(wrapper.get('label[for="ds-keytabFile"]').text()).toContain('*')
+    expect(wrapper.find('#ds-queueName').exists()).toBe(true)
+    expect(wrapper.get('label[for="ds-queueName"]').text()).not.toContain('*')
+    expect(wrapper.find('#ds-defaultDatabase').exists()).toBe(true)
+
+    for (const hidden of ['ds-host', 'ds-port', 'ds-username', 'ds-password', 'ds-sslMode']) {
+      expect(wrapper.find(`#${hidden}`).exists()).toBe(false)
+    }
+    wrapper.unmount()
+  })
+
+  it('submits Iceberg descriptor fields without host-based credentials', async () => {
+    const { wrapper, router } = await renderFormPage('/data-sources/new')
+    await wrapper.get('#ds-name').setValue('Iceberg 订单库')
+    await wrapper.get('#ds-engine-ICEBERG').setValue()
+    await flushPromises()
+    await wrapper.get('#ds-environment').setValue('func')
+    await wrapper.get('#ds-keytabFile').setValue('orders.keytab')
+    await wrapper.get('#ds-queueName').setValue('etl')
+
+    await buttonByText(wrapper, '保存').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.path).toBe('/data-sources')
+    const created = mockDataSources().find((item) => item.name === 'Iceberg 订单库')
+    expect(created?.engine).toBe('ICEBERG')
+    expect(created?.passwordConfigured).toBe(false)
+    expect(created?.host).toBe('')
+    wrapper.unmount()
+  })
+
   it('submits Kerberos descriptor fields without host-based credentials', async () => {
     const { wrapper, router } = await renderFormPage('/data-sources/new')
     await wrapper.get('#ds-name').setValue('Kerberos 订单库')

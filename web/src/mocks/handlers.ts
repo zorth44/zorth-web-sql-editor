@@ -471,7 +471,7 @@ export const handlers = [
     const denied = authorized(request)
     if (denied) return denied
     const body = (await request.json()) as ConnectionFields & { engine?: string }
-    if (body.engine !== 'HIVE_KERBEROS' && !body.password)
+    if (body.engine !== 'HIVE_KERBEROS' && body.engine !== 'ICEBERG' && !body.password)
       return error(400, 'VALIDATION_FAILED', '请求参数不合法', {
         fieldErrors: [{ field: 'password', code: 'REQUIRED', message: '请输入密码' }],
       })
