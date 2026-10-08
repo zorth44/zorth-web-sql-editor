@@ -58,5 +58,5 @@
 
 1. 依赖 `add-kerberos-zk-discovery` 已发布（连接机制与 `V7`）。
 2. 运维在 `keytab-base-path/iceberg/` 放入 keytab 文件，环境配置复用已有 `sql-editor.kerberos`。
-3. 前后端同发：目录第 6 项、Iceberg 卡片。
+3. 后端先发：`GET /api/v1/engines` 目录第 6 项出现 ICEBERG；前端卡片/图标由 `add-iceberg-engine-frontend` 独立交付。
 4. 回滚：回退应用版本；已存 `engine=ICEBERG` 的行在旧版本 `ENGINE_NOT_SUPPORTED`（fail-closed）。

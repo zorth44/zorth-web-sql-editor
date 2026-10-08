@@ -16,13 +16,8 @@
 - [ ] 3.1 Integration test: catalog includes ICEBERG and create persists that engine (no live cluster)
 - [ ] 3.2 Update catalog assertions from 5 items to 6
 
-## 4. Frontend
+## 4. Docs and verification
 
-- [ ] 4.1 MSW catalog includes ICEBERG; form renders Kerberos fields from the descriptor
-- [ ] 4.2 Engine type icon for ICEBERG; form/icon tests
-
-## 5. Docs and verification
-
-- [ ] 5.1 Update backend and frontend specs for six engines
-- [ ] 5.2 Run backend unit/integration tests and frontend typecheck/unit tests
-- [ ] 5.3 Confirm only a new engine was added: no `EngineSupport`, `KerberosHiveConnector`, or `DynamicPoolManager` behavior change
+- [ ] 4.1 Update backend specs for six engines
+- [ ] 4.2 Run backend unit/integration tests
+- [ ] 4.3 Confirm only a new engine was added: no `EngineSupport`, `KerberosHiveConnector`, or `DynamicPoolManager` behavior change
