@@ -59,9 +59,10 @@ const descriptor = computed(
   () => engineById(engines.value, form.value.engine) || engines.value[0] || null,
 )
 watch(
-  () => detailQuery.data.value,
-  (detail) => {
-    if (detail) form.value = detailToForm(detail)
+  () => [detailQuery.data.value, enginesQuery.data.value] as const,
+  ([detail, catalog]) => {
+    if (!detail) return
+    form.value = detailToForm(detail, engineById(catalog?.items, detail.engine))
   },
   { immediate: true },
 )
@@ -84,6 +85,11 @@ watch(
 )
 const allowed = computed(() => canManageDataSources(auth.session || undefined))
 const busy = computed(() => saveMutation.isPending.value || testMutation.isPending.value)
+const testTimeoutSeconds = computed(() => {
+  const field = descriptor.value?.connectionFields.find((item) => item.kind === 'TIMEOUT')
+  const seconds = Number(field ? form.value.connection[field.name] : '')
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : 10
+})
 
 function clearErrors(): void {
   Object.keys(errors).forEach((key) => delete errors[key as keyof FormErrors])
@@ -92,7 +98,14 @@ function clearErrors(): void {
 }
 function validate(): boolean {
   clearErrors()
-  Object.assign(errors, validateDataSourceForm(form.value, edit.value ? 'edit' : 'create', descriptor.value || undefined))
+  Object.assign(
+    errors,
+    validateDataSourceForm(
+      form.value,
+      edit.value ? 'edit' : 'create',
+      descriptor.value || undefined,
+    ),
+  )
   return !hasFormErrors(errors)
 }
 function handleApiError(error: unknown): void {
@@ -107,7 +120,13 @@ function handleApiError(error: unknown): void {
   if (!conflict.value) summaryErrors.value = [safeErrorMessage(error)]
 }
 function scrubPassword(): void {
-  form.value.password = ''
+  const connection = { ...form.value.connection }
+  descriptor.value?.connectionFields
+    .filter((field) => field.kind === 'PASSWORD' || field.widget === 'PASSWORD')
+    .forEach((field) => {
+      connection[field.name] = ''
+    })
+  form.value = { ...form.value, connection }
 }
 
 const saveMutation = useMutation({
@@ -239,7 +258,7 @@ onBeforeUnmount(scrubPassword)
         class="mt-6 rounded-lg bg-subtle p-4 text-sm text-muted"
         role="status"
       >
-        正在测试连接，最多等待 {{ form.connectTimeoutSeconds }} 秒…
+        正在测试连接，最多等待 {{ testTimeoutSeconds }} 秒…
       </div>
       <div
         v-else-if="testResult"

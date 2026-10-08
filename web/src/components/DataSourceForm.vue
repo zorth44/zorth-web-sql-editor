@@ -29,14 +29,14 @@ function update<K extends keyof DataSourceFormModel>(key: K, value: DataSourceFo
   emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
 function fieldValue(field: EngineField): string {
-  const value = props.modelValue[field.name as keyof DataSourceFormModel]
-  if (value == null) return ''
-  if (typeof value === 'object') return ''
-  return String(value)
+  const value = props.modelValue.connection[field.name]
+  return value == null ? '' : String(value)
 }
 function updateField(field: EngineField, raw: string): void {
-  if (field.widget === 'NUMBER') update(field.name as 'port', Number(raw) as never)
-  else update(field.name as 'host', raw as never)
+  emit('update:modelValue', {
+    ...props.modelValue,
+    connection: { ...props.modelValue.connection, [field.name]: raw },
+  })
 }
 function propertyValue(name: string): string {
   return props.modelValue.properties[name] || ''

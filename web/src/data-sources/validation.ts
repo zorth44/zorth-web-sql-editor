@@ -1,8 +1,25 @@
-import type { EngineDescriptor, FieldError } from '@/types/contracts'
+import type { EngineDescriptor, EngineField, FieldError } from '@/types/contracts'
 import type { DataSourceFormModel } from '@/data-sources/model'
 
-export type FormField = keyof DataSourceFormModel
-export type FormErrors = Partial<Record<FormField, string>>
+export type FormField = string
+export type FormErrors = Record<string, string>
+
+const KNOWN_FIELDS = new Set([
+  'name',
+  'engine',
+  'description',
+  'properties',
+  'host',
+  'port',
+  'username',
+  'password',
+  'defaultDatabase',
+  'sslMode',
+  'connectTimeoutSeconds',
+  'environment',
+  'keytabFile',
+  'queueName',
+])
 
 function isKnownTimeZone(value: string): boolean {
   try {
@@ -13,8 +30,45 @@ function isKnownTimeZone(value: string): boolean {
   }
 }
 
-function fieldOf(descriptor: EngineDescriptor | undefined, name: string) {
-  return descriptor?.connectionFields.find((item) => item.name === name)
+function validateConnectionField(
+  field: EngineField,
+  form: DataSourceFormModel,
+  mode: 'create' | 'edit',
+  errors: FormErrors,
+): void {
+  const value = form.connection[field.name] ?? ''
+  const required = field.required || (Boolean(field.requiredOnCreate) && mode === 'create')
+  if (field.widget === 'NUMBER') {
+    const min = field.min ?? 1
+    const max = field.max ?? 65535
+    if (value === '') {
+      if (required) errors[field.name] = `请输入${field.label}`
+      return
+    }
+    const numeric = Number(value)
+    if (!Number.isInteger(numeric) || numeric < min || numeric > max)
+      errors[field.name] = `${field.label}必须在 ${min}–${max} 之间`
+    return
+  }
+  if (value.length === 0) {
+    if (required) errors[field.name] = `请输入${field.label}`
+    return
+  }
+  if (field.kind === 'HOST' && /^[a-z][a-z\d+.-]*:\/\//i.test(value)) {
+    errors[field.name] = 'Host 不应包含协议'
+    return
+  }
+  if (field.maxLength != null && value.length > field.maxLength) {
+    errors[field.name] = `${field.label}最多 ${field.maxLength} 个字符`
+    return
+  }
+  if (
+    field.widget === 'SELECT' &&
+    field.options?.length &&
+    !field.options.some((option) => option.value === value)
+  ) {
+    errors[field.name] = `${field.label}不合法`
+  }
 }
 
 export function validateDataSourceForm(
@@ -26,47 +80,14 @@ export function validateDataSourceForm(
   const nameLength = form.name.trim().length
   if (nameLength < 1 || nameLength > 100) errors.name = '名称长度必须为 1–100 个字符'
   if (!form.engine) errors.engine = '请选择数据库类型'
-  if (!form.host.trim()) errors.host = '请输入 Host'
-  else if (/^[a-z][a-z\d+.-]*:\/\//i.test(form.host.trim())) errors.host = 'Host 不应包含协议'
-  else if (form.host.trim().length > 255) errors.host = 'Host 最多 255 个字符'
-  const portField = fieldOf(descriptor, 'port')
-  const portMin = portField?.min ?? 1
-  const portMax = portField?.max ?? 65535
-  if (
-    !Number.isInteger(Number(form.port)) ||
-    Number(form.port) < portMin ||
-    Number(form.port) > portMax
-  )
-    errors.port = `端口必须在 ${portMin}–${portMax} 之间`
-  const usernameLength = form.username.trim().length
-  if (usernameLength < 1 || usernameLength > 128) errors.username = '用户名长度必须为 1–128 个字符'
-  if (mode === 'create' && !form.password) errors.password = '新增数据源必须输入密码'
-  else if (form.password.length > 1024) errors.password = '密码最多 1024 个字符'
-  const namespaceField = fieldOf(descriptor, 'defaultDatabase')
-  const namespaceMax = namespaceField?.maxLength ?? 64
-  const namespaceLabel = namespaceField?.label || '默认数据库'
-  if (namespaceField?.required && !form.defaultDatabase.trim())
-    errors.defaultDatabase = `请输入${namespaceLabel}`
-  else if (form.defaultDatabase.trim().length > namespaceMax)
-    errors.defaultDatabase = `${namespaceLabel}最多 ${namespaceMax} 个字符`
-  const timeoutField = fieldOf(descriptor, 'connectTimeoutSeconds')
-  const timeoutMin = timeoutField?.min ?? 1
-  const timeoutMax = timeoutField?.max ?? 30
-  if (
-    !Number.isInteger(Number(form.connectTimeoutSeconds)) ||
-    Number(form.connectTimeoutSeconds) < timeoutMin ||
-    Number(form.connectTimeoutSeconds) > timeoutMax
-  )
-    errors.connectTimeoutSeconds = `连接超时必须在 ${timeoutMin}–${timeoutMax} 秒之间`
   if (form.description.length > 500) errors.description = '描述最多 500 个字符'
-  const sslField = fieldOf(descriptor, 'sslMode')
-  if (sslField?.options?.length && !sslField.options.some((item) => item.value === form.sslMode)) {
-    errors.sslMode = 'SSL 模式不合法'
-  }
+  descriptor?.connectionFields.forEach((field) =>
+    validateConnectionField(field, form, mode, errors),
+  )
   const propertyFields = descriptor?.propertyFields
-  for (const [key, value] of Object.entries(form.properties)) {
-    if (!value) continue
-    if (propertyFields) {
+  if (propertyFields) {
+    for (const [key, value] of Object.entries(form.properties)) {
+      if (!value) continue
       const field = propertyFields.find((item) => item.name === key)
       const allowed = field
         ? key === 'serverTimezone'
@@ -77,9 +98,6 @@ export function validateDataSourceForm(
         errors.properties = `JDBC 参数 ${key} 的值不在白名单中`
         break
       }
-    } else if (key === 'serverTimezone' ? !isKnownTimeZone(value) : false) {
-      errors.properties = `JDBC 参数 ${key} 的值不在白名单中`
-      break
     }
   }
   return errors
@@ -91,22 +109,8 @@ export function mapFieldErrors(fieldErrors: FieldError[]): {
 } {
   const fields: FormErrors = {}
   const summary: string[] = []
-  const aliases: Record<string, FormField> = {
-    connectTimeoutSeconds: 'connectTimeoutSeconds',
-    defaultDatabase: 'defaultDatabase',
-    sslMode: 'sslMode',
-    properties: 'properties',
-    name: 'name',
-    engine: 'engine',
-    host: 'host',
-    port: 'port',
-    username: 'username',
-    password: 'password',
-    description: 'description',
-  }
   fieldErrors.forEach((item) => {
-    const field = aliases[item.field]
-    if (field) fields[field] = item.message
+    if (KNOWN_FIELDS.has(item.field)) fields[item.field] = item.message
     else summary.push(item.message)
   })
   return { fields, summary }

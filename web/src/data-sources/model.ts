@@ -4,74 +4,78 @@ import type {
   DataSourceDetail,
   EditConnectionTestRequest,
   Engine,
+  EngineDescriptor,
+  EngineField,
   JdbcProperties,
-  SslMode,
   UpdateDataSourceRequest,
 } from '@/types/contracts'
-import { sanitizeProperties } from '@/data-sources/catalog'
-import type { EngineDescriptor } from '@/types/contracts'
+import { connectionDefaults, propertyDefaults, sanitizeProperties } from '@/data-sources/catalog'
 
 export interface DataSourceFormModel {
   name: string
   engine: Engine
-  host: string
-  port: number
-  username: string
-  password: string
-  defaultDatabase: string
-  sslMode: SslMode
-  connectTimeoutSeconds: number
+  connection: Record<string, string>
   properties: JdbcProperties
   description: string
 }
 
-export function emptyDataSourceForm(): DataSourceFormModel {
+export function emptyDataSourceForm(descriptor?: EngineDescriptor): DataSourceFormModel {
   return {
     name: '',
-    engine: 'MYSQL',
-    host: '',
-    port: 3306,
-    username: '',
-    password: '',
-    defaultDatabase: '',
-    sslMode: 'PREFERRED',
-    connectTimeoutSeconds: 10,
-    properties: { serverTimezone: 'Asia/Shanghai' },
+    engine: descriptor?.id ?? 'MYSQL',
+    connection: descriptor ? connectionDefaults(descriptor) : {},
+    properties: descriptor ? propertyDefaults(descriptor) : {},
     description: '',
   }
 }
 
-export function detailToForm(detail: DataSourceDetail): DataSourceFormModel {
+function isPasswordField(field: EngineField): boolean {
+  return field.kind === 'PASSWORD' || field.widget === 'PASSWORD'
+}
+
+export function detailToForm(
+  detail: DataSourceDetail,
+  descriptor?: EngineDescriptor,
+): DataSourceFormModel {
+  const source = detail as unknown as Record<string, unknown>
+  const connection: Record<string, string> = {}
+  descriptor?.connectionFields.forEach((field) => {
+    if (isPasswordField(field)) {
+      connection[field.name] = ''
+      return
+    }
+    const value = source[field.name]
+    connection[field.name] = value == null ? '' : String(value)
+  })
   return {
     name: detail.name,
     engine: detail.engine,
-    host: detail.host,
-    port: detail.port,
-    username: detail.username,
-    password: '',
-    defaultDatabase: detail.defaultDatabase || '',
-    sslMode: detail.sslMode,
-    connectTimeoutSeconds: detail.connectTimeoutSeconds,
+    connection,
     properties: { ...detail.properties },
     description: detail.description || '',
   }
 }
 
+type ConnectionPayloadValue = string | number | null
+
+function serializeConnectionField(field: EngineField, raw: string): ConnectionPayloadValue {
+  if (isPasswordField(field)) return raw
+  if (field.widget === 'NUMBER') return raw === '' ? null : Number(raw)
+  const text = raw.trim()
+  if (field.kind === 'DEFAULT_NAMESPACE') return text || null
+  return text
+}
+
 function connectionFields(
   form: DataSourceFormModel,
   descriptor?: EngineDescriptor,
-): EditConnectionTestRequest {
-  return {
-    engine: form.engine,
-    host: form.host.trim(),
-    port: Number(form.port),
-    username: form.username.trim(),
-    password: form.password || '',
-    defaultDatabase: form.defaultDatabase.trim() || null,
-    sslMode: form.sslMode,
-    connectTimeoutSeconds: Number(form.connectTimeoutSeconds),
-    properties: sanitizeProperties({ ...form.properties }, descriptor),
-  }
+): Record<string, unknown> {
+  const fields: Record<string, unknown> = { engine: form.engine }
+  descriptor?.connectionFields.forEach((field) => {
+    fields[field.name] = serializeConnectionField(field, form.connection[field.name] ?? '')
+  })
+  fields.properties = sanitizeProperties({ ...form.properties }, descriptor)
+  return fields
 }
 
 export function mapCreateRequest(
@@ -80,12 +84,11 @@ export function mapCreateRequest(
 ): CreateDataSourceRequest {
   return {
     name: form.name.trim(),
-    engine: form.engine,
     ...connectionFields(form, descriptor),
-    password: form.password,
     description: form.description.trim() || null,
-  }
+  } as unknown as CreateDataSourceRequest
 }
+
 export function mapUpdateRequest(
   form: DataSourceFormModel,
   version: number,
@@ -93,21 +96,22 @@ export function mapUpdateRequest(
 ): UpdateDataSourceRequest {
   return {
     name: form.name.trim(),
-    engine: form.engine,
     ...connectionFields(form, descriptor),
     description: form.description.trim() || null,
     version,
-  }
+  } as unknown as UpdateDataSourceRequest
 }
+
 export function mapCreateTestRequest(
   form: DataSourceFormModel,
   descriptor?: EngineDescriptor,
 ): CreateConnectionTestRequest {
-  return { ...connectionFields(form, descriptor), password: form.password }
+  return connectionFields(form, descriptor) as unknown as CreateConnectionTestRequest
 }
+
 export function mapEditTestRequest(
   form: DataSourceFormModel,
   descriptor?: EngineDescriptor,
 ): EditConnectionTestRequest {
-  return connectionFields(form, descriptor)
+  return connectionFields(form, descriptor) as unknown as EditConnectionTestRequest
 }

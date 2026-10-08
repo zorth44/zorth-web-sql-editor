@@ -314,6 +314,9 @@ const allowedCreateKeys = new Set([
   'connectTimeoutSeconds',
   'properties',
   'description',
+  'environment',
+  'keytabFile',
+  'queueName',
 ])
 
 export const handlers = [
@@ -412,13 +415,13 @@ export const handlers = [
       id: randomUUID(),
       name: body.name,
       engine: body.engine,
-      host: body.host,
-      port: body.port,
-      username: body.username,
-      passwordConfigured: true,
-      defaultDatabase: body.defaultDatabase,
-      sslMode: body.sslMode,
-      connectTimeoutSeconds: body.connectTimeoutSeconds,
+      host: body.host ?? '',
+      port: body.port ?? 0,
+      username: body.username ?? '',
+      passwordConfigured: Boolean(body.password),
+      defaultDatabase: body.defaultDatabase ?? null,
+      sslMode: body.sslMode ?? 'PREFERRED',
+      connectTimeoutSeconds: body.connectTimeoutSeconds ?? 10,
       properties: { ...body.properties },
       description: body.description,
       lastTestStatus: null,
@@ -467,8 +470,8 @@ export const handlers = [
   http.post(sqlRpc('/api/v1/data-sources:test'), async ({ request }) => {
     const denied = authorized(request)
     if (denied) return denied
-    const body = (await request.json()) as ConnectionFields
-    if (!body.password)
+    const body = (await request.json()) as ConnectionFields & { engine?: string }
+    if (body.engine !== 'HIVE_KERBEROS' && !body.password)
       return error(400, 'VALIDATION_FAILED', '请求参数不合法', {
         fieldErrors: [{ field: 'password', code: 'REQUIRED', message: '请输入密码' }],
       })

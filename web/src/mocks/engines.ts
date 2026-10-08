@@ -365,11 +365,70 @@ export const hiveEngineDescriptor: EngineDescriptor = {
   ],
 }
 
+export const hiveKerberosEngineDescriptor: EngineDescriptor = {
+  id: 'HIVE_KERBEROS',
+  displayName: 'Kerberos Hive',
+  family: 'HIVE_WIRE',
+  defaultPort: 10000,
+  editorLanguage: 'hive',
+  identifierQuote: '`',
+  capabilities: {
+    defaultNamespaceRequired: false,
+    canSwitchNamespaceOnConnection: true,
+  },
+  connectionFields: [
+    {
+      name: 'environment',
+      kind: 'ENVIRONMENT',
+      widget: 'SELECT',
+      label: '环境',
+      required: true,
+      defaultValue: 'dev',
+      options: [
+        { value: 'dev', label: 'dev' },
+        { value: 'func', label: 'func' },
+        { value: 'pro', label: 'pro' },
+      ],
+    },
+    {
+      name: 'keytabFile',
+      kind: 'KEYTAB',
+      widget: 'TEXT',
+      label: 'Keytab 文件',
+      required: true,
+      maxLength: 255,
+    },
+    {
+      name: 'queueName',
+      kind: 'QUEUE',
+      widget: 'TEXT',
+      label: '队列名',
+      required: false,
+      maxLength: 128,
+    },
+    {
+      name: 'defaultDatabase',
+      kind: 'DEFAULT_NAMESPACE',
+      widget: 'TEXT',
+      label: '默认数据库',
+      required: false,
+      maxLength: 128,
+    },
+  ],
+  propertyFields: [],
+  resourceTree: [
+    { kind: 'NAMESPACE', label: '数据库', filterLabel: '筛选数据库', listEndpoint: 'databases' },
+    { kind: 'TABLE', label: '表', filterLabel: '筛选表名', parentKind: 'NAMESPACE' },
+    { kind: 'VIEW', label: '视图', parentKind: 'NAMESPACE' },
+  ],
+}
+
 export const mockEngineCatalog: EngineCatalog = {
   items: [
     mysqlEngineDescriptor,
     postgresEngineDescriptor,
     gbase8aEngineDescriptor,
     hiveEngineDescriptor,
+    hiveKerberosEngineDescriptor,
   ],
 }

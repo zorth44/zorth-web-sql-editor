@@ -1,5 +1,5 @@
 import type { DataSourceFormModel } from '@/data-sources/model'
-import type { EngineDescriptor, ResourceTreeLevel, SslMode } from '@/types/contracts'
+import type { EngineDescriptor, ResourceTreeLevel } from '@/types/contracts'
 
 export const MYSQL_EDITOR_LANGUAGE = 'mysql' as const
 export const PG_EDITOR_LANGUAGE = 'pgsql' as const
@@ -39,7 +39,9 @@ export function formatterLanguageFor(language: string): 'mysql' | 'postgresql' {
   return language === PG_EDITOR_LANGUAGE ? 'postgresql' : 'mysql'
 }
 
-export function namespaceLevel(descriptor: EngineDescriptor | undefined): ResourceTreeLevel | undefined {
+export function namespaceLevel(
+  descriptor: EngineDescriptor | undefined,
+): ResourceTreeLevel | undefined {
   return descriptor?.resourceTree.find((level) => level.kind === 'NAMESPACE')
 }
 
@@ -49,22 +51,29 @@ export function objectLevels(descriptor: EngineDescriptor | undefined): Resource
   )
 }
 
-export function defaultsFromDescriptor(descriptor: EngineDescriptor): Pick<
-  DataSourceFormModel,
-  'engine' | 'port' | 'sslMode' | 'connectTimeoutSeconds' | 'properties'
-> {
+export function connectionDefaults(descriptor: EngineDescriptor): Record<string, string> {
+  const connection: Record<string, string> = {}
+  descriptor.connectionFields.forEach((field) => {
+    connection[field.name] = field.defaultValue ?? ''
+  })
+  return connection
+}
+
+export function propertyDefaults(descriptor: EngineDescriptor): Record<string, string> {
   const properties: Record<string, string> = {}
   descriptor.propertyFields.forEach((field) => {
     if (field.defaultValue) properties[field.name] = field.defaultValue
   })
-  const port = Number(fieldDefault(descriptor, 'port') || descriptor.defaultPort)
-  const timeout = Number(fieldDefault(descriptor, 'connectTimeoutSeconds') || 10)
+  return properties
+}
+
+export function defaultsFromDescriptor(
+  descriptor: EngineDescriptor,
+): Pick<DataSourceFormModel, 'engine' | 'connection' | 'properties'> {
   return {
     engine: descriptor.id,
-    port,
-    sslMode: (fieldDefault(descriptor, 'sslMode') || 'PREFERRED') as SslMode,
-    connectTimeoutSeconds: timeout,
-    properties,
+    connection: connectionDefaults(descriptor),
+    properties: propertyDefaults(descriptor),
   }
 }
 
@@ -79,8 +88,4 @@ export function sanitizeProperties(
     if (allowed.has(key) && value) next[key] = value
   })
   return next
-}
-
-function fieldDefault(descriptor: EngineDescriptor, name: string): string | undefined {
-  return descriptor.connectionFields.find((field) => field.name === name)?.defaultValue
 }
