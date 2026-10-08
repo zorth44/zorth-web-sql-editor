@@ -7,6 +7,7 @@
 - [前端开发说明书](./frontend-development-spec.md)
 - [后端与 API 开发说明书](./backend-development-spec.md)
 - [Agent Database Tool API](./agent-database-api.md)
+- [厂商驱动的交付方式（drop-in 与条件编译）](./vendor-dependencies.md)
 - [Plan：SQL 编辑器 Copilot（本仓库）](./plan-web-sql-editor-copilot.md)
 - [Plan：SQL 编辑器 Copilot（AI 服务配合）](./plan-ai-server-sql-editor-copilot.md)
 
