@@ -124,7 +124,7 @@ class BackendIntegrationTest {
     @Test void gbase8aRegistersWithoutOpeningMysqlLiveJdbc()throws Exception{
         mvc.perform(get("/api/v1/engines").header("Authorization","Bearer token-a"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items.length()").value(5))
+            .andExpect(jsonPath("$.items.length()").value(6))
             .andExpect(jsonPath("$.items[2].id").value("GBASE_8A"))
             .andExpect(jsonPath("$.items[2].family").value("MYSQL_WIRE"))
             .andExpect(jsonPath("$.items[2].defaultPort").value(5258))
@@ -139,7 +139,14 @@ class BackendIntegrationTest {
             .andExpect(jsonPath("$.items[4].editorLanguage").value("hive"))
             .andExpect(jsonPath("$.items[4].connectionFields[0].kind").value("ENVIRONMENT"))
             .andExpect(jsonPath("$.items[4].connectionFields[1].kind").value("KEYTAB"))
-            .andExpect(jsonPath("$.items[4].connectionFields[2].kind").value("QUEUE"));
+            .andExpect(jsonPath("$.items[4].connectionFields[2].kind").value("QUEUE"))
+            .andExpect(jsonPath("$.items[5].id").value("ICEBERG"))
+            .andExpect(jsonPath("$.items[5].family").value("HIVE_WIRE"))
+            .andExpect(jsonPath("$.items[5].defaultPort").value(10000))
+            .andExpect(jsonPath("$.items[5].editorLanguage").value("hive"))
+            .andExpect(jsonPath("$.items[5].connectionFields[0].kind").value("ENVIRONMENT"))
+            .andExpect(jsonPath("$.items[5].connectionFields[1].kind").value("KEYTAB"))
+            .andExpect(jsonPath("$.items[5].connectionFields[2].kind").value("QUEUE"));
         JsonNode created=json.readTree(mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer token-a")
             .contentType(MediaType.APPLICATION_JSON).content(gbase8aPayload("GBase 8a 源")))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
@@ -168,6 +175,26 @@ class BackendIntegrationTest {
             .andExpect(jsonPath("$.status").value("FAILED"))
             .andExpect(jsonPath("$.failureCode").value("CONNECTION_FAILED"))
             .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("hive.keytab"))))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/opt/"))));
+    }
+
+    @Test void icebergCatalogEntryAndCreatePersistsEngine()throws Exception{
+        JsonNode created=json.readTree(mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer token-a")
+            .contentType(MediaType.APPLICATION_JSON).content(icebergPayload("Iceberg 源")))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(created.path("engine").asText()).isEqualTo("ICEBERG");
+        assertThat(created.path("environment").asText()).isEqualTo("prod");
+        assertThat(created.path("keytabFile").asText()).isEqualTo("iceberg.keytab");
+        assertThat(created.path("queueName").asText()).isEqualTo("etl");
+        assertThat(created.path("passwordConfigured").asBoolean()).isFalse();
+        assertThat(created.toString()).doesNotContain("/opt/keytab").doesNotContain("/etc/krb5.conf");
+
+        mvc.perform(post("/api/v1/data-sources:test").header("Authorization","Bearer token-a")
+                .contentType(MediaType.APPLICATION_JSON).content(icebergTestPayload()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("FAILED"))
+            .andExpect(jsonPath("$.failureCode").value("CONNECTION_FAILED"))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("iceberg.keytab"))))
             .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/opt/"))));
     }
 
@@ -482,6 +509,8 @@ class BackendIntegrationTest {
     private static String gbase8aPayload(String name){return "{\"name\":\""+name+"\",\"engine\":\"GBASE_8A\",\"host\":\"127.0.0.1\",\"port\":5258,\"username\":\"gbase\",\"password\":\"secret\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"gbase8a\"}";}
     private static String kerberosPayload(String name){return "{\"name\":\""+name+"\",\"engine\":\"HIVE_KERBEROS\",\"environment\":\"prod\",\"keytabFile\":\"hive.keytab\",\"queueName\":\"etl\",\"properties\":{}}";}
     private static String kerberosTestPayload(){return "{\"engine\":\"HIVE_KERBEROS\",\"environment\":\"prod\",\"keytabFile\":\"hive.keytab\",\"queueName\":\"etl\",\"properties\":{}}";}
+    private static String icebergPayload(String name){return "{\"name\":\""+name+"\",\"engine\":\"ICEBERG\",\"environment\":\"prod\",\"keytabFile\":\"iceberg.keytab\",\"queueName\":\"etl\",\"properties\":{}}";}
+    private static String icebergTestPayload(){return "{\"engine\":\"ICEBERG\",\"environment\":\"prod\",\"keytabFile\":\"iceberg.keytab\",\"queueName\":\"etl\",\"properties\":{}}";}
     private static String connectionPayload(String password){return "{\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"}}";}
     private static String connectionPayloadDatabase(String password,String database){return connectionPayload(password).replace("\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\"","\"defaultDatabase\":\""+database+"\"");}
     private static String connectionPayloadPort(String password,int port){return connectionPayload(password).replace("\"port\":"+MYSQL.getMappedPort(3306),"\"port\":"+port);}

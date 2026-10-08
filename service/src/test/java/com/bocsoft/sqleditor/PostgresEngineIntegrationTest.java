@@ -111,12 +111,14 @@ class PostgresEngineIntegrationTest {
     @Test void postgresqlIsSecondRelationalEngineWithSchemaAsNamespace() throws Exception {
         mvc.perform(get("/api/v1/engines").header("Authorization", "Bearer token-a"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items.length()").value(4))
+            .andExpect(jsonPath("$.items.length()").value(6))
             .andExpect(jsonPath("$.items[0].id").value("MYSQL"))
             .andExpect(jsonPath("$.items[1].id").value("POSTGRESQL"))
             .andExpect(jsonPath("$.items[2].id").value("GBASE_8A"))
             .andExpect(jsonPath("$.items[3].id").value("HIVE"))
             .andExpect(jsonPath("$.items[3].family").value("HIVE_WIRE"))
+            .andExpect(jsonPath("$.items[4].id").value("HIVE_KERBEROS"))
+            .andExpect(jsonPath("$.items[5].id").value("ICEBERG"))
             .andExpect(jsonPath("$.items[1].resourceTree[0].label").value("模式"));
 
         mvc.perform(post("/api/v1/data-sources").header("Authorization", "Bearer token-a")

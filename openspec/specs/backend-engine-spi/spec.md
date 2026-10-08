@@ -5,7 +5,7 @@
 Define the target-database engine registry and how saved or unsaved connections dispatch JDBC, metadata, statement scanning, connection-failure classification, and session restore through a registered `EngineSupport`.
 ## Requirements
 ### Requirement: Registered engine dispatch
-The SQL service SHALL resolve every target-database JDBC, metadata, constraint/relationship discovery, statement-scan, connection-failure, and session-restore operation through a registered `EngineSupport` identified by the data source `engine` value. At startup the registry SHALL contain `MYSQL`, `POSTGRESQL`, `GBASE_8A`, `HIVE`, and `HIVE_KERBEROS` in that order. Unknown or unsupported engines MUST fail closed and MUST NOT fall back to another engine's behavior.
+The SQL service SHALL resolve every target-database JDBC, metadata, constraint/relationship discovery, statement-scan, connection-failure, and session-restore operation through a registered `EngineSupport` identified by the data source `engine` value. At startup the registry SHALL contain `MYSQL`, `POSTGRESQL`, `GBASE_8A`, `HIVE`, `HIVE_KERBEROS`, and `ICEBERG` in that order. Unknown or unsupported engines MUST fail closed and MUST NOT fall back to another engine's behavior.
 
 #### Scenario: Dispatch a saved MySQL data source
 - **WHEN** a visible data source with `engine=MYSQL` is tested, browsed, executed against, or used for export
@@ -26,6 +26,10 @@ The SQL service SHALL resolve every target-database JDBC, metadata, constraint/r
 #### Scenario: Dispatch a saved Kerberos Hive data source
 - **WHEN** a visible data source with `engine=HIVE_KERBEROS` is tested, browsed, executed against, or used for export
 - **THEN** the service SHALL use the HIVE_KERBEROS engine implementation with databases as NAMESPACE and SHALL connect through the Kerberos + ZooKeeper connector
+
+#### Scenario: Dispatch a saved Iceberg data source
+- **WHEN** a visible data source with `engine=ICEBERG` is tested, browsed, executed against, or used for export
+- **THEN** the service SHALL use the ICEBERG engine implementation with databases as NAMESPACE and SHALL connect through the Kerberos + ZooKeeper connector
 
 #### Scenario: Reject an unregistered engine on write
 - **WHEN** a create or update submits `engine` other than a registered id

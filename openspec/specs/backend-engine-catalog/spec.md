@@ -9,7 +9,7 @@ The SQL service SHALL expose `GET /api/v1/engines` to authenticated callers and 
 
 #### Scenario: List registered engines
 - **WHEN** an authenticated user calls `GET /api/v1/engines`
-- **THEN** the service SHALL return `{ items }` containing every registered engine in registry order, currently `MYSQL`, `POSTGRESQL`, `GBASE_8A`, `HIVE`, then `HIVE_KERBEROS`, and SHALL NOT require `DATA_SOURCE_MANAGE`
+- **THEN** the service SHALL return `{ items }` containing every registered engine in registry order, currently `MYSQL`, `POSTGRESQL`, `GBASE_8A`, `HIVE`, `HIVE_KERBEROS`, then `ICEBERG`, and SHALL NOT require `DATA_SOURCE_MANAGE`
 
 #### Scenario: Reject an unauthenticated catalog request
 - **WHEN** the request has no valid session
@@ -41,6 +41,10 @@ Each catalog item SHALL describe how to render a connection form, JDBC property 
 #### Scenario: Return the HIVE_KERBEROS descriptor
 - **WHEN** the registry contains HIVE_KERBEROS
 - **THEN** that item SHALL include `id=HIVE_KERBEROS`, `displayName` for Kerberos Hive, `family=HIVE_WIRE`, `editorLanguage=hive`, a backtick `identifierQuote`, and `connectionFields` of `environment` (SELECT, required), `keytabFile` (TEXT, required), `queueName` (TEXT, optional), and optional `defaultDatabase`, and SHALL NOT include `host`, `port`, `username`, `password`, or `sslMode`
+
+#### Scenario: Return the ICEBERG descriptor
+- **WHEN** the registry contains ICEBERG
+- **THEN** that item SHALL include `id=ICEBERG`, `displayName` for Iceberg, `family=HIVE_WIRE`, `defaultPort=10000`, `editorLanguage=hive`, a backtick `identifierQuote`, and `connectionFields` of `environment` (SELECT, required), `keytabFile` (TEXT, required), `queueName` (TEXT, optional), and optional `defaultDatabase`, matching the HIVE_KERBEROS field shape
 
 #### Scenario: Declare NAMESPACE as the first tree level
 - **WHEN** a descriptor is returned

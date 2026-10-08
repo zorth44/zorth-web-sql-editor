@@ -50,6 +50,12 @@ class ArchitectureTest {
         .should().dependOnClassesThat().resideInAPackage("..engine.hive_kerberos..");
 
     @ArchTest
+    static final ArchRule orchestratorsDoNotDependOnIcebergEngine = noClasses()
+        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..script..", "..auth..", "..common..", "..agentapi..")
+        .and().resideOutsideOfPackage("..engine.iceberg..")
+        .should().dependOnClassesThat().resideInAPackage("..engine.iceberg..");
+
+    @ArchTest
     static final ArchRule engineDoesNotDependOnControllers = noClasses()
         .that().resideInAPackage("..engine..")
         .and().haveSimpleNameNotEndingWith("Controller")

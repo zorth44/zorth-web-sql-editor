@@ -18,6 +18,7 @@ import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
 import com.bocsoft.sqleditor.engine.hive.HiveEngineSupport;
 import com.bocsoft.sqleditor.engine.hive_kerberos.DisabledKerberosHiveConnector;
 import com.bocsoft.sqleditor.engine.hive_kerberos.HiveKerberosEngineSupport;
+import com.bocsoft.sqleditor.engine.iceberg.IcebergEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import java.time.Instant;
 import java.util.Collections;
@@ -38,11 +39,13 @@ class EngineCatalogTest {
             new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport(),
             new Gbase8aEngineSupport(new MysqlEngineSupport()),
             new HiveEngineSupport(),
-            new HiveKerberosEngineSupport(new DisabledKerberosHiveConnector(), new SqlEditorProperties())));
+            new HiveKerberosEngineSupport(new DisabledKerberosHiveConnector(), new SqlEditorProperties()),
+            new IcebergEngineSupport(new DisabledKerberosHiveConnector(),
+                new SqlEditorProperties())));
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
 
-    @Test void authenticatedCatalogReturnsMysqlPostgresqlGbase8aThenHive() throws Exception {
+    @Test void authenticatedCatalogReturnsSixEnginesInRegistryOrder() throws Exception {
         AuthContext context = new AuthContext("u", "user", "User", "p", "Product", Instant.now().plusSeconds(60));
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(context, null, Collections.emptyList()));
@@ -52,7 +55,7 @@ class EngineCatalogTest {
             .build();
         mvc.perform(get("/api/v1/engines").accept(MediaType.APPLICATION_JSON))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items.length()").value(5))
+            .andExpect(jsonPath("$.items.length()").value(6))
             .andExpect(jsonPath("$.items[0].id").value("MYSQL"))
             .andExpect(jsonPath("$.items[0].family").value("MYSQL_WIRE"))
             .andExpect(jsonPath("$.items[0].defaultPort").value(3306))
@@ -113,6 +116,23 @@ class EngineCatalogTest {
             .andExpect(jsonPath("$.items[4].connectionFields[2].kind").value("QUEUE"))
             .andExpect(jsonPath("$.items[4].connectionFields[3].kind").value("DEFAULT_NAMESPACE"))
             .andExpect(jsonPath("$.items[4].resourceTree[0].kind").value("NAMESPACE"))
+            .andExpect(jsonPath("$.items[5].id").value("ICEBERG"))
+            .andExpect(jsonPath("$.items[5].displayName").value("Iceberg"))
+            .andExpect(jsonPath("$.items[5].family").value("HIVE_WIRE"))
+            .andExpect(jsonPath("$.items[5].defaultPort").value(10000))
+            .andExpect(jsonPath("$.items[5].editorLanguage").value("hive"))
+            .andExpect(jsonPath("$.items[5].identifierQuote").value("`"))
+            .andExpect(jsonPath("$.items[5].connectionFields.length()").value(4))
+            .andExpect(jsonPath("$.items[5].connectionFields[0].name").value("environment"))
+            .andExpect(jsonPath("$.items[5].connectionFields[0].kind").value("ENVIRONMENT"))
+            .andExpect(jsonPath("$.items[5].connectionFields[0].required").value(true))
+            .andExpect(jsonPath("$.items[5].connectionFields[1].name").value("keytabFile"))
+            .andExpect(jsonPath("$.items[5].connectionFields[1].kind").value("KEYTAB"))
+            .andExpect(jsonPath("$.items[5].connectionFields[2].name").value("queueName"))
+            .andExpect(jsonPath("$.items[5].connectionFields[2].kind").value("QUEUE"))
+            .andExpect(jsonPath("$.items[5].connectionFields[3].kind").value("DEFAULT_NAMESPACE"))
+            .andExpect(jsonPath("$.items[5].resourceTree[0].kind").value("NAMESPACE"))
+            .andExpect(jsonPath("$.items[5].resourceTree[0].listEndpoint").value("databases"))
             .andExpect(jsonPath("$.items[0].password").doesNotExist())
             .andExpect(jsonPath("$.items[0].jdbcUrl").doesNotExist());
     }

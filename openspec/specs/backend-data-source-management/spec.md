@@ -38,7 +38,7 @@ The SQL service SHALL validate strict request DTOs and return `400 VALIDATION_FA
 - **THEN** the service SHALL require `engine` to be a registered engine id, a trimmed 1–100 character name, a protocol-free DNS/IPv4/IPv6 host of at most 255 characters, port 1–65535, a trimmed 1–128 character username, timeout 1–30 seconds, default database within the selected engine's identifier limit, description of at most 500 characters, and a password of at most 1024 characters
 
 #### Scenario: Validate Kerberos fields
-- **WHEN** a create or update is submitted for `engine=HIVE_KERBEROS`
+- **WHEN** a create or update is submitted for `engine=HIVE_KERBEROS` or `engine=ICEBERG`
 - **THEN** the service SHALL require the engine's descriptor-declared required fields (`environment`, `keytabFile`), SHALL validate `queueName` length when present, and SHALL NOT require `host`, `port`, `username`, `password`, or `sslMode`
 
 #### Scenario: Require PostgreSQL default database
@@ -140,7 +140,7 @@ The SQL service SHALL delete only the current product's matching ID and version 
 Unsaved connection-test request bodies MAY include `engine`. When present it SHALL be a registered engine id; when absent the service SHALL keep the previous MYSQL default.
 
 #### Scenario: Accept a registered engine on unsaved test
-- **WHEN** `POST /api/v1/data-sources:test` or `POST /api/v1/data-sources/{id}:test` with a body includes any registered engine id, including `HIVE_KERBEROS`
+- **WHEN** `POST /api/v1/data-sources:test` or `POST /api/v1/data-sources/{id}:test` with a body includes any registered engine id, including `HIVE_KERBEROS` and `ICEBERG`
 - **THEN** the service SHALL accept the field and test using that engine
 
 #### Scenario: Reject an unregistered engine on unsaved test

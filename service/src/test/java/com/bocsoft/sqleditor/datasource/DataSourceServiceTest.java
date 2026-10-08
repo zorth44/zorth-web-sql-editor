@@ -23,6 +23,7 @@ import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
 import com.bocsoft.sqleditor.engine.hive.HiveEngineSupport;
 import com.bocsoft.sqleditor.engine.hive_kerberos.DisabledKerberosHiveConnector;
 import com.bocsoft.sqleditor.engine.hive_kerberos.HiveKerberosEngineSupport;
+import com.bocsoft.sqleditor.engine.iceberg.IcebergEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -50,7 +51,8 @@ class DataSourceServiceTest {
         EngineRegistry engines = new EngineRegistry(java.util.Arrays.<EngineSupport>asList(
             mysql, new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport(), new Gbase8aEngineSupport(mysql),
             new HiveEngineSupport(),
-            new HiveKerberosEngineSupport(new DisabledKerberosHiveConnector(), p)));
+            new HiveKerberosEngineSupport(new DisabledKerberosHiveConnector(), p),
+            new IcebergEngineSupport(new DisabledKerberosHiveConnector(), p)));
         validator = new DataSourceValidator(engines);
         DataSourceResponseMapper responses = new DataSourceResponseMapper(json);
         service = new DataSourceService(mapper, validator, responses, new CredentialCipher(p), new CursorCodec(json, p), json,
@@ -201,6 +203,37 @@ class DataSourceServiceTest {
         assertThat(configuration.getEngine()).isEqualTo(EngineId.HIVE_KERBEROS);
         assertThat(configuration.getEnvironment()).isEqualTo("prod");
         assertThat(configuration.getKeytabFile()).isEqualTo("hive.keytab");
+        assertThat(configuration.getPassword()).isNull();
+    }
+
+    @Test void createsIcebergDataSourceWithoutPassword() throws Exception {
+        when(mapper.insert(any())).thenReturn(1);
+        CreateDataSourceRequest request = new CreateDataSourceRequest();
+        request.setName(" Iceberg ");
+        request.setEngine(EngineId.ICEBERG);
+        request.setEnvironment("prod");
+        request.setKeytabFile("iceberg.keytab");
+        request.setQueueName("etl");
+        Object response = service.create(auth, request);
+        ArgumentCaptor<DataSourceRecord> record = ArgumentCaptor.forClass(DataSourceRecord.class);
+        verify(mapper).insert(record.capture());
+        assertThat(record.getValue().getEngine()).isEqualTo(EngineId.ICEBERG);
+        assertThat(record.getValue().getEnvironment()).isEqualTo("prod");
+        assertThat(record.getValue().getKeytabFile()).isEqualTo("iceberg.keytab");
+        assertThat(record.getValue().getQueueName()).isEqualTo("etl");
+        assertThat(record.getValue().getPasswordCiphertext()).isNull();
+        assertThat(json.writeValueAsString(response)).contains("ICEBERG");
+    }
+
+    @Test void icebergUnsavedTestNeedsNoPasswordOrHost() {
+        ConnectionRequest request = new ConnectionRequest();
+        request.setEngine(EngineId.ICEBERG);
+        request.setEnvironment("prod");
+        request.setKeytabFile("iceberg.keytab");
+        ConnectionConfiguration configuration = validator.connection(request, null, true);
+        assertThat(configuration.getEngine()).isEqualTo(EngineId.ICEBERG);
+        assertThat(configuration.getEnvironment()).isEqualTo("prod");
+        assertThat(configuration.getKeytabFile()).isEqualTo("iceberg.keytab");
         assertThat(configuration.getPassword()).isNull();
     }
 

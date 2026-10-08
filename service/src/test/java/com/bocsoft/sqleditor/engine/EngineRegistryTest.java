@@ -10,6 +10,7 @@ import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
 import com.bocsoft.sqleditor.engine.hive.HiveEngineSupport;
 import com.bocsoft.sqleditor.engine.hive_kerberos.DisabledKerberosHiveConnector;
 import com.bocsoft.sqleditor.engine.hive_kerberos.HiveKerberosEngineSupport;
+import com.bocsoft.sqleditor.engine.iceberg.IcebergEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport;
 import java.util.Arrays;
@@ -20,20 +21,23 @@ class EngineRegistryTest {
     private final EngineRegistry registry = new EngineRegistry(Arrays.<EngineSupport>asList(
         new MysqlEngineSupport(), new PostgresEngineSupport(),
         new Gbase8aEngineSupport(new MysqlEngineSupport()), new HiveEngineSupport(),
-        new HiveKerberosEngineSupport(new DisabledKerberosHiveConnector(), new SqlEditorProperties())));
+        new HiveKerberosEngineSupport(new DisabledKerberosHiveConnector(), new SqlEditorProperties()),
+        new IcebergEngineSupport(new DisabledKerberosHiveConnector(), new SqlEditorProperties())));
 
-    @Test void registersMysqlPostgresGbaseHiveAndKerberos() {
+    @Test void registersMysqlPostgresGbaseHiveKerberosAndIceberg() {
         assertThat(registry.registered(EngineId.MYSQL)).isTrue();
         assertThat(registry.registered(EngineId.POSTGRESQL)).isTrue();
         assertThat(registry.registered(EngineId.GBASE_8A)).isTrue();
         assertThat(registry.registered(EngineId.HIVE)).isTrue();
         assertThat(registry.registered(EngineId.HIVE_KERBEROS)).isTrue();
+        assertThat(registry.registered(EngineId.ICEBERG)).isTrue();
         assertThat(registry.require(EngineId.HIVE).id()).isEqualTo(EngineId.HIVE);
         assertThat(registry.require(EngineId.HIVE_KERBEROS).id()).isEqualTo(EngineId.HIVE_KERBEROS);
+        assertThat(registry.require(EngineId.ICEBERG).id()).isEqualTo(EngineId.ICEBERG);
     }
 
     @Test void requireRejectsUnregisteredEngine() {
-        assertThatThrownBy(() -> registry.require("ICEBERG")).isInstanceOfSatisfying(ApiException.class, e -> {
+        assertThatThrownBy(() -> registry.require("ORACLE")).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
         });
         assertThatThrownBy(() -> registry.require("GBASE_8C")).isInstanceOfSatisfying(ApiException.class, e -> {
