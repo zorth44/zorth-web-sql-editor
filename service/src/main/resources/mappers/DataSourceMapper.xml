@@ -16,6 +16,9 @@
     <result property="sslMode" column="ssl_mode"/>
     <result property="connectTimeoutSeconds" column="connect_timeout_seconds"/>
     <result property="propertiesJson" column="properties_json"/>
+    <result property="environment" column="environment"/>
+    <result property="keytabFile" column="keytab_file"/>
+    <result property="queueName" column="queue_name"/>
     <result property="description" column="description"/>
     <result property="lastTestStatus" column="last_test_status"/>
     <result property="lastTestAt" column="last_test_at"/>
@@ -30,14 +33,15 @@
   </resultMap>
   <sql id="columns">id, product_id, name, engine, host, port, username, password_ciphertext,
     password_iv, key_version, default_database, ssl_mode, connect_timeout_seconds, properties_json,
-    description, last_test_status, last_test_at, last_test_message, version, created_by,
-    created_by_name, created_at, updated_by, updated_by_name, updated_at</sql>
+    environment, keytab_file, queue_name, description, last_test_status, last_test_at, last_test_message,
+    version, created_by, created_by_name, created_at, updated_by, updated_by_name, updated_at</sql>
 
   <insert id="insert">
     INSERT INTO sql_data_source (<include refid="columns"/>) VALUES
     (#{id}, #{productId}, #{name}, #{engine}, #{host}, #{port}, #{username},
      #{passwordCiphertext}, #{passwordIv}, #{keyVersion}, #{defaultDatabase}, #{sslMode},
-     #{connectTimeoutSeconds}, CAST(#{propertiesJson} AS JSON), #{description}, #{lastTestStatus},
+     #{connectTimeoutSeconds}, CAST(#{propertiesJson} AS JSON), #{environment}, #{keytabFile},
+     #{queueName}, #{description}, #{lastTestStatus},
      #{lastTestAt}, #{lastTestMessage}, #{version}, #{createdBy}, #{createdByName}, #{createdAt},
      #{updatedBy}, #{updatedByName}, #{updatedAt})
   </insert>
@@ -65,6 +69,7 @@
       username=#{username}, password_ciphertext=#{passwordCiphertext}, password_iv=#{passwordIv},
       key_version=#{keyVersion}, default_database=#{defaultDatabase}, ssl_mode=#{sslMode},
       connect_timeout_seconds=#{connectTimeoutSeconds}, properties_json=CAST(#{propertiesJson} AS JSON),
+      environment=#{environment}, keytab_file=#{keytabFile}, queue_name=#{queueName},
       description=#{description}, version=version+1, updated_by=#{updatedBy},
       updated_by_name=#{updatedByName}, updated_at=#{updatedAt}
     WHERE id=#{id} AND product_id=#{productId} AND version=#{version}

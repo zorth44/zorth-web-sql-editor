@@ -124,7 +124,7 @@ class BackendIntegrationTest {
     @Test void gbase8aRegistersWithoutOpeningMysqlLiveJdbc()throws Exception{
         mvc.perform(get("/api/v1/engines").header("Authorization","Bearer token-a"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items.length()").value(4))
+            .andExpect(jsonPath("$.items.length()").value(5))
             .andExpect(jsonPath("$.items[2].id").value("GBASE_8A"))
             .andExpect(jsonPath("$.items[2].family").value("MYSQL_WIRE"))
             .andExpect(jsonPath("$.items[2].defaultPort").value(5258))
@@ -133,7 +133,13 @@ class BackendIntegrationTest {
             .andExpect(jsonPath("$.items[3].family").value("HIVE_WIRE"))
             .andExpect(jsonPath("$.items[3].defaultPort").value(10000))
             .andExpect(jsonPath("$.items[3].editorLanguage").value("hive"))
-            .andExpect(jsonPath("$.items[3].resourceTree[0].label").value("数据库"));
+            .andExpect(jsonPath("$.items[3].resourceTree[0].label").value("数据库"))
+            .andExpect(jsonPath("$.items[4].id").value("HIVE_KERBEROS"))
+            .andExpect(jsonPath("$.items[4].family").value("HIVE_WIRE"))
+            .andExpect(jsonPath("$.items[4].editorLanguage").value("hive"))
+            .andExpect(jsonPath("$.items[4].connectionFields[0].kind").value("ENVIRONMENT"))
+            .andExpect(jsonPath("$.items[4].connectionFields[1].kind").value("KEYTAB"))
+            .andExpect(jsonPath("$.items[4].connectionFields[2].kind").value("QUEUE"));
         JsonNode created=json.readTree(mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer token-a")
             .contentType(MediaType.APPLICATION_JSON).content(gbase8aPayload("GBase 8a 源")))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
@@ -143,6 +149,26 @@ class BackendIntegrationTest {
                 .param("database","demo").param("table","orders").header("Authorization","Bearer token-a"))
             .andExpect(status().isUnprocessableEntity())
             .andExpect(jsonPath("$.code").value("CAPABILITY_NOT_SUPPORTED"));
+    }
+
+    @Test void kerberosDataSourcePersistsWithoutPasswordAndFailsClosedWithoutVendorComponents()throws Exception{
+        JsonNode created=json.readTree(mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer token-a")
+            .contentType(MediaType.APPLICATION_JSON).content(kerberosPayload("Kerberos Hive 源")))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(created.path("engine").asText()).isEqualTo("HIVE_KERBEROS");
+        assertThat(created.path("environment").asText()).isEqualTo("prod");
+        assertThat(created.path("keytabFile").asText()).isEqualTo("hive.keytab");
+        assertThat(created.path("queueName").asText()).isEqualTo("etl");
+        assertThat(created.path("passwordConfigured").asBoolean()).isFalse();
+        assertThat(created.toString()).doesNotContain("/opt/keytab").doesNotContain("/etc/krb5.conf");
+
+        mvc.perform(post("/api/v1/data-sources:test").header("Authorization","Bearer token-a")
+                .contentType(MediaType.APPLICATION_JSON).content(kerberosTestPayload()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("FAILED"))
+            .andExpect(jsonPath("$.failureCode").value("CONNECTION_FAILED"))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("hive.keytab"))))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/opt/"))));
     }
 
     private void executeSelect(String dataSourceId,String database,String sql)throws Exception{
@@ -454,6 +480,8 @@ class BackendIntegrationTest {
     private static String payload(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
     private static String payloadWithoutDefaultDatabase(String name,String password){return "{\"name\":\""+name+"\",\"engine\":\"MYSQL\",\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"integration\"}";}
     private static String gbase8aPayload(String name){return "{\"name\":\""+name+"\",\"engine\":\"GBASE_8A\",\"host\":\"127.0.0.1\",\"port\":5258,\"username\":\"gbase\",\"password\":\"secret\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"},\"description\":\"gbase8a\"}";}
+    private static String kerberosPayload(String name){return "{\"name\":\""+name+"\",\"engine\":\"HIVE_KERBEROS\",\"environment\":\"prod\",\"keytabFile\":\"hive.keytab\",\"queueName\":\"etl\",\"properties\":{}}";}
+    private static String kerberosTestPayload(){return "{\"engine\":\"HIVE_KERBEROS\",\"environment\":\"prod\",\"keytabFile\":\"hive.keytab\",\"queueName\":\"etl\",\"properties\":{}}";}
     private static String connectionPayload(String password){return "{\"host\":\"127.0.0.1\",\"port\":"+MYSQL.getMappedPort(3306)+",\"username\":\""+MYSQL.getUsername()+"\",\"password\":\""+password+"\",\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\",\"sslMode\":\"DISABLED\",\"connectTimeoutSeconds\":10,\"properties\":{\"serverTimezone\":\"UTC\"}}";}
     private static String connectionPayloadDatabase(String password,String database){return connectionPayload(password).replace("\"defaultDatabase\":\""+MYSQL.getDatabaseName()+"\"","\"defaultDatabase\":\""+database+"\"");}
     private static String connectionPayloadPort(String password,int port){return connectionPayload(password).replace("\"port\":"+MYSQL.getMappedPort(3306),"\"port\":"+port);}

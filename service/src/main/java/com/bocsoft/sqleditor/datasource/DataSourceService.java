@@ -27,6 +27,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -81,7 +82,9 @@ public class DataSourceService {
     @Transactional
     public DataSourceDetailResponse create(AuthContext auth,CreateDataSourceRequest request){
         validator.validateCreate(request);
-        Instant now=clock.instant(); EncryptedCredential secret=cipher.encrypt(request.getPassword());
+        Instant now=clock.instant();
+        EncryptedCredential secret=StringUtils.hasLength(request.getPassword())
+            ? cipher.encrypt(request.getPassword()) : new EncryptedCredential(null,null,null);
         DataSourceRecord record=new DataSourceRecord(); record.setId(UUID.randomUUID().toString());
         record.setProductId(auth.getProductId()); apply(record,request,secret);
         record.setVersion(1); record.setCreatedBy(auth.getUserId()); record.setCreatedByName(auth.getDisplayName());
@@ -131,16 +134,26 @@ public class DataSourceService {
     }
 
     DataSourceRecord require(AuthContext auth,String id){ DataSourceRecord r=mapper.findVisible(id,auth.getProductId()); if(r==null)throw ApiException.notFound(); return r; }
-    String decrypt(DataSourceRecord r){ return cipher.decrypt(r.getPasswordCiphertext(),r.getPasswordIv(),r.getKeyVersion()); }
-    ConnectionConfiguration configuration(DataSourceRecord r,String password){ return new ConnectionConfiguration(r.getEngine(),r.getHost(),r.getPort(),r.getUsername(),password,r.getDefaultDatabase(),r.getSslMode(),r.getConnectTimeoutSeconds(),responses.readProperties(r.getPropertiesJson())); }
+    String decrypt(DataSourceRecord r){
+        if(r.getPasswordCiphertext()==null||r.getPasswordCiphertext().isEmpty())return null;
+        return cipher.decrypt(r.getPasswordCiphertext(),r.getPasswordIv(),r.getKeyVersion());
+    }
+    ConnectionConfiguration configuration(DataSourceRecord r,String password){ return new ConnectionConfiguration(r.getEngine(),r.getHost(),r.getPort(),r.getUsername(),password,r.getDefaultDatabase(),r.getSslMode(),r.getConnectTimeoutSeconds(),responses.readProperties(r.getPropertiesJson()),r.getEnvironment(),r.getKeytabFile(),r.getQueueName()); }
 
     private void apply(DataSourceRecord record,ConnectionRequest request,EncryptedCredential secret){
         record.setName(validator.trim(request instanceof CreateDataSourceRequest?((CreateDataSourceRequest)request).getName():((UpdateDataSourceRequest)request).getName()));
         record.setEngine(request.getEngine());
-        record.setHost(validator.trim(request.getHost())); record.setPort(request.getPort()); record.setUsername(validator.trim(request.getUsername()));
+        record.setHost(validator.trim(request.getHost()));
+        record.setPort(request.getPort()==null?0:request.getPort().intValue());
+        record.setUsername(validator.trim(request.getUsername()));
         record.setPasswordCiphertext(secret.getCiphertext()); record.setPasswordIv(secret.getIv()); record.setKeyVersion(secret.getKeyVersion());
-        record.setDefaultDatabase(validator.blankToNull(request.getDefaultDatabase())); record.setSslMode(request.getSslMode());
-        record.setConnectTimeoutSeconds(request.getConnectTimeoutSeconds()); record.setPropertiesJson(writeProperties(validator.properties(request)));
+        record.setDefaultDatabase(validator.blankToNull(request.getDefaultDatabase()));
+        record.setSslMode(StringUtils.hasText(request.getSslMode())?request.getSslMode():"DISABLED");
+        record.setConnectTimeoutSeconds(request.getConnectTimeoutSeconds()==null?10:request.getConnectTimeoutSeconds().intValue());
+        record.setEnvironment(validator.blankToNull(request.getEnvironment()));
+        record.setKeytabFile(validator.blankToNull(request.getKeytabFile()));
+        record.setQueueName(validator.blankToNull(request.getQueueName()));
+        record.setPropertiesJson(writeProperties(validator.properties(request)));
         String description=request instanceof CreateDataSourceRequest?((CreateDataSourceRequest)request).getDescription():((UpdateDataSourceRequest)request).getDescription();
         record.setDescription(validator.blankToNull(description));
     }

@@ -21,3 +21,4 @@ npm-debug.log*
 
 service/third-party/gbase/*.jar
 service/third-party/hive/*.jar
+service/third-party/hive-auth/*.jar

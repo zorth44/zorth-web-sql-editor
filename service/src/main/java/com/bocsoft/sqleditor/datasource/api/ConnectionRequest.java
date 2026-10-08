@@ -6,22 +6,23 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 
 public class ConnectionRequest {
-    @NotBlank @Size(max=255) private String host;
-    @NotNull @Min(1) @Max(65535) private Integer port;
-    @NotBlank @Size(max=128) private String username;
+    @Size(max=255) private String host;
+    @Min(1) @Max(65535) private Integer port;
+    @Size(max=128) private String username;
     @Size(max=1024) @Schema(accessMode = Schema.AccessMode.WRITE_ONLY)
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
     @Size(max=64) private String defaultDatabase;
-    @NotBlank private String sslMode;
-    @NotNull @Min(1) @Max(30) private Integer connectTimeoutSeconds;
-    @NotNull private Map<String, String> properties = new LinkedHashMap<String, String>();
+    private String sslMode;
+    @Min(1) @Max(30) private Integer connectTimeoutSeconds;
+    private Map<String, String> properties = new LinkedHashMap<String, String>();
     private String engine;
+    @Size(max=32) private String environment;
+    @Size(max=255) private String keytabFile;
+    @Size(max=128) private String queueName;
     public String getHost() { return host; } public void setHost(String v) { host=v; }
     public Integer getPort() { return port; } public void setPort(Integer v) { port=v; }
     public String getUsername() { return username; } public void setUsername(String v) { username=v; }
@@ -31,4 +32,7 @@ public class ConnectionRequest {
     public Integer getConnectTimeoutSeconds() { return connectTimeoutSeconds; } public void setConnectTimeoutSeconds(Integer v) { connectTimeoutSeconds=v; }
     public Map<String, String> getProperties() { return properties; } public void setProperties(Map<String, String> v) { properties=v; }
     public String getEngine() { return engine; } public void setEngine(String v) { engine=v; }
+    public String getEnvironment() { return environment; } public void setEnvironment(String v) { environment=v; }
+    public String getKeytabFile() { return keytabFile; } public void setKeytabFile(String v) { keytabFile=v; }
+    public String getQueueName() { return queueName; } public void setQueueName(String v) { queueName=v; }
 }

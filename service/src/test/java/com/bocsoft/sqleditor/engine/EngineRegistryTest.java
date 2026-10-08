@@ -4,9 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bocsoft.sqleditor.common.ApiException;
+import com.bocsoft.sqleditor.config.SqlEditorProperties;
 import com.bocsoft.sqleditor.datasource.connection.ConnectionConfiguration;
 import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
 import com.bocsoft.sqleditor.engine.hive.HiveEngineSupport;
+import com.bocsoft.sqleditor.engine.hive_kerberos.DisabledKerberosHiveConnector;
+import com.bocsoft.sqleditor.engine.hive_kerberos.HiveKerberosEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport;
 import java.util.Arrays;
@@ -16,20 +19,20 @@ import org.junit.jupiter.api.Test;
 class EngineRegistryTest {
     private final EngineRegistry registry = new EngineRegistry(Arrays.<EngineSupport>asList(
         new MysqlEngineSupport(), new PostgresEngineSupport(),
-        new Gbase8aEngineSupport(new MysqlEngineSupport()), new HiveEngineSupport()));
+        new Gbase8aEngineSupport(new MysqlEngineSupport()), new HiveEngineSupport(),
+        new HiveKerberosEngineSupport(new DisabledKerberosHiveConnector(), new SqlEditorProperties())));
 
-    @Test void registersMysqlPostgresGbaseAndHive() {
+    @Test void registersMysqlPostgresGbaseHiveAndKerberos() {
         assertThat(registry.registered(EngineId.MYSQL)).isTrue();
         assertThat(registry.registered(EngineId.POSTGRESQL)).isTrue();
         assertThat(registry.registered(EngineId.GBASE_8A)).isTrue();
         assertThat(registry.registered(EngineId.HIVE)).isTrue();
+        assertThat(registry.registered(EngineId.HIVE_KERBEROS)).isTrue();
         assertThat(registry.require(EngineId.HIVE).id()).isEqualTo(EngineId.HIVE);
+        assertThat(registry.require(EngineId.HIVE_KERBEROS).id()).isEqualTo(EngineId.HIVE_KERBEROS);
     }
 
     @Test void requireRejectsUnregisteredEngine() {
-        assertThatThrownBy(() -> registry.require("HIVE_KERBEROS")).isInstanceOfSatisfying(ApiException.class, e -> {
-            assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
-        });
         assertThatThrownBy(() -> registry.require("ICEBERG")).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
         });
@@ -39,9 +42,6 @@ class EngineRegistryTest {
     }
 
     @Test void requireSavedFailsClosedForUnknownPersistedEngine() {
-        assertThatThrownBy(() -> registry.requireSaved("HIVE_KERBEROS")).isInstanceOfSatisfying(ApiException.class, e -> {
-            assertThat(e.getCode()).isEqualTo("ENGINE_NOT_SUPPORTED");
-        });
         assertThatThrownBy(() -> registry.requireSaved("ORACLE")).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.getCode()).isEqualTo("ENGINE_NOT_SUPPORTED");
         });

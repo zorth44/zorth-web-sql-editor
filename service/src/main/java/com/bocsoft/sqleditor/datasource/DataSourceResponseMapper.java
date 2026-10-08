@@ -41,6 +41,8 @@ public class DataSourceResponseMapper {
         result.setHost(record.getHost()); result.setPort(record.getPort()); result.setUsername(record.getUsername());
         result.setPasswordConfigured(record.getPasswordCiphertext()!=null && !record.getPasswordCiphertext().isEmpty());
         result.setDefaultDatabase(record.getDefaultDatabase()); result.setSslMode(record.getSslMode());
+        result.setEnvironment(record.getEnvironment()); result.setKeytabFile(record.getKeytabFile());
+        result.setQueueName(record.getQueueName());
         result.setLastTestStatus(record.getLastTestStatus()); result.setLastTestAt(record.getLastTestAt());
         result.setVersion(record.getVersion()); result.setUpdatedBy(record.getUpdatedBy());
         result.setUpdatedByName(record.getUpdatedByName()); result.setUpdatedAt(record.getUpdatedAt());

@@ -12,6 +12,7 @@ import com.bocsoft.sqleditor.metadata.api.TableConstraintMetadata;
 import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
 import com.bocsoft.sqleditor.metadata.api.TableItem;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,20 @@ public interface EngineSupport {
     Map<String, String> validateProperties(Map<String, String> properties);
     JdbcTarget buildJdbc(ConnectionConfiguration configuration, ResolvedTarget resolved);
     ConnectionFailure classifyConnectionFailure(Throwable failure);
+
+    default boolean requiresHostResolution() {
+        return true;
+    }
+
+    default boolean usesPooledConnections() {
+        return true;
+    }
+
+    default Connection openConnection(JdbcTarget target) throws SQLException {
+        List<String> urls = target.getUrls();
+        if (urls.isEmpty()) throw new SQLException("No JDBC URL is available for this target");
+        return DriverManager.getConnection(urls.get(0), target.copyProperties());
+    }
     String jdbcUrlWithoutNamespace(String url);
     void verifyDefaultNamespace(Connection connection, String defaultNamespace) throws SQLException;
 

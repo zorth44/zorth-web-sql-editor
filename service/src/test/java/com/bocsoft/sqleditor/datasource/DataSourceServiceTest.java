@@ -11,6 +11,7 @@ import com.bocsoft.sqleditor.common.SqlEditorMetrics;
 import com.bocsoft.sqleditor.config.SqlEditorProperties;
 import com.bocsoft.sqleditor.datasource.api.ConnectionRequest;
 import com.bocsoft.sqleditor.datasource.api.CreateDataSourceRequest;
+import com.bocsoft.sqleditor.datasource.connection.ConnectionConfiguration;
 import com.bocsoft.sqleditor.datasource.connection.CredentialCipher;
 import com.bocsoft.sqleditor.datasource.connection.ShortLivedConnectionTester;
 import com.bocsoft.sqleditor.datasource.persistence.DataSourceMapper;
@@ -20,6 +21,8 @@ import com.bocsoft.sqleditor.engine.EngineRegistry;
 import com.bocsoft.sqleditor.engine.EngineSupport;
 import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
 import com.bocsoft.sqleditor.engine.hive.HiveEngineSupport;
+import com.bocsoft.sqleditor.engine.hive_kerberos.DisabledKerberosHiveConnector;
+import com.bocsoft.sqleditor.engine.hive_kerberos.HiveKerberosEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -46,7 +49,8 @@ class DataSourceServiceTest {
         MysqlEngineSupport mysql = new MysqlEngineSupport();
         EngineRegistry engines = new EngineRegistry(java.util.Arrays.<EngineSupport>asList(
             mysql, new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport(), new Gbase8aEngineSupport(mysql),
-            new HiveEngineSupport()));
+            new HiveEngineSupport(),
+            new HiveKerberosEngineSupport(new DisabledKerberosHiveConnector(), p)));
         validator = new DataSourceValidator(engines);
         DataSourceResponseMapper responses = new DataSourceResponseMapper(json);
         service = new DataSourceService(mapper, validator, responses, new CredentialCipher(p), new CursorCodec(json, p), json,
@@ -71,7 +75,38 @@ class DataSourceServiceTest {
 
     @Test void rejectsUnregisteredEngineOnCreate() {
         CreateDataSourceRequest request = request();
-        request.setEngine("HIVE_KERBEROS");
+        request.setEngine("ORACLE");
+        assertThatThrownBy(() -> service.create(auth, request)).isInstanceOfSatisfying(ApiException.class, e -> {
+            assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
+        });
+        verifyNoInteractions(mapper);
+    }
+
+    @Test void createsKerberosDataSourceWithoutPassword() throws Exception {
+        when(mapper.insert(any())).thenReturn(1);
+        CreateDataSourceRequest request = new CreateDataSourceRequest();
+        request.setName(" Kerberos Hive ");
+        request.setEngine(EngineId.HIVE_KERBEROS);
+        request.setEnvironment("prod");
+        request.setKeytabFile("hive.keytab");
+        request.setQueueName("etl");
+        Object response = service.create(auth, request);
+        ArgumentCaptor<DataSourceRecord> record = ArgumentCaptor.forClass(DataSourceRecord.class);
+        verify(mapper).insert(record.capture());
+        assertThat(record.getValue().getEngine()).isEqualTo(EngineId.HIVE_KERBEROS);
+        assertThat(record.getValue().getEnvironment()).isEqualTo("prod");
+        assertThat(record.getValue().getKeytabFile()).isEqualTo("hive.keytab");
+        assertThat(record.getValue().getQueueName()).isEqualTo("etl");
+        assertThat(record.getValue().getPasswordCiphertext()).isNull();
+        String serialized = json.writeValueAsString(response);
+        assertThat(serialized).contains("HIVE_KERBEROS").contains("prod").contains("hive.keytab");
+        assertThat(serialized).doesNotContain("passwordCiphertext").doesNotContain("keytabPath");
+    }
+
+    @Test void kerberosCreateRequiresEnvironmentAndKeytab() {
+        CreateDataSourceRequest request = new CreateDataSourceRequest();
+        request.setName("Kerberos");
+        request.setEngine(EngineId.HIVE_KERBEROS);
         assertThatThrownBy(() -> service.create(auth, request)).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
         });
@@ -144,7 +179,7 @@ class DataSourceServiceTest {
 
     @Test void unsavedConnectionTestRejectsUnregisteredEngine() {
         ConnectionRequest request = new ConnectionRequest();
-        request.setEngine("HIVE_KERBEROS");
+        request.setEngine("ORACLE");
         request.setHost("mysql.internal");
         request.setPort(3306);
         request.setUsername("user");
@@ -155,6 +190,18 @@ class DataSourceServiceTest {
         assertThatThrownBy(() -> validator.connection(request, "secret", true)).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
         });
+    }
+
+    @Test void kerberosUnsavedTestNeedsNoPasswordOrHost() {
+        ConnectionRequest request = new ConnectionRequest();
+        request.setEngine(EngineId.HIVE_KERBEROS);
+        request.setEnvironment("prod");
+        request.setKeytabFile("hive.keytab");
+        ConnectionConfiguration configuration = validator.connection(request, null, true);
+        assertThat(configuration.getEngine()).isEqualTo(EngineId.HIVE_KERBEROS);
+        assertThat(configuration.getEnvironment()).isEqualTo("prod");
+        assertThat(configuration.getKeytabFile()).isEqualTo("hive.keytab");
+        assertThat(configuration.getPassword()).isNull();
     }
 
     @Test void scopesListAndInvisibleReadsByProduct() {

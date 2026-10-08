@@ -27,6 +27,7 @@ public class SqlEditorProperties {
     @Valid private final History history = new History();
     @Valid private final Scripts scripts = new Scripts();
     @Valid private final Http http = new Http();
+    @Valid private final Kerberos kerberos = new Kerberos();
 
     public Auth getAuth() { return auth; }
     public Credentials getCredentials() { return credentials; }
@@ -40,6 +41,7 @@ public class SqlEditorProperties {
     public History getHistory() { return history; }
     public Scripts getScripts() { return scripts; }
     public Http getHttp() { return http; }
+    public Kerberos getKerberos() { return kerberos; }
 
     @PostConstruct
     public void validateConfiguration() {
@@ -67,6 +69,27 @@ public class SqlEditorProperties {
         validateCidrs(network.allowedCidrs);
         validateCidrs(network.deniedCidrs);
         validateCidrs(http.trustedProxyCidrs);
+        validateKerberos();
+    }
+
+    private void validateKerberos() {
+        boolean present = hasText(kerberos.keytabBasePath) || !kerberos.environments.isEmpty();
+        if (!present) return;
+        if (!hasText(kerberos.keytabBasePath)) {
+            throw new IllegalStateException("Kerberos keytab base path is required when Kerberos configuration is present");
+        }
+        for (Map.Entry<String, Kerberos.Environment> entry : kerberos.environments.entrySet()) {
+            Kerberos.Environment environment = entry.getValue();
+            if (environment == null || !hasText(environment.realm)
+                || !hasText(environment.zookeeperQuorum) || !hasText(environment.krb5Conf)) {
+                throw new IllegalStateException("Kerberos environment " + entry.getKey()
+                    + " requires realm, zookeeper quorum and krb5.conf");
+            }
+        }
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private void validateKeyMaterial(Map<String,String> values,String label,boolean exactly32){for(Map.Entry<String,String> entry:values.entrySet()){byte[] decoded;try{decoded=java.util.Base64.getDecoder().decode(entry.getValue());}catch(IllegalArgumentException exception){throw new IllegalStateException(label+" is not valid Base64");}if(exactly32&&decoded.length!=32)throw new IllegalStateException(label+" must be exactly 256 bits");}}
@@ -236,5 +259,35 @@ public class SqlEditorProperties {
         private List<String> trustedProxyCidrs = new ArrayList<String>();
         public List<String> getTrustedProxyCidrs() { return trustedProxyCidrs; }
         public void setTrustedProxyCidrs(List<String> v) { trustedProxyCidrs = v; }
+    }
+
+    public static class Kerberos {
+        private String keytabBasePath;
+        private Map<String, Environment> environments = new LinkedHashMap<String, Environment>();
+        public String getKeytabBasePath() { return keytabBasePath; }
+        public void setKeytabBasePath(String v) { keytabBasePath = v; }
+        public Map<String, Environment> getEnvironments() { return environments; }
+        public void setEnvironments(Map<String, Environment> v) { environments = v == null ? new LinkedHashMap<String, Environment>() : v; }
+        public Environment environment(String name) {
+            return name == null ? null : environments.get(name);
+        }
+
+        public static class Environment {
+            private String zookeeperQuorum;
+            private String krb5Conf;
+            private String realm;
+            private String principalTemplate = "hadoop/_HOST@{realm}";
+            private String zookeeperNamespace = "hiveserver2";
+            public String getZookeeperQuorum() { return zookeeperQuorum; }
+            public void setZookeeperQuorum(String v) { zookeeperQuorum = v; }
+            public String getKrb5Conf() { return krb5Conf; }
+            public void setKrb5Conf(String v) { krb5Conf = v; }
+            public String getRealm() { return realm; }
+            public void setRealm(String v) { realm = v; }
+            public String getPrincipalTemplate() { return principalTemplate; }
+            public void setPrincipalTemplate(String v) { principalTemplate = v; }
+            public String getZookeeperNamespace() { return zookeeperNamespace; }
+            public void setZookeeperNamespace(String v) { zookeeperNamespace = v; }
+        }
     }
 }

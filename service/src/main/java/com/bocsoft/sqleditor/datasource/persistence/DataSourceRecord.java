@@ -17,6 +17,9 @@ public class DataSourceRecord {
     private String sslMode;
     private int connectTimeoutSeconds;
     private String propertiesJson;
+    private String environment;
+    private String keytabFile;
+    private String queueName;
     private String description;
     private String lastTestStatus;
     private Instant lastTestAt;
@@ -43,6 +46,9 @@ public class DataSourceRecord {
     public String getSslMode() { return sslMode; } public void setSslMode(String v) { sslMode=v; }
     public int getConnectTimeoutSeconds() { return connectTimeoutSeconds; } public void setConnectTimeoutSeconds(int v) { connectTimeoutSeconds=v; }
     public String getPropertiesJson() { return propertiesJson; } public void setPropertiesJson(String v) { propertiesJson=v; }
+    public String getEnvironment() { return environment; } public void setEnvironment(String v) { environment=v; }
+    public String getKeytabFile() { return keytabFile; } public void setKeytabFile(String v) { keytabFile=v; }
+    public String getQueueName() { return queueName; } public void setQueueName(String v) { queueName=v; }
     public String getDescription() { return description; } public void setDescription(String v) { description=v; }
     public String getLastTestStatus() { return lastTestStatus; } public void setLastTestStatus(String v) { lastTestStatus=v; }
     public Instant getLastTestAt() { return lastTestAt; } public void setLastTestAt(Instant v) { lastTestAt=v; }

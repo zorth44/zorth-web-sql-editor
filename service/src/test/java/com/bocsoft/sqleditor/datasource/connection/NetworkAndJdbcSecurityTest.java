@@ -27,6 +27,17 @@ class NetworkAndJdbcSecurityTest {
     private final EngineRegistry engines = new EngineRegistry(
         java.util.Arrays.<EngineSupport>asList(mysql, postgres, gbase8a, hive));
 
+    @Test void pooledEnginesKeepHostResolutionAndPooledConnections() {
+        assertThat(mysql.requiresHostResolution()).isTrue();
+        assertThat(mysql.usesPooledConnections()).isTrue();
+        assertThat(postgres.requiresHostResolution()).isTrue();
+        assertThat(postgres.usesPooledConnections()).isTrue();
+        assertThat(gbase8a.requiresHostResolution()).isTrue();
+        assertThat(gbase8a.usesPooledConnections()).isTrue();
+        assertThat(hive.requiresHostResolution()).isTrue();
+        assertThat(hive.usesPooledConnections()).isTrue();
+    }
+
     @Test void handlesIpv4AndIpv6CidrBoundaries()throws Exception{
         CidrBlock v4=CidrBlock.parse("10.0.0.0/8");
         assertThat(v4.contains(InetAddress.getByName("10.255.1.2"))).isTrue();

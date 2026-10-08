@@ -81,6 +81,9 @@ sql-editor:
     max-per-user: ${SQL_EDITOR_SCRIPTS_MAX_PER_USER:200}
   http:
     trusted-proxy-cidrs: []
+  kerberos:
+    keytab-base-path: ${SQL_EDITOR_KERBEROS_KEYTAB_BASE_PATH:}
+    environments: {}
 
 management:
   server:

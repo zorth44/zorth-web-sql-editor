@@ -7,6 +7,7 @@ public class DataSourceListItemResponse {
     private String username; private boolean passwordConfigured; private String defaultDatabase;
     private String sslMode; private String lastTestStatus; private Instant lastTestAt; private long version;
     private String updatedBy; private String updatedByName; private Instant updatedAt;
+    private String environment; private String keytabFile; private String queueName;
     public String getId() { return id; } public void setId(String v) { id=v; }
     public String getName() { return name; } public void setName(String v) { name=v; }
     public String getEngine() { return engine; } public void setEngine(String v) { engine=v; }
@@ -22,4 +23,7 @@ public class DataSourceListItemResponse {
     public String getUpdatedBy() { return updatedBy; } public void setUpdatedBy(String v) { updatedBy=v; }
     public String getUpdatedByName() { return updatedByName; } public void setUpdatedByName(String v) { updatedByName=v; }
     public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt=v; }
+    public String getEnvironment() { return environment; } public void setEnvironment(String v) { environment=v; }
+    public String getKeytabFile() { return keytabFile; } public void setKeytabFile(String v) { keytabFile=v; }
+    public String getQueueName() { return queueName; } public void setQueueName(String v) { queueName=v; }
 }

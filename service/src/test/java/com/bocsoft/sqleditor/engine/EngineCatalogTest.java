@@ -13,8 +13,11 @@ import com.bocsoft.sqleditor.auth.AuthContextResolver;
 import com.bocsoft.sqleditor.common.ApiException;
 import com.bocsoft.sqleditor.common.GlobalExceptionHandler;
 import com.bocsoft.sqleditor.common.RequestIdFilter;
+import com.bocsoft.sqleditor.config.SqlEditorProperties;
 import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
 import com.bocsoft.sqleditor.engine.hive.HiveEngineSupport;
+import com.bocsoft.sqleditor.engine.hive_kerberos.DisabledKerberosHiveConnector;
+import com.bocsoft.sqleditor.engine.hive_kerberos.HiveKerberosEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import java.time.Instant;
 import java.util.Collections;
@@ -34,7 +37,8 @@ class EngineCatalogTest {
             new MysqlEngineSupport(),
             new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport(),
             new Gbase8aEngineSupport(new MysqlEngineSupport()),
-            new HiveEngineSupport()));
+            new HiveEngineSupport(),
+            new HiveKerberosEngineSupport(new DisabledKerberosHiveConnector(), new SqlEditorProperties())));
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
 
@@ -48,7 +52,7 @@ class EngineCatalogTest {
             .build();
         mvc.perform(get("/api/v1/engines").accept(MediaType.APPLICATION_JSON))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items.length()").value(4))
+            .andExpect(jsonPath("$.items.length()").value(5))
             .andExpect(jsonPath("$.items[0].id").value("MYSQL"))
             .andExpect(jsonPath("$.items[0].family").value("MYSQL_WIRE"))
             .andExpect(jsonPath("$.items[0].defaultPort").value(3306))
@@ -95,6 +99,20 @@ class EngineCatalogTest {
             .andExpect(jsonPath("$.items[3].resourceTree[0].kind").value("NAMESPACE"))
             .andExpect(jsonPath("$.items[3].resourceTree[0].label").value("数据库"))
             .andExpect(jsonPath("$.items[3].resourceTree[0].listEndpoint").value("databases"))
+            .andExpect(jsonPath("$.items[4].id").value("HIVE_KERBEROS"))
+            .andExpect(jsonPath("$.items[4].displayName").value("Kerberos Hive"))
+            .andExpect(jsonPath("$.items[4].family").value("HIVE_WIRE"))
+            .andExpect(jsonPath("$.items[4].editorLanguage").value("hive"))
+            .andExpect(jsonPath("$.items[4].identifierQuote").value("`"))
+            .andExpect(jsonPath("$.items[4].connectionFields[0].name").value("environment"))
+            .andExpect(jsonPath("$.items[4].connectionFields[0].kind").value("ENVIRONMENT"))
+            .andExpect(jsonPath("$.items[4].connectionFields[0].required").value(true))
+            .andExpect(jsonPath("$.items[4].connectionFields[1].name").value("keytabFile"))
+            .andExpect(jsonPath("$.items[4].connectionFields[1].kind").value("KEYTAB"))
+            .andExpect(jsonPath("$.items[4].connectionFields[2].name").value("queueName"))
+            .andExpect(jsonPath("$.items[4].connectionFields[2].kind").value("QUEUE"))
+            .andExpect(jsonPath("$.items[4].connectionFields[3].kind").value("DEFAULT_NAMESPACE"))
+            .andExpect(jsonPath("$.items[4].resourceTree[0].kind").value("NAMESPACE"))
             .andExpect(jsonPath("$.items[0].password").doesNotExist())
             .andExpect(jsonPath("$.items[0].jdbcUrl").doesNotExist());
     }

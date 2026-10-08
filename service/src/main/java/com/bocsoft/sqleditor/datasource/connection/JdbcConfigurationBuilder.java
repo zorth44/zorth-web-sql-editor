@@ -1,6 +1,7 @@
 package com.bocsoft.sqleditor.datasource.connection;
 
 import com.bocsoft.sqleditor.engine.EngineRegistry;
+import com.bocsoft.sqleditor.engine.EngineSupport;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -13,6 +14,9 @@ public class JdbcConfigurationBuilder {
     }
 
     public JdbcTarget build(ConnectionConfiguration configuration) {
-        return engines.forConnection(configuration).buildJdbc(configuration, networkPolicy.resolve(configuration.getHost()));
+        EngineSupport engine = engines.forConnection(configuration);
+        ResolvedTarget resolved = engine.requiresHostResolution()
+            ? networkPolicy.resolve(configuration.getHost()) : null;
+        return engine.buildJdbc(configuration, resolved);
     }
 }
