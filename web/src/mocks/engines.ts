@@ -423,6 +423,12 @@ export const hiveKerberosEngineDescriptor: EngineDescriptor = {
   ],
 }
 
+export const icebergEngineDescriptor: EngineDescriptor = {
+  ...hiveKerberosEngineDescriptor,
+  id: 'ICEBERG',
+  displayName: 'Iceberg',
+}
+
 export const mockEngineCatalog: EngineCatalog = {
   items: [
     mysqlEngineDescriptor,
@@ -430,5 +436,6 @@ export const mockEngineCatalog: EngineCatalog = {
     gbase8aEngineDescriptor,
     hiveEngineDescriptor,
     hiveKerberosEngineDescriptor,
+    icebergEngineDescriptor,
   ],
 }

@@ -8,6 +8,8 @@ import hiveLogo from '@/assets/engines/hive.svg'
 import hiveMark from '@/assets/engines/hive-mark.svg'
 import hiveKerberosLogo from '@/assets/engines/hive-kerberos.svg'
 import hiveKerberosMark from '@/assets/engines/hive-kerberos-mark.svg'
+import icebergLogo from '@/assets/engines/iceberg.svg'
+import icebergMark from '@/assets/engines/iceberg-mark.svg'
 
 withDefaults(defineProps<{ engine: string; size?: number; variant?: 'card' | 'tree' }>(), {
   size: 48,
@@ -27,6 +29,7 @@ withDefaults(defineProps<{ engine: string; size?: number; variant?: 'card' | 'tr
       <img v-else-if="engine === 'GBASE_8A'" :src="gbase8aMark" alt="" />
       <img v-else-if="engine === 'HIVE'" :src="hiveMark" alt="" />
       <img v-else-if="engine === 'HIVE_KERBEROS'" :src="hiveKerberosMark" alt="" />
+      <img v-else-if="engine === 'ICEBERG'" :src="icebergMark" alt="" />
       <svg v-else viewBox="0 0 16 16" width="16" height="16">
         <ellipse cx="8" cy="4.2" rx="5.6" ry="2.1" fill="#0f766e" />
         <path
@@ -54,6 +57,7 @@ withDefaults(defineProps<{ engine: string; size?: number; variant?: 'card' | 'tr
         height="56"
         alt=""
       />
+      <img v-else-if="engine === 'ICEBERG'" :src="icebergLogo" width="88" height="56" alt="" />
       <svg v-else viewBox="0 0 48 48" :width="size" :height="size">
         <rect width="48" height="48" rx="12" fill="#0F766E" />
         <ellipse cx="24" cy="16.5" rx="12" ry="5" fill="#5EEAD4" />

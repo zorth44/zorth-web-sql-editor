@@ -9,6 +9,7 @@ import {
   gbase8aEngineDescriptor,
   hiveEngineDescriptor,
   hiveKerberosEngineDescriptor,
+  icebergEngineDescriptor,
   mockEngineCatalog,
   mysqlEngineDescriptor,
   postgresEngineDescriptor,
@@ -44,10 +45,11 @@ describe('catalog editor language mapping', () => {
 })
 
 describe('HIVE_KERBEROS catalog descriptor', () => {
-  it('is registered in the catalog with five engines', () => {
+  it('is registered in the catalog alongside the other engines', () => {
     const ids = mockEngineCatalog.items.map((item) => item.id)
     expect(ids).toContain('HIVE_KERBEROS')
-    expect(ids).toHaveLength(5)
+    expect(ids).toContain('ICEBERG')
+    expect(ids).toHaveLength(6)
   })
 
   it('declares Hive-wire Kerberos connection fields and no host-based fields', () => {
@@ -84,6 +86,43 @@ describe('HIVE_KERBEROS catalog descriptor', () => {
 
   it('labels the namespace level as 数据库 and filters it as 筛选数据库', () => {
     const namespace = hiveKerberosEngineDescriptor.resourceTree.find(
+      (level) => level.kind === 'NAMESPACE',
+    )!
+    expect(namespace.label).toBe('数据库')
+    expect(namespace.filterLabel).toBe('筛选数据库')
+  })
+})
+
+describe('ICEBERG catalog descriptor', () => {
+  it('is registered in the catalog', () => {
+    const ids = mockEngineCatalog.items.map((item) => item.id)
+    expect(ids).toContain('ICEBERG')
+  })
+
+  it('uses the hive editor language for the Iceberg descriptor', () => {
+    expect(editorLanguageFor(icebergEngineDescriptor)).toBe('hive')
+  })
+
+  it('declares the same Hive-wire Kerberos field shape as HIVE_KERBEROS', () => {
+    const descriptor = icebergEngineDescriptor
+    expect(descriptor.id).toBe('ICEBERG')
+    expect(descriptor.displayName).toBe('Iceberg')
+    expect(descriptor.family).toBe('HIVE_WIRE')
+    expect(descriptor.defaultPort).toBe(10000)
+    expect(descriptor.editorLanguage).toBe('hive')
+    expect(descriptor.identifierQuote).toBe('`')
+
+    expect(descriptor.connectionFields).toEqual(hiveKerberosEngineDescriptor.connectionFields)
+
+    const names = descriptor.connectionFields.map((field) => field.name)
+    expect(names).toEqual(['environment', 'keytabFile', 'queueName', 'defaultDatabase'])
+    for (const absent of ['host', 'port', 'username', 'password', 'sslMode']) {
+      expect(names).not.toContain(absent)
+    }
+  })
+
+  it('labels the namespace level as 数据库 and filters it as 筛选数据库', () => {
+    const namespace = icebergEngineDescriptor.resourceTree.find(
       (level) => level.kind === 'NAMESPACE',
     )!
     expect(namespace.label).toBe('数据库')
