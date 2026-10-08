@@ -1,14 +1,25 @@
 # Plan：SQL 编辑器 Copilot（AI 服务配合）
 
-状态：草案。给 sibling 仓库 `zorth-ai-service` 看。编辑器侧要做的事在 [plan-web-sql-editor-copilot.md](./plan-web-sql-editor-copilot.md)。
+状态：已落地并验证。实现方为 sibling 仓库 **`bddf-agentscope`**（`/Users/zorth/Code/ai/bddf-agentscope`，Agent ID `sql-editor`），编辑器侧已联调通过。编辑器侧要做的事在 [plan-web-sql-editor-copilot.md](./plan-web-sql-editor-copilot.md)。
 
-Web SQL 编辑器要在工作台右侧接 Copilot：生成 SQL、插入当前页签、执行失败后一键修复。浏览器 **只调现有** `POST /api/v1/ai/agent`，带用户 Bearer、`datasourceId`、`database`。不调 `/api/v1/ai/chat`（没有 Database Tools）。
+Web SQL 编辑器要在工作台右侧接 Copilot：生成 SQL、插入当前页签、执行失败后一键修复。浏览器 **只调** `POST /api/v1/ai/agent`，带用户 Bearer、`datasourceId`、`database`。不调平台的通用 `chat` agent（`/api/v1/agents/chat/chat`，没有 Database Tools）。
 
 编辑器不自建 LLM，也不替 Agent 跑 SQL。元数据、`checkSql`、只读 `executeQuery`（`readOnly=true`、`source=AI_AGENT`）维持现状。本文件只列 **编辑器 Copilot 要你们改或确认的部分**。SQL service 契约不改。
 
+## 落地情况（`bddf-agentscope`）
+
+- 编辑器对齐接口已实现并通过联调：`POST /api/v1/ai/agent`、`POST /api/v1/ai/agent/stream`，以及会话历史 `GET/DELETE /api/v1/ai/agent/conversations`。
+- Agent ID `sql-editor`；系统提示 `src/main/resources/agents/sql-editor/system.md`。
+- 第 2 节（数据源白名单）：不再用静态 ID 白名单，可见性由请求 Bearer 经 SQL service 判定。
+- 第 3 节（系统提示）：已要求可执行 SQL 放在 `sql` 代码块。
+- 第 4 节（多轮记忆）：已按 `conversationId` 持久化会话记忆与历史。
+- 第 6 节的 `mode` 字段未引入。
+
+以下章节保留为当时约定的契约，供回归时对照。
+
 ## 1. 编辑器怎么调你们
 
-与 `docs/local-web-sql.md` 里的 curl 相同，只是调用方变成 Vue：
+与 `bddf-agentscope/docs/sql-editor-chat-agent.md` 里的 curl 相同，只是调用方变成 Vue：
 
 ```http
 POST /api/v1/ai/agent
@@ -29,7 +40,7 @@ Content-Type: application/json
 
 本地拓扑不变：SQL `8080`，AI `8081`。编辑器开发代理会把 `/ai-api` 转到 `8081`。
 
-## 2. 必须做：数据源白名单不能挡编辑器用户
+## 2. 必须做：数据源白名单不能挡编辑器用户（已实现）
 
 当前 `ai.datasource.web-sql.allowed-datasource-ids` 默认空列表，fail closed，Tool 返回 `DATASOURCE_NOT_ALLOWED`。这对早期联调合理，**不能**作为编辑器 Copilot 的产品行为：用户能在编辑器里看见并查询的数据源，Copilot 必须都能用。
 
@@ -41,7 +52,7 @@ Content-Type: application/json
 
 不改这一项，编辑器 Copilot 只能打配置里那几个库，功能无法上线。
 
-## 3. 必须做：Copilot 口径的系统提示
+## 3. 必须做：Copilot 口径的系统提示（已实现）
 
 Database Agent 今天的指导是：发现表 → 看 schema → 生成只读 SQL → 校验 → **执行 → 用结果回答**。这是「问数 Agent」。编辑器 Copilot 的交付物是 **可插入的 SQL**，结果网格以用户在 Monaco 里跑的为准。
 
@@ -57,15 +68,11 @@ Database Agent 今天的指导是：发现表 → 看 schema → 生成只读 SQ
 
 前端 v1 也会在 `message` 里重复这些要求，只能当兜底。权威口径应在系统提示。
 
-## 4. 强烈建议：Agent 多轮记忆
+## 4. 多轮记忆（已实现）
 
-`/api/v1/ai/chat` 有 `MessageChatMemoryAdvisor`；`/api/v1/ai/agent` 的 `conversationId` 目前只进 ToolContext 审计，每次只有这一句 `user`。
+`bddf-agentscope` 对 `sql-editor` agent 按 `conversationId` opt-in 会话记忆（`agent_session_state`，session id `sql-editor:{conversationId}`），系统提示明确要求「记住本会话前几轮」。因此用户 **不插入** 直接追问「改成按月」，模型也能看到上一轮代码块。
 
-编辑器 v1 的补偿：每次带上当前编辑器 SQL。因此「先插入再追问」可用。用户 **不插入** 就说「改成按月」，模型看不到上一轮代码块。
-
-建议：当 Agent 请求带了 `conversationId` 时，为这次调用 **opt-in** 同一套 Chat Memory（不要注册成共享 `ChatClient` 的默认 advisor，以免语义抽取等被污染）。记忆窗口保持现有 chat 配置。
-
-这不是编辑器 v1 的上线阻断项，但做了之后追问会稳很多。Chat 与 Agent 的 `conversationId` 空间应继续隔离，或给 Agent 用单独前缀，避免两套产品抢同一段记忆。
+编辑器 v1 仍会每次带上当前编辑器 SQL，作为上下文兜底。平台通用 `chat` agent 与 `sql-editor` 的会话空间相互隔离。
 
 ## 5. 建议确认、v1 先不改的
 
@@ -95,9 +102,9 @@ v1 也可以不加字段、直接改 Database 系统提示（问数产品会一�
 
 ## 7. 建议实现顺序（AI 仓库）
 
-1. **白名单策略**：web-sql provider 默认不按静态 ID 拦截；文档和 `local-web-sql.md` 改成「鉴权 = 用户 Token」。本地若仍要锁几个 ID，做成显式开关。
+1. **白名单策略**：web-sql provider 默认不按静态 ID 拦截；`bddf-agentscope/docs/sql-editor-chat-agent.md` 改成「鉴权 = 用户 Token」。本地若仍要锁几个 ID，做成显式开关。
 2. **系统提示**：Database prompt 加上代码块 + 回答以 SQL 为主 + 允许只读试跑。补一个断言回复形态的测试（fixture 模型或 prompt 快照）。
-3. **联调**：按 `docs/local-web-sql.md` 起 SQL `8080` + AI `8081`；用编辑器将使用的同一 Token 打「列出相关表并给出 SELECT」；确认 `content` 里有 ` ```sql `，且表名来自真实 `listTables`，不是幻觉。
+3. **联调**：按 `bddf-agentscope/docs/sql-editor-chat-agent.md` 起 SQL `8080` + Agent Platform `8081`；用编辑器将使用的同一 Token 打「列出相关表并给出 SELECT」；确认 `content` 里有 ` ```sql `，且表名来自真实 `list_tables`，不是幻觉。
 4. （可后做）Agent 按 `conversationId` 读写 Chat Memory。
 5. （可后做）`mode=sql_copilot` 或 Agent SSE。
 
@@ -111,11 +118,11 @@ v1 也可以不加字段、直接改 Database 系统提示（问数产品会一�
 - 修复类问题（message 带失败 SQL + 未知列错误）：同一请求内允许 Tool 重试，最终代码块是可执行的改正语句。
 - `executeQuery` 审计有 SQL 和 `executionId`，无 Token、无结果行。
 - 无 `datasourceId` 的旧 `{ "message" }` Agent 请求行为不变。
-- `/api/v1/ai/chat` 行为不变。
+- 平台通用 `chat` agent（`/api/v1/agents/chat/chat`）行为不变。
 
 ## 9. 和编辑器仓库的分工
 
-| | `zorth-ai-service` | `zorth-web-sql-editor` |
+| | `bddf-agentscope` | `zorth-web-sql-editor` |
 | --- | --- | --- |
 | 模型与 Tool | 是 | 否 |
 | 只读试跑、查 schema | 是（经 web-sql） | 否 |

@@ -4,7 +4,7 @@
 
 在 `/sql-editor` 增加右侧 Copilot：自然语言生成 SQL、一键插入当前页签、执行失败后一键修复。对标 Snowflake Copilot 的 Add / 报错旁修复，不把聊天当主界面。
 
-本仓库几乎只动 `web/`。SQL service 契约不改。模型、Tool、只读试跑都在 `zorth-ai-service` 的 `POST /api/v1/ai/agent`。
+本仓库几乎只动 `web/`。SQL service 契约不改。模型、Tool、只读试跑都在 sibling 仓库 `bddf-agentscope` 的 `POST /api/v1/ai/agent`。
 
 ## 1. 目标与非目标
 
@@ -48,7 +48,7 @@
 
 ## 3. 调用哪个接口
 
-只调用 Agent，不调用 `/api/v1/ai/chat`（Chat 没有 Database Tools）。
+只调用 Agent，不调用平台通用 chat agent（没有 Database Tools）。
 
 ```http
 POST /api/v1/ai/agent

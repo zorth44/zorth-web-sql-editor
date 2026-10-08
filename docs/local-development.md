@@ -53,6 +53,15 @@ pnpm dev
 
 Vite 开发代理会把 `/sql-api`、`/auth-api` 和 `/ai-api` 分别转发到本地 SQL、授权和 AI 服务，从而保持浏览器同源。生产不得配置 `VITE_DEV_*_PROXY_TARGET`，应由真实网关提供同源路径。
 
-## 5. 可选：对接 AI Platform Database Agent
+## 5. 对接 AI Agent Platform：`bddf-agentscope`
 
-SQL service 占 `8080` 时，把 AI 放到 `8081`，并设置 `VITE_AI_API_BASE=/ai-api` 与 `VITE_DEV_AI_PROXY_TARGET=http://127.0.0.1:8081`。编辑器右侧 Copilot 调用 `POST /api/v1/ai/agent/stream`（SSE：token `delta` + tool 进度），Bearer Token 与 SQL 请求相同。旧的同步 `POST /api/v1/ai/agent` 仅作 404 回退。白名单和提示词改动见 sibling 仓库 `zorth-ai-service/docs/local-web-sql.md` 以及本仓库 `docs/plan-ai-server-sql-editor-copilot.md`。
+编辑器 Copilot 的模型、Tool、只读试跑由 sibling 仓库 **`bddf-agentscope`**（`/Users/zorth/Code/ai/bddf-agentscope`）实现，已联调验证通过。
+
+SQL service 占 `8080` 时，把 Agent Platform 放到 `8081`（其 `dev` profile 默认监听 `8081`），并设置 `VITE_AI_API_BASE=/ai-api` 与 `VITE_DEV_AI_PROXY_TARGET=http://127.0.0.1:8081`。Agent Platform 需开启数据源集成，使其能回调本仓库 SQL service 的 `/internal/api/v1/agent/**`：
+
+```bash
+export DATASOURCE_SERVICE_ENABLED=true
+export DATASOURCE_SERVICE_BASE_URL=http://127.0.0.1:8080
+```
+
+编辑器右侧 Copilot 调用 `POST /api/v1/ai/agent/stream`（SSE：`start` / `delta` / `tool` / `completed` / `error`），Bearer Token 与 SQL 请求相同。旧的同步 `POST /api/v1/ai/agent` 仅作 404 回退。启动方式、工具集、提示词与对话历史契约见该仓库 `README.md`、`docs/sql-editor-chat-agent.md`；本仓库侧的契约见 `docs/plan-ai-server-sql-editor-copilot.md`。
