@@ -1,0 +1,109 @@
+package com.bocsoft.sqleditor.engine.hive;
+
+import com.bocsoft.sqleditor.datasource.connection.ConnectionConfiguration;
+import com.bocsoft.sqleditor.datasource.connection.JdbcTarget;
+import com.bocsoft.sqleditor.datasource.connection.ResolvedTarget;
+import com.bocsoft.sqleditor.engine.ConnectionFailure;
+import com.bocsoft.sqleditor.engine.EngineCapabilities;
+import com.bocsoft.sqleditor.engine.EngineDescriptor;
+import com.bocsoft.sqleditor.engine.EngineField;
+import com.bocsoft.sqleditor.engine.EngineId;
+import com.bocsoft.sqleditor.engine.EngineSupport;
+import com.bocsoft.sqleditor.engine.ExplainMode;
+import com.bocsoft.sqleditor.engine.PlanEvidence;
+import com.bocsoft.sqleditor.engine.ResourceTreeLevel;
+import com.bocsoft.sqleditor.metadata.api.DatabaseItem;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintLimits;
+import com.bocsoft.sqleditor.metadata.api.TableConstraintMetadata;
+import com.bocsoft.sqleditor.metadata.api.TableDetailResponse;
+import com.bocsoft.sqleditor.metadata.api.TableItem;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+
+@Order(4)
+@Component
+public class HiveEngineSupport implements EngineSupport {
+    private final HiveJdbc jdbc = new HiveJdbc();
+    private final HiveFailures failures = new HiveFailures();
+    private final HiveSqlScanner scanner = new HiveSqlScanner();
+    private final HiveCatalogs catalogs = new HiveCatalogs();
+    private final HiveExplain explain = new HiveExplain();
+
+    @Override public String id() { return EngineId.HIVE; }
+    @Override public String family() { return "HIVE_WIRE"; }
+    @Override public boolean defaultNamespaceRequired() { return false; }
+    @Override public boolean canSwitchNamespaceOnConnection() { return true; }
+    @Override public int identifierMaxLength() { return 128; }
+
+    @Override public EngineDescriptor descriptor() {
+        return new EngineDescriptor(
+            id(), "Hive", family(), 10000, "hive", "`",
+            new EngineCapabilities(defaultNamespaceRequired(), canSwitchNamespaceOnConnection()),
+            Arrays.asList(
+                EngineField.connection("host", "HOST", "TEXT", "Host", true, null, null, Integer.valueOf(255), null, null),
+                EngineField.connection("port", "PORT", "NUMBER", "Port", true, Integer.valueOf(1), Integer.valueOf(65535), null, "10000", null),
+                EngineField.connection("username", "USERNAME", "TEXT", "用户名", true, null, null, Integer.valueOf(128), null, null),
+                EngineField.password("password", "密码", 1024),
+                EngineField.connection("defaultDatabase", "DEFAULT_NAMESPACE", "TEXT", "默认数据库", false, null, null, Integer.valueOf(128), null, null),
+                EngineField.connection("sslMode", "SSL_MODE", "SELECT", "SSL 模式", true, null, null, null, "PREFERRED",
+                    EngineField.labeled("DISABLED", "禁用", "PREFERRED", "优先", "REQUIRED", "必需")),
+                EngineField.connection("connectTimeoutSeconds", "TIMEOUT", "NUMBER", "连接超时（秒）", true, Integer.valueOf(1), Integer.valueOf(30), null, "10", null)
+            ),
+            HiveJdbc.PROPERTY_FIELDS,
+            Arrays.asList(
+                ResourceTreeLevel.namespace("数据库", "筛选数据库", "databases"),
+                ResourceTreeLevel.child("TABLE", "表", "筛选表名", "NAMESPACE"),
+                ResourceTreeLevel.child("VIEW", "视图", null, "NAMESPACE")
+            )
+        );
+    }
+
+    @Override public Map<String, String> validateProperties(Map<String, String> properties) { return jdbc.validateProperties(properties); }
+    @Override public JdbcTarget buildJdbc(ConnectionConfiguration configuration, ResolvedTarget resolved) { return jdbc.build(configuration, resolved); }
+    @Override public ConnectionFailure classifyConnectionFailure(Throwable failure) {
+        if (jdbc.missingOfficialDriver(failure)) return jdbc.missingDriverFailure();
+        return failures.classify(failure);
+    }
+    @Override public String jdbcUrlWithoutNamespace(String url) { return jdbc.jdbcUrlWithoutNamespace(url); }
+    @Override public void verifyDefaultNamespace(Connection connection, String defaultNamespace) throws SQLException {
+        catalogs.verifyDefaultNamespace(connection, defaultNamespace);
+    }
+
+    @Override public void applyNamespace(Connection connection, String namespace) throws SQLException { catalogs.applyNamespace(connection, namespace); }
+    @Override public boolean restoreSession(Connection connection, String defaultNamespace) throws SQLException {
+        return catalogs.restoreSession(connection, defaultNamespace);
+    }
+
+    @Override public void validateIdentifier(String field, String value) { catalogs.validateIdentifier(field, value); }
+    @Override public List<DatabaseItem> listDatabases(Connection connection, String keyword, boolean includeSystem) throws SQLException {
+        return catalogs.listDatabases(connection, keyword, includeSystem);
+    }
+    @Override public List<TableItem> listTables(Connection connection, String database, String keyword, String[] types) throws SQLException {
+        return catalogs.listTables(connection, database, keyword, types);
+    }
+    @Override public TableDetailResponse tableDetail(Connection connection, String database, String table) throws SQLException {
+        return catalogs.tableDetail(connection, database, table);
+    }
+    @Override public boolean supportsRelationshipMetadata() { return false; }
+    @Override public TableConstraintMetadata tableConstraints(Connection connection, String database, String table,
+                                                              TableConstraintLimits limits) {
+        return TableConstraintMetadata.unavailable();
+    }
+    @Override public void ensureNamespace(Connection connection, String database) throws SQLException { catalogs.ensureNamespace(connection, database); }
+
+    @Override public boolean isAnalyzedExplain(String sql) { return explain.isAnalyzedExplain(sql); }
+    @Override public String rewriteExplain(String sql, ExplainMode mode) { return explain.rewriteExplain(sql, mode); }
+    @Override public PlanEvidence normalizePlan(List<String> columnNames, List<List<Object>> rows) {
+        return explain.normalizePlan(columnNames, rows);
+    }
+
+    @Override public String requireSingle(String sql) { return scanner.requireSingle(sql); }
+    @Override public List<String> split(String sql) { return scanner.split(sql); }
+    @Override public String quoteIdentifier(String value) { return catalogs.quoteIdentifier(value); }
+}

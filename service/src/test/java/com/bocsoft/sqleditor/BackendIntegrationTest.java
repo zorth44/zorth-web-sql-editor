@@ -124,11 +124,16 @@ class BackendIntegrationTest {
     @Test void gbase8aRegistersWithoutOpeningMysqlLiveJdbc()throws Exception{
         mvc.perform(get("/api/v1/engines").header("Authorization","Bearer token-a"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items.length()").value(3))
+            .andExpect(jsonPath("$.items.length()").value(4))
             .andExpect(jsonPath("$.items[2].id").value("GBASE_8A"))
             .andExpect(jsonPath("$.items[2].family").value("MYSQL_WIRE"))
             .andExpect(jsonPath("$.items[2].defaultPort").value(5258))
-            .andExpect(jsonPath("$.items[2].resourceTree[0].label").value("数据库"));
+            .andExpect(jsonPath("$.items[2].resourceTree[0].label").value("数据库"))
+            .andExpect(jsonPath("$.items[3].id").value("HIVE"))
+            .andExpect(jsonPath("$.items[3].family").value("HIVE_WIRE"))
+            .andExpect(jsonPath("$.items[3].defaultPort").value(10000))
+            .andExpect(jsonPath("$.items[3].editorLanguage").value("hive"))
+            .andExpect(jsonPath("$.items[3].resourceTree[0].label").value("数据库"));
         JsonNode created=json.readTree(mvc.perform(post("/api/v1/data-sources").header("Authorization","Bearer token-a")
             .contentType(MediaType.APPLICATION_JSON).content(gbase8aPayload("GBase 8a 源")))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));

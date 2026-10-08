@@ -1,9 +1,5 @@
-# Backend Engine Catalog Specification
+## MODIFIED Requirements
 
-## Purpose
-
-Define the authenticated engine catalog that describes registered engines for connection forms, JDBC property controls, the resource tree, and editor language, without opening a target connection.
-## Requirements
 ### Requirement: Authenticated engine catalog
 The SQL service SHALL expose `GET /api/v1/engines` to authenticated callers and SHALL return one descriptor per registered `EngineSupport` without opening a target connection.
 
@@ -26,14 +22,6 @@ Each catalog item SHALL describe how to render a connection form, JDBC property 
 - **WHEN** the registry contains MYSQL
 - **THEN** that item SHALL include `id=MYSQL`, `displayName`, `family=MYSQL_WIRE`, `defaultPort=3306`, `editorLanguage=mysql`, capability flags matching the MYSQL engine, `connectionFields` whose `name` values are the existing request fields `host`, `port`, `username`, `password`, `defaultDatabase`, `sslMode`, and `connectTimeoutSeconds`, `propertyFields` for the current MYSQL JDBC allow-list only, and `resourceTree` whose first level is `kind=NAMESPACE` with `listEndpoint=databases`
 
-#### Scenario: Return the POSTGRESQL descriptor
-- **WHEN** the registry contains POSTGRESQL
-- **THEN** that item SHALL include `id=POSTGRESQL`, `displayName`, `family=POSTGRES_WIRE`, `defaultPort=5432`, `editorLanguage=pgsql`, `defaultNamespaceRequired=true`, `connectionFields` with `defaultDatabase` required and labeled as the pinned database, and `resourceTree` whose first level is `kind=NAMESPACE` with label for schema (模式), `listEndpoint=databases`
-
-#### Scenario: Return the GBASE_8A descriptor
-- **WHEN** the registry contains GBASE_8A
-- **THEN** that item SHALL include `id=GBASE_8A`, `displayName` for GBase 8a, `family=MYSQL_WIRE`, `defaultPort=5258`, `editorLanguage=mysql`, `identifierQuote` backtick, optional `defaultDatabase`, MYSQL `propertyFields`, and `resourceTree` whose first level is `kind=NAMESPACE` with label for database (数据库), `listEndpoint=databases`
-
 #### Scenario: Return the HIVE descriptor
 - **WHEN** the registry contains HIVE
 - **THEN** that item SHALL include `id=HIVE`, `displayName` for Hive, `family=HIVE_WIRE`, `defaultPort=10000`, `editorLanguage=hive`, `identifierQuote` backtick, optional `defaultDatabase`, the Hive `propertyFields`, and `resourceTree` whose first level is `kind=NAMESPACE` with label for database (数据库), `listEndpoint=databases`
@@ -43,6 +31,5 @@ Each catalog item SHALL describe how to render a connection form, JDBC property 
 - **THEN** `resourceTree` SHALL use product kinds `NAMESPACE`, `TABLE`, and `VIEW` (and MAY later include `PARTITION`) and SHALL NOT use a vendor-only kind such as `CATALOG` or `SCHEMA`
 
 #### Scenario: Map DEFAULT_NAMESPACE to defaultDatabase
-- **WHEN** MYSQL, POSTGRESQL, GBASE_8A, or HIVE lists the default database field
+- **WHEN** any engine lists the default database field
 - **THEN** that field SHALL have `name=defaultDatabase` and `kind=DEFAULT_NAMESPACE` and SHALL NOT introduce a new persisted JSON field
-

@@ -5,7 +5,7 @@
 Define the target-database engine registry and how saved or unsaved connections dispatch JDBC, metadata, statement scanning, connection-failure classification, and session restore through a registered `EngineSupport`.
 ## Requirements
 ### Requirement: Registered engine dispatch
-The SQL service SHALL resolve every target-database JDBC, metadata, statement-scan, connection-failure, and session-restore operation through a registered `EngineSupport` identified by the data source `engine` value. At startup the registry SHALL contain `MYSQL`, `POSTGRESQL`, and `GBASE_8A` in that order.
+The SQL service SHALL resolve every target-database JDBC, metadata, statement-scan, connection-failure, and session-restore operation through a registered `EngineSupport` identified by the data source `engine` value. At startup the registry SHALL contain `MYSQL`, `POSTGRESQL`, `GBASE_8A`, and `HIVE` in that order. Unknown or unsupported engines MUST fail closed and MUST NOT fall back to another engine's behavior.
 
 #### Scenario: Dispatch a saved MySQL data source
 - **WHEN** a visible data source with `engine=MYSQL` is tested, browsed, executed against, or used for export
@@ -18,6 +18,10 @@ The SQL service SHALL resolve every target-database JDBC, metadata, statement-sc
 #### Scenario: Dispatch a saved GBase 8a data source
 - **WHEN** a visible data source with `engine=GBASE_8A` is tested, browsed, executed against, or used for export
 - **THEN** the service SHALL use the GBASE_8A engine implementation
+
+#### Scenario: Dispatch a saved Hive data source
+- **WHEN** a visible data source with `engine=HIVE` is tested, browsed, executed against, or used for export
+- **THEN** the service SHALL use the HIVE engine implementation with databases as NAMESPACE
 
 #### Scenario: Reject an unregistered engine on write
 - **WHEN** a create or update submits `engine` other than a registered id
@@ -41,6 +45,10 @@ Each `EngineSupport` SHALL expose an `EngineDescriptor` used by the engine catal
 #### Scenario: GBASE_8A descriptor matches MYSQL_WIRE allow-list
 - **WHEN** the GBASE_8A engine reports its descriptor
 - **THEN** `family` SHALL be `MYSQL_WIRE`, `propertyFields` names SHALL match MYSQL property validation, `defaultDatabase` SHALL be optional, and `resourceTree` first level SHALL be `NAMESPACE` with `listEndpoint=databases`
+
+#### Scenario: HIVE descriptor matches runtime allow-list
+- **WHEN** the HIVE engine reports its descriptor
+- **THEN** `family` SHALL be `HIVE_WIRE`, `propertyFields` names SHALL be exactly the keys accepted by HIVE property validation, `defaultDatabase` SHALL be optional, and `resourceTree` first level SHALL be `NAMESPACE` with `listEndpoint=databases`
 
 #### Scenario: Registry lists descriptors without target I/O
 - **WHEN** the registry is asked for descriptors

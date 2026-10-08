@@ -20,3 +20,4 @@ npm-debug.log*
 *.tar.gz
 
 service/third-party/gbase/*.jar
+service/third-party/hive/*.jar

@@ -38,6 +38,12 @@ class ArchitectureTest {
         .should().dependOnClassesThat().resideInAPackage("..engine.gbase8a..");
 
     @ArchTest
+    static final ArchRule orchestratorsDoNotDependOnHiveEngine = noClasses()
+        .that().resideInAnyPackage("..datasource..", "..execution..", "..metadata..", "..history..", "..export..", "..script..", "..auth..", "..common..", "..agentapi..")
+        .and().resideOutsideOfPackage("..engine.hive..")
+        .should().dependOnClassesThat().resideInAPackage("..engine.hive..");
+
+    @ArchTest
     static final ArchRule engineDoesNotDependOnControllers = noClasses()
         .that().resideInAPackage("..engine..")
         .and().haveSimpleNameNotEndingWith("Controller")

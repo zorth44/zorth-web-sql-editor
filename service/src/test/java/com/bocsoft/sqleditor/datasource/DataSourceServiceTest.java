@@ -19,6 +19,7 @@ import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineRegistry;
 import com.bocsoft.sqleditor.engine.EngineSupport;
 import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
+import com.bocsoft.sqleditor.engine.hive.HiveEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -44,7 +45,8 @@ class DataSourceServiceTest {
         p.getCursor().setSigningKey(Base64.getEncoder().encodeToString(new byte[32]));
         MysqlEngineSupport mysql = new MysqlEngineSupport();
         EngineRegistry engines = new EngineRegistry(java.util.Arrays.<EngineSupport>asList(
-            mysql, new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport(), new Gbase8aEngineSupport(mysql)));
+            mysql, new com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport(), new Gbase8aEngineSupport(mysql),
+            new HiveEngineSupport()));
         validator = new DataSourceValidator(engines);
         DataSourceResponseMapper responses = new DataSourceResponseMapper(json);
         service = new DataSourceService(mapper, validator, responses, new CredentialCipher(p), new CursorCodec(json, p), json,
@@ -69,7 +71,7 @@ class DataSourceServiceTest {
 
     @Test void rejectsUnregisteredEngineOnCreate() {
         CreateDataSourceRequest request = request();
-        request.setEngine("HIVE");
+        request.setEngine("HIVE_KERBEROS");
         assertThatThrownBy(() -> service.create(auth, request)).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.getCode()).isEqualTo("VALIDATION_FAILED");
         });
@@ -113,6 +115,20 @@ class DataSourceServiceTest {
         assertThat(json.writeValueAsString(response)).contains("GBASE_8A");
     }
 
+    @Test void hiveCreateAllowsMissingDefaultDatabaseAndPersistsEngine() throws Exception {
+        when(mapper.insert(any())).thenReturn(1);
+        CreateDataSourceRequest request = request();
+        request.setEngine(EngineId.HIVE);
+        request.setPort(10000);
+        request.setDefaultDatabase(null);
+        request.setProperties(Collections.singletonMap("hive.metastore.uris", "thrift://metastore.internal:9083"));
+        Object response = service.create(auth, request);
+        ArgumentCaptor<DataSourceRecord> record = ArgumentCaptor.forClass(DataSourceRecord.class);
+        verify(mapper).insert(record.capture());
+        assertThat(record.getValue().getEngine()).isEqualTo(EngineId.HIVE);
+        assertThat(json.writeValueAsString(response)).contains("HIVE");
+    }
+
     @Test void unsavedConnectionTestUsesSubmittedEngine() {
         ConnectionRequest request = new ConnectionRequest();
         request.setEngine(EngineId.MYSQL);
@@ -128,7 +144,7 @@ class DataSourceServiceTest {
 
     @Test void unsavedConnectionTestRejectsUnregisteredEngine() {
         ConnectionRequest request = new ConnectionRequest();
-        request.setEngine("HIVE");
+        request.setEngine("HIVE_KERBEROS");
         request.setHost("mysql.internal");
         request.setPort(3306);
         request.setUsername("user");

@@ -8,6 +8,7 @@ import com.bocsoft.sqleditor.engine.EngineId;
 import com.bocsoft.sqleditor.engine.EngineRegistry;
 import com.bocsoft.sqleditor.engine.EngineSupport;
 import com.bocsoft.sqleditor.engine.gbase8a.Gbase8aEngineSupport;
+import com.bocsoft.sqleditor.engine.hive.HiveEngineSupport;
 import com.bocsoft.sqleditor.engine.mysql.MysqlEngineSupport;
 import com.bocsoft.sqleditor.engine.postgres.PostgresEngineSupport;
 import java.net.InetAddress;
@@ -22,8 +23,9 @@ class NetworkAndJdbcSecurityTest {
     private final MysqlEngineSupport mysql = new MysqlEngineSupport();
     private final PostgresEngineSupport postgres = new PostgresEngineSupport();
     private final Gbase8aEngineSupport gbase8a = new Gbase8aEngineSupport(mysql);
+    private final HiveEngineSupport hive = new HiveEngineSupport();
     private final EngineRegistry engines = new EngineRegistry(
-        java.util.Arrays.<EngineSupport>asList(mysql, postgres, gbase8a));
+        java.util.Arrays.<EngineSupport>asList(mysql, postgres, gbase8a, hive));
 
     @Test void handlesIpv4AndIpv6CidrBoundaries()throws Exception{
         CidrBlock v4=CidrBlock.parse("10.0.0.0/8");
@@ -93,5 +95,23 @@ class NetworkAndJdbcSecurityTest {
         assertThat(properties.getProperty("allowMultiQueries")).isEqualTo("false");
         assertThat(properties.getProperty("requireSSL")).isEqualTo("true");
         assertThat(properties.getProperty("password")).isEqualTo("secret");
+    }
+
+    @Test void buildsHiveIpv6UrlWithMetastoreUrisAndNoForeignSslFlags() throws Exception {
+        NetworkPolicy network = new NetworkPolicy(Collections.singletonList("2001:db8::/32"), Collections.<String>emptyList(), host -> new InetAddress[]{InetAddress.getByName("2001:db8::5")});
+        JdbcConfigurationBuilder builder = new JdbcConfigurationBuilder(network, engines);
+        Map<String, String> user = new LinkedHashMap<String, String>();
+        user.put("hive.metastore.uris", "thrift://metastore.internal:9083");
+        JdbcTarget target = builder.build(new ConnectionConfiguration(
+            EngineId.HIVE, "db", 10000, "user", "secret", "orders", "REQUIRED", 10, user));
+        assertThat(target.getUrls().get(0)).contains("jdbc:hive2://[2001:db8:").endsWith("/orders");
+        assertThat(hive.jdbcUrlWithoutNamespace(target.getUrls().get(0))).endsWith("/");
+        Properties properties = target.copyProperties();
+        assertThat(properties.getProperty("hive.metastore.uris")).isEqualTo("thrift://metastore.internal:9083");
+        assertThat(properties.getProperty("user")).isEqualTo("user");
+        assertThat(properties.getProperty("password")).isEqualTo("secret");
+        assertThat(properties.getProperty("useSSL")).isNull();
+        assertThat(properties.getProperty("sslmode")).isNull();
+        assertThat(properties.getProperty("allowMultiQueries")).isNull();
     }
 }
