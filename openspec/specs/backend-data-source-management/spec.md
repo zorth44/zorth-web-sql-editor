@@ -3,9 +3,7 @@
 ## Purpose
 
 Define product-owned data-source persistence, isolation, validation, cursor pagination, confidential projections, CRUD behavior, optimistic locking, and stable errors.
-
 ## Requirements
-
 ### Requirement: Product-owned data-source persistence
 The SQL service SHALL persist each data source under the current authenticated product and SHALL use its UUID ID—not its name or connection fields—as its only identity.
 
@@ -37,7 +35,7 @@ The SQL service SHALL validate strict request DTOs and return `400 VALIDATION_FA
 
 #### Scenario: Validate core fields
 - **WHEN** a create or update is submitted
-- **THEN** the service SHALL require `engine` to be a registered engine id (`MYSQL` or `POSTGRESQL`), a trimmed 1–100 character name, a protocol-free DNS/IPv4/IPv6 host of at most 255 characters, port 1–65535, a trimmed 1–128 character username, timeout 1–30 seconds, default database within the selected engine's identifier limit, description of at most 500 characters, and a password of at most 1024 characters
+- **THEN** the service SHALL require `engine` to be a registered engine id (`MYSQL`, `POSTGRESQL`, or `GBASE_8A`), a trimmed 1–100 character name, a protocol-free DNS/IPv4/IPv6 host of at most 255 characters, port 1–65535, a trimmed 1–128 character username, timeout 1–30 seconds, default database within the selected engine's identifier limit, description of at most 500 characters, and a password of at most 1024 characters
 
 #### Scenario: Require PostgreSQL default database
 - **WHEN** a POSTGRESQL create or update omits `defaultDatabase`
@@ -134,7 +132,7 @@ The SQL service SHALL delete only the current product's matching ID and version 
 Unsaved connection-test request bodies MAY include `engine`. When present it SHALL be a registered engine id; when absent the service SHALL keep the previous MYSQL default.
 
 #### Scenario: Accept a registered engine on unsaved test
-- **WHEN** `POST /api/v1/data-sources:test` or `POST /api/v1/data-sources/{id}:test` with a body includes `engine=MYSQL` or `engine=POSTGRESQL`
+- **WHEN** `POST /api/v1/data-sources:test` or `POST /api/v1/data-sources/{id}:test` with a body includes `engine=MYSQL`, `engine=POSTGRESQL`, or `engine=GBASE_8A`
 - **THEN** the service SHALL accept the field and test using that engine
 
 #### Scenario: Reject an unregistered engine on unsaved test
@@ -151,5 +149,4 @@ The SQL service SHALL return direct success bodies and the documented `ApiError`
 #### Scenario: Handle unexpected failures
 - **WHEN** an unhandled server failure occurs
 - **THEN** the service SHALL return a safe 5xx `ApiError` without a stack trace, internal class name, credential, JDBC URL, or target-network detail
-
 

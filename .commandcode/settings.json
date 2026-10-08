@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(command:*)",
+      "Shell(npx --no-install openspec --version 2 > /dev/null)",
+      "Shell(openspec:*)",
+      "Shell(for c in add-hive-engine add-kerberos-zk-discovery add-iceberg-engine; do echo \"=== $c ===\"; openspec validate \"$c\" --type change --strict --no-interactive 2>&1; done)",
+      "Shell(git:*)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

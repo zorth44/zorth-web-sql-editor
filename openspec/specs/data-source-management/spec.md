@@ -3,9 +3,7 @@
 ## Purpose
 
 Define the phase-one frontend behavior for listing, creating, editing, testing, and deleting product-scoped data sources safely.
-
 ## Requirements
-
 ### Requirement: Product-scoped data-source consumption
 The frontend SHALL consume the backend-filtered data-source collection without implementing client-side product authorization or binding.
 
@@ -35,6 +33,10 @@ The create and edit forms SHALL load `GET /api/v1/engines` and SHALL render engi
 #### Scenario: Render POSTGRESQL fields from the descriptor
 - **WHEN** PostgreSQL is selected
 - **THEN** the form SHALL use port default 5432, require `defaultDatabase`, show only POSTGRESQL `propertyFields`, and SHALL NOT keep MYSQL JDBC keys such as `serverTimezone`
+
+#### Scenario: Render GBase 8a fields from the descriptor
+- **WHEN** GBase 8a is selected
+- **THEN** the form SHALL use port default 5258, keep `defaultDatabase` optional, show MYSQL-family `propertyFields`, and SHALL NOT keep POSTGRESQL JDBC keys such as `ApplicationName`
 
 #### Scenario: Submit the selected engine
 - **WHEN** the user creates, updates, or tests from the form
@@ -255,3 +257,4 @@ Database passwords MUST remain transient and absent from rendered/cached/persist
 #### Scenario: Use development API mocks
 - **WHEN** an MSW handler receives a password-bearing create, update, or test request
 - **THEN** it SHALL NOT copy the password into Mock database state, success responses, errors, logs, or request-independent fixtures
+
