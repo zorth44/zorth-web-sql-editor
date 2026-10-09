@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-vue-next'
 import type { SqlCellValue, SqlColumn, SqlExecutionResult } from '@/types/contracts'
+import { copyText } from '@/clipboard'
 import { nextTableDataSort, type TableDataSort } from '@/sql-editor/table-data-filter'
 import { cellMatches, compareCells, displayCell, previewCell } from './cell-value'
 import {
@@ -95,6 +96,7 @@ const menu = ref<MenuState | null>(null)
 const filterDraft = ref('')
 const limitDraft = ref(String(props.rowLimit ?? DEFAULT_ROW_LIMIT))
 const copied = ref('')
+const copyFailed = ref(false)
 let copyTimer = 0
 let observer: ResizeObserver | undefined
 let dragging = false
@@ -222,10 +224,17 @@ function commitLimit(): void {
   if (next !== (props.rowLimit ?? DEFAULT_ROW_LIMIT)) emit('update:rowLimit', next)
 }
 async function copy(text: string, label = '已复制'): Promise<void> {
-  await navigator.clipboard.writeText(text)
-  copied.value = label
+  const ok = await copyText(text)
+  copied.value = ok ? label : '复制失败，请手动选择文本复制'
+  copyFailed.value = !ok
   window.clearTimeout(copyTimer)
-  copyTimer = window.setTimeout(() => (copied.value = ''), 1600)
+  copyTimer = window.setTimeout(
+    () => {
+      copied.value = ''
+      copyFailed.value = false
+    },
+    ok ? 1600 : 3200,
+  )
 }
 function cellAt(row: number, col: number): SqlCellValue {
   return rows.value[row]?.[col]
@@ -826,7 +835,13 @@ onBeforeUnmount(() => {
       <span v-if="running" class="shrink-0 text-brand">正在执行…</span>
       <span v-else-if="error" class="shrink-0 text-danger">执行失败</span>
       <span v-else-if="result || error" class="shrink-0">{{ summary }}</span>
-      <span v-if="copied" class="shrink-0 text-success">{{ copied }}</span>
+      <span
+        v-if="copied"
+        class="shrink-0"
+        :class="copyFailed ? 'text-danger' : 'text-success'"
+        data-testid="result-copy-status"
+        >{{ copied }}</span
+      >
       <div v-if="$slots.status" class="result-footer-meta" data-testid="result-footer-status">
         <slot name="status" />
       </div>

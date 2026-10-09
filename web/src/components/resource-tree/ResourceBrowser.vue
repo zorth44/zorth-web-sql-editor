@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ChevronRight, Menu, RefreshCw, Search } from 'lucide-vue-next'
+import { copyText } from '@/clipboard'
 import { getTableDetail, listAllDatabases, listAllTables } from '@/api/metadata'
 import { EMPTY_COMPLETION_CATALOG, type CompletionCatalog } from '@/sql-editor/completion-catalog'
 import { quoteIdentifier, selectPreview } from '@/sql-editor/sql'
@@ -353,8 +354,8 @@ function openTable(
   menu.value = null
 }
 async function copyName(name: string): Promise<void> {
-  await navigator.clipboard.writeText(name)
-  emit('notice', '名称已复制')
+  const ok = await copyText(name)
+  emit('notice', ok ? '名称已复制' : '复制失败，请手动选择文本复制')
   menu.value = null
 }
 function generateSelect(dataSourceId: string, database: string, table: string): void {

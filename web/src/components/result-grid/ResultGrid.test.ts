@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ResultGrid from '@/components/result-grid/ResultGrid.vue'
@@ -235,6 +235,51 @@ describe('result values', () => {
     })
     expect(writeText).toHaveBeenCalledWith(['2\tbeta', '9007199254740993\tNULL'].join('\n'))
     wrapper.unmount()
+  })
+
+  it('copies the selection through the fallback on a page without an async clipboard', async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
+    const execCommand = vi.fn().mockReturnValue(true)
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand })
+    const wrapper = render()
+    const point = cellPoint(0, 0)
+    await pointer(wrapper, 'pointerdown', point.x, point.y)
+    await pointer(wrapper, 'pointerup', point.x, point.y)
+    await wrapper.get('[data-testid="result-pane"]').trigger('keydown', {
+      key: 'c',
+      metaKey: true,
+    })
+    await flushPromises()
+    expect(execCommand).toHaveBeenCalledWith('copy')
+    expect(wrapper.get('[data-testid="result-copy-status"]').text()).toBe('单元格已复制')
+    wrapper.unmount()
+    Reflect.deleteProperty(document, 'execCommand')
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+  })
+
+  it('reports a failed copy instead of a silent no-op', async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: () => {
+        throw new Error('not implemented')
+      },
+    })
+    const wrapper = render()
+    const point = cellPoint(0, 0)
+    await pointer(wrapper, 'pointerdown', point.x, point.y)
+    await pointer(wrapper, 'pointerup', point.x, point.y)
+    await wrapper.get('[data-testid="result-pane"]').trigger('keydown', {
+      key: 'c',
+      metaKey: true,
+    })
+    await flushPromises()
+    const status = wrapper.get('[data-testid="result-copy-status"]')
+    expect(status.text()).toContain('复制失败')
+    expect(status.classes()).toContain('text-danger')
+    wrapper.unmount()
+    Reflect.deleteProperty(document, 'execCommand')
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
   })
 
   it('offers AI fix on a failed result and can disable it', async () => {

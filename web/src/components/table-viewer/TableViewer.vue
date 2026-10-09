@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Copy, RefreshCw } from 'lucide-vue-next'
+import { copyText } from '@/clipboard'
 import { getTableDetail } from '@/api/metadata'
 import { safeErrorMessage } from '@/api/api-error'
 import ResultGrid from '@/components/result-grid/ResultGrid.vue'
@@ -52,7 +53,10 @@ const section = ref<PropertiesSection>('info')
 const detail = ref<TableDetail | null>(null)
 const detailError = ref('')
 const detailLoading = ref(false)
-const copied = ref(false)
+const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
+const copyLabel = computed(() =>
+  copyState.value === 'copied' ? '已复制' : copyState.value === 'failed' ? '复制失败' : '复制 DDL',
+)
 let copyTimer = 0
 
 async function loadDetail(force = false): Promise<void> {
@@ -74,12 +78,15 @@ function refresh(): void {
 }
 async function copyDdl(): Promise<void> {
   if (!detail.value?.ddl) return
-  await navigator.clipboard.writeText(detail.value.ddl)
-  copied.value = true
+  const ok = await copyText(detail.value.ddl)
+  copyState.value = ok ? 'copied' : 'failed'
   window.clearTimeout(copyTimer)
-  copyTimer = window.setTimeout(() => {
-    copied.value = false
-  }, 1200)
+  copyTimer = window.setTimeout(
+    () => {
+      copyState.value = 'idle'
+    },
+    ok ? 1200 : 3200,
+  )
 }
 
 watch(
@@ -282,7 +289,7 @@ onBeforeUnmount(() => window.clearTimeout(copyTimer))
                 :disabled="!detail.ddl"
                 @click="copyDdl"
               >
-                <Copy :size="13" />{{ copied ? '已复制' : '复制 DDL' }}
+                <Copy :size="13" />{{ copyLabel }}
               </button>
             </div>
             <pre class="properties-ddl">{{ detail.ddl || '无法读取该表的 DDL' }}</pre>
