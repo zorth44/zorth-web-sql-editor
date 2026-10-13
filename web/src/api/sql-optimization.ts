@@ -40,8 +40,8 @@ export function listOptimizationTasks(
   const query = new URLSearchParams({ pageSize: String(params.pageSize ?? 20) })
   if (params.status) query.set('status', params.status)
   if (params.pageToken) query.set('pageToken', params.pageToken)
-  return sqlRequest(`${tasksPath}?${query}`, { signal })
+  return sqlRequest(`${tasksPath}?${query}`, signal ? { signal } : {})
 }
 export function getOptimizationTask(id: string, signal?: AbortSignal): Promise<TaskDetail> {
-  return sqlRequest(`${tasksPath}/${encodeURIComponent(id)}`, { signal })
+  return sqlRequest(`${tasksPath}/${encodeURIComponent(id)}`, signal ? { signal } : {})
 }

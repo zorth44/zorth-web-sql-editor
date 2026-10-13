@@ -17,3 +17,12 @@
 - 测试：`pnpm test src/api/sql-optimization.test.ts`，1 文件 8 测试通过，无跳过。
 - 下一步：FE-02 创建与导航、FE-03 查询与轮询、FE-04 报告。
 - 最近提交（阶段开始前）：d55b78a。无本地阻塞。
+
+## FE-02～FE-04 页面闭环
+
+- 最近阶段提交：830dd69（API/Mock）；创建/列表/详情/报告/重扫实现完成，已覆盖用户 scoped cache、后台暂停/终态停轮询、幂等恢复。
+- 可选编辑器“送去优化器”不增加；创建表单使用既有 Monaco/scanner/引擎与 NAMESPACE。
+- 修复既有 scanner 末尾纯注释误计多语句；新增回归断言。Copilot Markdown 改用 Vue 节点白名单，移除 v-html，保留 Markdown 格式，未放宽 lint。
+- 检查：`pnpm test` 55 文件 338 测试全部通过，无跳过；`pnpm typecheck`、`pnpm build` 通过，生产无 Mock；`pnpm lint` 已通过。
+- 过程失败已修复：exactOptionalPropertyTypes 的可选 signal；prettier 多语句模板事件；测试参数类型；末尾纯注释误计。
+- 下一步：FE-05 浏览器验收、最终自查/预览/提交。仅 FE-06 外部联调待验收。

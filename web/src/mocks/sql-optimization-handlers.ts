@@ -119,7 +119,9 @@ function submit(
   const scanner = scanSql(payload.sql || '')
   if (
     !payload.database?.trim() ||
-    /[\u0000-\u001f\u007f]/.test(payload.database + payload.datasourceId) ||
+    Array.from(payload.database + payload.datasourceId).some(
+      (c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127,
+    ) ||
     !payload.sql?.trim() ||
     payload.sql.length > 20000 ||
     (payload.name?.trim().length || 0) > 100 ||

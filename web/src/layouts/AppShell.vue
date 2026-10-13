@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LogOut, Database, Code2 } from 'lucide-vue-next'
+import { LogOut, Database, Code2, ScanSearch } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ThemeToggle from '@/components/ThemeToggle.vue'
@@ -37,6 +37,13 @@ async function logout(): Promise<void> {
         >
           <Database :size="15" class="mr-1 inline" />数据源管理
         </RouterLink>
+        <RouterLink
+          v-if="auth.session?.capabilities.includes('SQL_OPTIMIZE')"
+          to="/sql-optimizer"
+          class="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted hover:bg-wash"
+          active-class="!bg-brand-soft !text-brand"
+          ><ScanSearch :size="15" class="mr-1 inline" />SQL 优化器</RouterLink
+        >
       </nav>
       <div class="ml-auto flex items-center gap-4">
         <div class="text-right">

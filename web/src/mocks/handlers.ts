@@ -358,7 +358,16 @@ export const handlers = [
   http.post(auth('/logout'), () => HttpResponse.json({ code: 200, msg: '退出成功' })),
   http.get(
     sql('/api/v1/session'),
-    ({ request }) => authorized(request) || HttpResponse.json(mockSession),
+    ({ request }) =>
+      authorized(request) ||
+      HttpResponse.json(
+        request.headers.get('Authorization') === 'Bearer no-optimize-token'
+          ? {
+              ...mockSession,
+              capabilities: mockSession.capabilities.filter((c) => c !== 'SQL_OPTIMIZE'),
+            }
+          : mockSession,
+      ),
   ),
   http.get(sql('/api/v1/engines'), ({ request }) => {
     const denied = authorized(request)
