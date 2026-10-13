@@ -83,7 +83,7 @@ pnpm build
 
 ## 切换真实后端
 
-1. 按 `docs/backend-development-spec.md` 实现 Session 和数据源 API。
+1. 启动本仓库 `service/`（见 `../service/README.md` 与 `../docs/local-development.md`），或把 API base 指向已部署的集成环境。接口契约以 `openspec/specs/` 下的 spec 为准。
 2. 将两个 API base 指向集成环境，并把 `VITE_ENABLE_API_MOCK` 设为 `false`。
 3. 检查网关 CORS、Bearer Token 和 `X-Request-Id` 透传。
 4. 用同一套 Playwright 流程验证真实接口，尤其是 404 隐藏产品边界、乐观锁和空密码复用。

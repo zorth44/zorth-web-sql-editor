@@ -48,7 +48,7 @@
 
 第一阶段 MySQL SSL 模式映射为 `DISABLED`、`PREFERRED`、`REQUIRED`。`REQUIRED` 加密传输但本阶段未提供浏览器侧 CA/客户端证书上传与主机名验证配置；严格 PKI 要求应由受控 JDBC/运行环境证书配置在后续阶段实现。
 
-连接 GBase 8a 目标库须将南大通用官方 `gbase-connector-java.jar` 放到 `service/third-party/gbase/gbase-connector-java.jar` 后重新打包；该包不在 Maven Central，不能用 MySQL Connector/J 代替。未放入时服务仍可启动，GBASE_8A 连接会失败。
+连接 GBase 8a 目标库须将南大通用官方 `gbase-connector-java.jar` 放到 `service/third-party/gbase/gbase-connector-java.jar` 后重新打包；该包不在 Maven Central，不能用 MySQL Connector/J 代替。未放入时服务仍可启动，GBASE_8A 连接会失败。厂商 JAR 的统一放置方式（drop-in 与条件编译）见 [vendor-dependencies.md](vendor-dependencies.md)。
 
 ## 运行面
 

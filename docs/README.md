@@ -1,122 +1,32 @@
-# Web SQL 编辑器开发说明书（评审入口）
+# docs 索引
 
-项目：`zorth-web-sql-editor`。后端服务建议名：`zorth-web-sql-service`。
+本目录只保留仍在使用中的运行与实施文档。产品与接口规格的唯一来源是 [`openspec/specs/`](../openspec/specs/)；每个已完成变更的提案、设计与任务记录在 [`openspec/changes/archive/`](../openspec/changes/archive/)。
 
-本目录包含开发评审稿：
+## 本地运行
 
-- [前端开发说明书](./frontend-development-spec.md)
-- [后端与 API 开发说明书](./backend-development-spec.md)
-- [Agent Database Tool API](./agent-database-api.md)
-- [厂商驱动的交付方式（drop-in 与条件编译）](./vendor-dependencies.md)
-- [Plan：SQL 编辑器 Copilot（本仓库）](./plan-web-sql-editor-copilot.md)
-- [Plan：SQL 编辑器 Copilot（AI 服务配合）](./plan-ai-server-sql-editor-copilot.md)
+- [第二阶段本地完整链路](./local-development.md)：本地启动 auth-service、SQL service、Web，以及对接 AI Agent Platform 的步骤。
 
-文档版本：v0.3。仓库建议布局：`docs/`、`web/`（Vue）、`service/`（Spring Boot）。
+## 对外契约
 
-## 开发阶段
+- [Agent Database Tool API](./agent-database-api.md)：`/internal/api/v1/agent/**` 的鉴权、端点、字段与错误约定。
 
-按交付切片，不要第一期把数据源管理和 SQL 编辑器绑在一起验收。
+## SQL 优化器（进行中）
 
-| 阶段 | 目标 | 包含 | 不包含 |
-| --- | --- | --- | --- |
-| **第一阶段：数据源管理** | 用户能登录，并维护自己产品可见的 MySQL 数据源 | 登录/退出/Token 接入、Session、数据源列表/详情/新增/编辑/删除、测试连接、凭据加密、Host CIDR | SQL 编辑器、元数据树、执行、取消、导出、执行历史 |
-| **第二阶段：SQL 编辑器** | 在已有数据源上查库、执行 SQL、看结果、导出和回看历史 | 数据库/表/字段/索引、Monaco 编辑器、单语句执行与取消、结果表、CSV 导出、当前用户执行历史 | 审批、SQL Review、脱敏、事务面板、多引擎、工作表协作 |
+- [并行实施入口](./plan-sql-optimizer-async-tasks.md)
+- [前后端共享契约 v1](./sql-optimizer-api-contract.md)
+- [后端实施方案](./plan-sql-optimizer-backend.md)
+- [前端实施方案](./plan-sql-optimizer-frontend.md)
+- [启动与验收约定](./sql-optimizer-kickoff.md)
 
-第一阶段登录后默认进入 `/data-sources`。第二阶段登录后默认进入 `/sql-editor`，顶栏保留数据源管理入口。
+## 其他位置
 
-两个阶段共用同一套认证、权限和数据源模型；第二阶段不改第一阶段已经冻结的数据源 API，只追加元数据、执行、导出和历史接口。
+- 部署与安全配置、凭据轮换、厂商 JAR 交付方式见 [`service/docs/`](../service/docs/)。
+- 工程说明：前端 [`web/README.md`](../web/README.md)，后端 [`service/README.md`](../service/README.md)。
 
-## 已确认范围
+## 历史文档
 
-- 独立 Web 站点，仅支持 MySQL。
-- 一个用户只属于一个产品；一条数据源记录也只属于一个产品。
-- **数据源列表由后端按当前用户所属产品过滤后再返回。** 前端展示的就是已经筛过的结果，不要在浏览器端再做产品权限过滤，也不要让用户靠改 URL 看到其他产品的数据源。
-- 不提供数据源共享或跨产品绑定。不同产品即使连接同一个数据库实例，也分别创建不同的数据源 ID。
-- 数据源名称允许重复，唯一身份只使用 ID。
-- 所有用户对自己产品可见的数据源具有相同管理和使用权限。
-- 提供登录页，调用现有 `bddf-authorization-service` 登录接口并复用其 Token。
-- 数据库能否执行某条 SQL，由数据源配置账号的 MySQL 权限决定；应用侧不做危险操作识别、审批或风险审计。
-- 第二阶段支持查询、DML 和 DDL；第一版只导出 CSV；保存并查询当前用户自己的 SQL 执行历史。
+立项期的《前端开发说明书》《后端与 API 开发说明书》以及两份 Copilot 计划（本仓库侧、AI 服务侧）已完成使命：内容或与现状不符，或已全部落地，现由 `openspec/specs/` 下的 spec 取代，已从本目录删除。需要回溯时可用 git 历史：
 
-### 可见性与归属
-
-这是两件不同的事：
-
-1. **能看见哪些数据源**：只取决于当前用户所属产品。列表、详情、测试、编辑、删除、以及第二阶段的执行，后端都用当前产品过滤。产品 A 的用户看不到产品 B 的数据源。
-2. **创建时如何确定产品**：前端不展示或提交产品字段，后端从 Bearer Token 对应的登录上下文取得当前产品并写入 `product_id`。
-3. **同一物理数据库如何复用**：产品 A、B 分别创建独立记录，名称和连接参数可以相同，但 ID 不同；任一方修改或删除都不影响另一方。
-
-## 推荐实现摘要
-
-```text
-Vue 3 + TypeScript + Monaco
-            │ existing Bearer token
-            ▼
-独立 Spring Boot SQL Service
-  ├─ 调授权服务取得当前用户 + 唯一产品
-  ├─ 元数据库保存带所属产品的数据源、执行历史和用户 SQL 脚本
-  ├─ AES-GCM 加密保存目标数据库密码
-  ├─ Hikari 动态连接池连接目标 MySQL
-  └─ JDBC 执行 SQL / 流式 CSV 导出（第二阶段）
+```bash
+git log --diff-filter=D --name-only -- docs/
 ```
-
-## 建议默认值
-
-| 项目 | 默认 | 上限/说明 |
-| --- | --- | --- |
-| 连接超时 / 测试连接等待 | 10 秒 | 与表单一致，范围 1–30 秒，硬上限 30 秒 |
-| 页面返回行数 | 1,000 | 可请求调整，硬上限 100,000 |
-| 结果体积 | — | 100 MB |
-| SQL 执行超时 | 60 秒 | 查询、DML、DDL 均适用 |
-| 单用户并行执行 | 3 | 不同编辑器页签可并行，一次脚本只占 1 个额度 |
-| 单条 SQL 大小 | — | 1 MB |
-| 单次脚本语句数 | — | 200 条，超限前端拦截 |
-| 执行历史保留 | 90 天 | 可配置 |
-| 动态连接池大小 | 0–5 | 每个数据源懒加载 |
-
-Bytebase 最新官方文档给出的查询硬上限为 100,000 行、默认结果体积上限为 100 MB，并采用运行选区或当前语句、导出时重新执行 SQL 的模式。本项目保留这些硬上限，但使用更保守的 1,000 行默认值。
-
-## 交互变更（多语句脚本执行）
-
-**破坏性变更：运行按钮在没有选区时，由“执行当前语句”改为“执行编辑器全部语句”。** 之前把光标放在某条语句上点运行只会跑那一条，现在会按顺序跑完全部语句。只想跑一条时，先选中该语句再点运行（按钮会变成“运行选中”）。
-
-同时需要知道：
-
-- 脚本逐条串行执行，某条失败后停止；`autoCommit=true`，已执行的语句不会回滚。
-- `SET`、`USE`、`CREATE TEMPORARY TABLE` 只在所在语句生效，不会延续到后续语句，因为每条语句各自借用连接池中的连接。
-- 后端契约不变，仍是一次请求一条语句，`MULTI_STATEMENT_NOT_SUPPORTED` 保留为权威兜底。
-
-## 评审时最需要确认的项
-
-1. **授权登录兼容**：新前端按现网实现调用 `POST /ldap/login`，密码采用 Base64 加 12 位随机后缀的兼容格式；HTTPS 仍是必须条件。未绑定本地账号时回原系统完成绑定。
-   当前授权服务部分响应可能通过 `ldapUser.pwd` 返回解码后的密码，生产联调前必须由授权服务禁止序列化该字段并使用最小响应 DTO。
-2. **编辑态测试连接**：编辑页可以测试未保存配置，密码留空时后端复用已保存密码；这次测试不保存配置，也不更新最近测试状态。
-3. **单语句限制**（第二阶段）：一次只执行一条 JDBC Statement，不做多语句脚本和 `DELIMITER`/存储过程脚本支持。
-4. **自动提交**（第二阶段）：所有执行均 `autoCommit=true`；MySQL DDL 可能隐式提交，取消操作不能保证回滚。连接还池前必须重置会话，不把 `USE` / `SET` 留到下一个请求。
-5. **历史原文**（第二阶段）：为了搜索和重新打开，历史库保存 SQL 原文；前端页签恢复也不得把 Token 或结果集写入持久缓存。
-6. **CSV 公式保护**（第二阶段）：默认对 `= + - @` 开头的文本加单引号；如果必须原样导出，可以关闭。
-7. **SSL 不校验证书**：第一阶段三档为 `DISABLED` / `PREFERRED` / `REQUIRED`，不校验 CA 和主机名。
-8. **系统库与危险语句**：资源树默认隐藏系统库，但 SQL 仍可查询；`SELECT INTO OUTFILE` 等由 MySQL 账号权限决定，应用不额外拦截。
-
-## 授权服务契约
-
-浏览器使用授权服务现有接口：
-
-- `POST /ldap/login`：LDAP 登录，成功 Token 位于 `AjaxResult` 顶层 `token`。
-- `POST /logout`：退出并删除授权服务中的 Token 登录态。
-
-授权服务仍需为 SQL 服务新增：
-
-- `GET /internal/api/v1/auth/context`：根据现有 Token 返回用户、唯一产品和 Token 过期时间。
-
-该内部接口不能由客户端提交 `userId` 或 `productId` 来决定身份，必须以 Bearer Token 对应的 Redis 登录态为准。
-
-## Bytebase 参考基线
-
-- [Bytebase 3.20.1 Release](https://github.com/bytebase/bytebase/releases/tag/3.20.1)
-- [Bytebase SQL Editor：运行与导出](https://docs.bytebase.com/sql-editor/run-queries)
-- [Bytebase SQL Editor：执行历史与脚本](https://docs.bytebase.com/sql-editor/manage-sql-scripts)
-- [Bytebase 开源仓库](https://github.com/bytebase/bytebase)
-- [Bytebase License](https://github.com/bytebase/bytebase/blob/main/LICENSE)
-
-参考范围是页面信息架构、交互和合理默认值，不实现 Bytebase 的审批、SQL Review、数据脱敏、工作表分享、GitOps 等完整治理能力。第一阶段甚至不实现 SQL 编辑器本身。

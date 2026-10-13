@@ -141,6 +141,6 @@ unzip -l hive-jdbc-*-standalone.jar | grep -E 'UserGroupInformation|org/apache/z
 
 ## 6. 相关文档
 
-- `service/docs/deployment.md`（部署与现场 JAR 放置）
+- [deployment.md](./deployment.md)（部署与现场 JAR 放置）
 - `docs/local-development.md`（本地链路；GBase 8a 放 JAR 的示例）
 - `service/third-party/gbase/README.md`、`service/third-party/hive/README.md`

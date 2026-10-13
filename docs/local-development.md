@@ -64,4 +64,4 @@ export DATASOURCE_SERVICE_ENABLED=true
 export DATASOURCE_SERVICE_BASE_URL=http://127.0.0.1:8080
 ```
 
-编辑器右侧 Copilot 调用 `POST /api/v1/ai/agent/stream`（SSE：`start` / `delta` / `tool` / `completed` / `error`），Bearer Token 与 SQL 请求相同。旧的同步 `POST /api/v1/ai/agent` 仅作 404 回退。启动方式、工具集、提示词与对话历史契约见该仓库 `README.md`、`docs/sql-editor-chat-agent.md`；本仓库侧的契约见 `docs/plan-ai-server-sql-editor-copilot.md`。
+编辑器右侧 Copilot 调用 `POST /api/v1/ai/agent/stream`（SSE：`start` / `delta` / `tool` / `completed` / `error`），Bearer Token 与 SQL 请求相同。旧的同步 `POST /api/v1/ai/agent` 仅作 404 回退。启动方式、工具集、提示词与对话历史契约见该仓库 `README.md`、`docs/sql-editor-chat-agent.md`；本仓库侧的面板行为契约见 `openspec/specs/frontend-sql-copilot/spec.md`，SSE 客户端实现见 `web/src/api/ai-agent.ts`。

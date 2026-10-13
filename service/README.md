@@ -29,5 +29,5 @@ VITE_LEGACY_PORTAL_URL=https://portal.example.invalid \
 VITE_AUTH_BRIDGE_ALLOWED_ORIGINS=https://portal.example.invalid pnpm build
 ```
 
-部署配置见 [docs/deployment.md](docs/deployment.md)，凭据轮换见 [docs/credential-rotation.md](docs/credential-rotation.md)。
+部署配置见 [docs/deployment.md](docs/deployment.md)，凭据轮换见 [docs/credential-rotation.md](docs/credential-rotation.md)，厂商 JAR 的交付方式见 [docs/vendor-dependencies.md](docs/vendor-dependencies.md)。
 完整的第二阶段本地串联步骤见仓库 [docs/local-development.md](../docs/local-development.md)。
