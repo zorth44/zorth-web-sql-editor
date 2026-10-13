@@ -1,0 +1,20 @@
+{
+  "name": "Zorth Web SQL Editor",
+  "install": "./.cursor/install.sh",
+  "start": "./.cursor/start.sh",
+  "terminals": [
+    {
+      "name": "auth-service",
+      "command": "./.cursor/run-auth-service.sh"
+    },
+    {
+      "name": "sql-service",
+      "command": "./.cursor/run-sql-service.sh"
+    },
+    {
+      "name": "web",
+      "command": "./.cursor/run-web.sh"
+    }
+  ],
+  "ports": [5173, 8080, 8090, 9081]
+}
