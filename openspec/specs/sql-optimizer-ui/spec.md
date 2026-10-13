@@ -6,14 +6,14 @@ Define the SQL optimizer UI: capability-gated navigation and creation, idempoten
 
 ## Requirements
 ### Requirement: Capability gated navigation and creation
-The UI SHALL expose the optimizer only with SQL_OPTIMIZE and SHALL submit one SQL with a visible datasource and explicit namespace through the shared API contract.
+The UI SHALL expose the optimizer only with SQL_OPTIMIZE. Signed-in `/sql-optimizer` SHALL show the task list and a primary link to `/sql-optimizer/new`. That page SHALL submit one SQL with a visible datasource and explicit namespace through the shared API contract.
 
 #### Scenario: Missing capability
 - **WHEN** a signed-in user without SQL_OPTIMIZE visits the page
 - **THEN** navigation is hidden and the page prevents API operations and explains lack of access
 
 #### Scenario: Valid submission
-- **WHEN** a valid single SQL is submitted
+- **WHEN** a valid single SQL is submitted from `/sql-optimizer/new`
 - **THEN** the UI sends an Idempotency-Key and navigates to the accepted task ID only after 202
 
 ### Requirement: Idempotent recovery

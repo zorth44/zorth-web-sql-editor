@@ -19,6 +19,7 @@ import {
 const router = useRouter()
 const { allowed, scope } = useOptimizerAccess()
 const name = ref('')
+const moreOpen = ref(false)
 const datasourceId = ref('')
 const database = ref('')
 const sql = ref('')
@@ -99,6 +100,9 @@ function refreshOptions() {
   if (datasourceId.value) void namespaces.refetch()
   void engines.refetch()
 }
+function onMoreToggle(event: Event) {
+  moreOpen.value = (event.target as HTMLDetailsElement).open
+}
 function submit() {
   if (!allowed.value || mutation.isPending.value) return
   const errors = validateTaskInput(payload.value)
@@ -111,16 +115,9 @@ function submit() {
 }
 </script>
 <template>
-  <form class="panel p-5" @submit.prevent="submit">
-    <h2 class="text-lg font-semibold">创建单 SQL 扫描</h2>
-    <p class="mt-1 text-sm text-muted">
-      提交后可离开页面，稍后在扫描任务中查看报告。仅支持一条完整只读 SQL。
-    </p>
-    <fieldset :disabled="mutation.isPending.value || !allowed" class="mt-5 space-y-4">
-      <div class="grid gap-4 md:grid-cols-3">
-        <label class="label"
-          >任务名称（可选）<input v-model="name" class="field mt-2" placeholder="留空由服务端生成"
-        /></label>
+  <form class="panel flex min-h-[28rem] flex-col" @submit.prevent="submit">
+    <fieldset :disabled="mutation.isPending.value || !allowed" class="flex min-h-0 flex-1 flex-col">
+      <div class="grid gap-4 p-5 md:grid-cols-2">
         <label class="label"
           >数据源<select v-model="datasourceId" class="field mt-2">
             <option value="">请选择</option>
@@ -144,33 +141,43 @@ function submit() {
           </select></label
         >
       </div>
+      <details class="border-t border-line px-5 py-3" :open="moreOpen" @toggle="onMoreToggle">
+        <summary class="cursor-pointer text-sm font-medium">更多选项</summary>
+        <label class="label mt-3"
+          >任务名称（可选）<input v-model="name" class="field mt-2" placeholder="留空由服务端生成"
+        /></label>
+      </details>
       <p
         v-if="sources.isError.value || namespaces.isError.value || engines.isError.value"
         role="alert"
-        class="text-sm text-danger"
+        class="px-5 pb-3 text-sm text-danger"
       >
         {{ safeErrorMessage(sources.error.value || namespaces.error.value || engines.error.value) }}
         <button class="btn" type="button" @click="refreshOptions">刷新选项</button>
       </p>
-      <div>
-        <p class="label mb-2">
-          SQL <span class="text-muted">{{ sql.length }} / 20000 字符</span>
-        </p>
+      <div class="flex min-h-0 flex-1 flex-col px-5 pb-3">
+        <p class="label mb-2">SQL</p>
         <div
-          class="h-64 overflow-hidden rounded-lg border border-line"
+          class="min-h-48 flex-1 overflow-hidden rounded-lg border border-line"
           :class="mutation.isPending.value ? 'pointer-events-none' : ''"
         >
           <SqlMonacoEditor v-model="sql" :language="editorLanguageFor(descriptor)" />
         </div>
       </div>
     </fieldset>
-    <p v-if="message" class="mt-4 text-sm text-danger" role="alert">{{ message }}</p>
-    <div class="mt-4 flex items-center gap-3">
-      <button class="btn-primary" type="submit" :disabled="mutation.isPending.value || !allowed">
-        {{
-          mutation.isPending.value ? '正在提交…' : uncertain ? '用原请求找回任务' : '提交扫描'
-        }}</button
-      ><span class="text-xs text-muted">数据库校验与分析由服务端执行。</span>
+    <p v-if="message" class="px-5 text-sm text-danger" role="alert">{{ message }}</p>
+    <div
+      class="sticky bottom-0 z-10 mt-auto flex flex-wrap items-center gap-3 border-t border-line bg-panel px-5 py-4"
+    >
+      <span class="text-xs text-muted">{{ sql.length }} / 20000 字符</span>
+      <span class="text-xs text-muted">仅支持一条完整只读 SQL。</span>
+      <button
+        class="btn-primary ml-auto"
+        type="submit"
+        :disabled="mutation.isPending.value || !allowed"
+      >
+        {{ mutation.isPending.value ? '正在提交…' : uncertain ? '用原请求找回任务' : '提交扫描' }}
+      </button>
     </div>
   </form>
 </template>

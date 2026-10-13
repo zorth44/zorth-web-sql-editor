@@ -2,13 +2,13 @@
 
 ## 代码与规格
 
-- 前端：`web/src/pages/SqlOptimizerPage.vue`、`SqlOptimizationTaskPage.vue`、`components/sql-optimizer/`、`sql-optimizer/`、`api/sql-optimization.ts`。Mock 位于 `web/src/mocks/sql-optimization-*`。
+- 前端：`web/src/pages/SqlOptimizerPage.vue`（任务列表首页）、`SqlOptimizerNewPage.vue`（`/sql-optimizer/new` 创建页）、`SqlOptimizationTaskPage.vue`、`components/sql-optimizer/`、`sql-optimizer/`、`api/sql-optimization.ts`。Mock 位于 `web/src/mocks/sql-optimization-*`。
 - 后端：`service/src/main/java/com/bocsoft/sqleditor/optimization/`（API、repository、Scheduler、Worker、Agent client、报告验证和凭证 vault），表迁移见 `service/src/main/resources/db/migration/`。
 - 行为规格：[后端](../../openspec/specs/backend-sql-optimization/spec.md)、[UI](../../openspec/specs/sql-optimizer-ui/spec.md)。精确线协议见[共享契约 v1](../sql-optimizer-api-contract.md)。
 
 ## 关键维护边界
 
-浏览器提交单条只读 SQL，service 持久化后返回 202，独立 Worker 调用固定 `sql-lite-optimizer` 同步接口；Agent 携带同一 Bearer 与配对内部 key 回调数据库 API 取证。浏览器不直连 Agent，不维持后台执行请求。
+浏览器从 `/sql-optimizer/new` 提交单条只读 SQL，service 持久化后返回 202，独立 Worker 调用固定 `sql-lite-optimizer` 同步接口；Agent 携带同一 Bearer 与配对内部 key 回调数据库 API 取证。浏览器不直连 Agent，不维持后台执行请求。`/sql-optimizer` 只列出当前用户的任务。
 
 - 数据库队列持久化 QUEUED/RUNNING/SUCCEEDED/FAILED。领取前先获得执行槽，HTTP 等待不持有元库事务；结果写入必须匹配当前 attempt/version、有效 lease 和 hard deadline。心跳不改变领取版本；过期 RUNNING 落 WORKER_LOST，迟到结果不能覆盖终态，不透明自动重发 Agent POST。
 - 幂等重放先于新增配额，同 key 不同请求冲突；响应丢失显式恢复原 payload/key，编辑输入生成新 key。重扫只允许终态，新任务关联 sourceTaskId，不覆盖原报告。
