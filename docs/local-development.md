@@ -65,3 +65,11 @@ export DATASOURCE_SERVICE_BASE_URL=http://127.0.0.1:8080
 ```
 
 编辑器右侧 Copilot 调用 `POST /api/v1/ai/agent/stream`（SSE：`start` / `delta` / `tool` / `completed` / `error`），Bearer Token 与 SQL 请求相同。旧的同步 `POST /api/v1/ai/agent` 仅作 404 回退。启动方式、工具集、提示词与对话历史契约见该仓库 `README.md`、`docs/sql-editor-chat-agent.md`；本仓库侧的面板行为契约见 `openspec/specs/frontend-sql-copilot/spec.md`，SSE 客户端实现见 `web/src/api/ai-agent.ts`。
+
+## 6. SQL 优化器真实链路
+
+SQL 优化器默认关闭。开启需要同时满足：`SQL_EDITOR_OPTIMIZATION_ENABLED=true`、`SQL_EDITOR_OPTIMIZATION_INTEGRATION_READY=true`、显式 user/product 白名单、独立的 32 字节 Base64 凭证密钥与 ≥32 字节游标密钥；本地还需 `SQL_EDITOR_OPTIMIZATION_DEVELOPMENT_USER_HEADER=true` 与 `dev`/`test`/`local-optimization` 之一的活动 profile。缺任一项服务启动即失败。
+
+本地一键拉起整套真实链路（auth-service + SQL service + Agent Platform + 关闭 Mock 的 Web）、跑完验收场景并留证的方式见 [`tools/optimizer-live/README.md`](../tools/optimizer-live/README.md)，验收范围与结果见 [`docs/sql-optimizer-live-acceptance.md`](./sql-optimizer-live-acceptance.md)。该链路里 Worker 用当前任务凭证调用 Agent Platform 的 `POST /api/v1/agents/sql-lite-optimizer/chat`，Agent 再带同一 Bearer 加配对的 `X-Internal-Service-Key` 回调本服务 `/internal/api/v1/agent/**` 取计划与表结构证据；Agent 侧只挂只读工具，不执行原 SQL。
+
+功能未开启时不要授予 `SQL_OPTIMIZE`：能力由后端白名单决定，前端隐藏入口不替代后端校验。

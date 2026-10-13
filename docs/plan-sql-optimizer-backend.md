@@ -1,6 +1,6 @@
 # SQL 优化器：后端实施方案
 
-日期：2026-10-13。状态：BE-01～BE-07 本地交付已验收；生产身份、真实 Agent 和前后端联合验收待完成。负责 worktree：`feat/sql-optimizer-backend`。
+日期：2026-10-13。状态：BE-01～BE-07 本地交付已验收，8.3 真实 Agent + 关闭 Mock 前端联合验收已完成（[验收记录](sql-optimizer-live-acceptance.md)）；生产身份适配器与凭证托管政策待外部输入（8.1 剩余项、8.2）。负责 worktree：`feat/sql-optimizer-backend`（已合并 main）。
 
 先读 [共享契约 v1](sql-optimizer-api-contract.md) 与 [并行实施入口](plan-sql-optimizer-async-tasks.md)。本分支拥有 `service/**`，不修改 `web/**`。前端按契约独立开发，不等待本分支完成。
 
@@ -271,8 +271,8 @@ reportSchemaVersion 初始为 1，由本项目 wrapper 管理，不能冒充上�
 
 | 影响项 | 已尝试/证据 | 所需输入 |
 | --- | --- | --- |
-| 生产 Agent 身份与回调 | 方案基线仅有默认关闭的 HeaderCurrentUserAdapter；本地 Stub 经已验证 Bearer + 配对 key 成功，不作为正式身份替代 | 正式 CurrentUserPort 部署位置、用户 Bearer 传播、DATASOURCE_SERVICE_ENABLED/base URL/caller key 配对及生产环境验证 |
+| 生产 Agent 身份与回调 | Bearer 传播与配对 caller key 已在真实 Agent 上验证（key 单独 401、bearer+key 200，内部 key 不能替代用户身份）；方案基线仅有默认关闭的 HeaderCurrentUserAdapter，真实链路仍用 `dev` 开发头身份，不作为正式身份替代 | 正式 CurrentUserPort 部署位置与生产环境验证 |
 | 生产凭证托管与保留 | 本地独立随机密钥/到期/清理已验收；生产不自动启用 | 明确短期 Token 托管批准、真实 tokenExpiresAt、安全 key 来源/版本轮换、90 天保留确认及 Agent 持久会话保留政策 |
-| 真实 Agent 与前端闭环 | 四个接口与本地 SQL/数据库回调可运行；Stub 无真实模型结论，前端归另一 worktree | 真实 Agent 地址/账户/取证配置、真实 SELECT/JOIN/证据缺口验收、关闭前端 Mock 后双方联合验收 |
+| 真实 Agent 与前端闭环 | 2026-10-13 已完成：真实 Agent Platform + 真实模型 + 真实目标库 + 关闭 Mock 的前端，7 个真实任务（5 SUCCEEDED 带 EXPLAIN 证据、1 FAILED/`CREDENTIAL_EXPIRED`、跨用户隔离），内部 API 边界四项断言通过。证据见[验收记录](sql-optimizer-live-acceptance.md)，驱动见 [`tools/optimizer-live/`](../tools/optimizer-live/README.md) | 生产 Agent 地址/账户/容量预算与上线审批 |
 
 这些外部条件不阻塞已完成的本地开发，但必须在整体上线验收前完成。本分支不自行修改共享契约/产品范围/生产凭证政策，不接入生产。

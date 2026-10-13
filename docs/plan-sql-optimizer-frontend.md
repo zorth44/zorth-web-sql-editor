@@ -1,6 +1,6 @@
 # SQL 优化器：前端实施方案
 
-日期：2026-10-13。状态：FE-01～FE-05 本地 MSW 交付完成；FE-06 真实联调待验收。负责 worktree：`feat/sql-optimizer-frontend`。
+日期：2026-10-13。状态：FE-01～FE-06 全部完成，含关闭 Mock 的真实链路前后端联合验收（[验收记录](sql-optimizer-live-acceptance.md)，2026-10-13）；生产未启用。负责 worktree：`feat/sql-optimizer-frontend`（已合并 main）。
 
 先读 [共享契约 v1](sql-optimizer-api-contract.md) 与 [并行实施入口](plan-sql-optimizer-async-tasks.md)。本分支拥有 `web/**`，不修改 `service/**`。直接使用 MSW 完成页面与流程，无须等待 Worker、数据库或生产认证接入。
 
@@ -162,7 +162,7 @@ UI 只承诺“关页后可回来查看”；不承诺退出撤销 Token 后任�
 | --- | --- |
 | `pnpm typecheck` | 通过 |
 | `pnpm lint` | 通过，0 error / 0 warning；既有 Copilot 门禁已修复 |
-| `pnpm test` | 55 文件、339 测试通过，无失败和跳过 |
+| `pnpm test` | 交付时 55 文件、339 测试通过，无失败和跳过；2026-10-13 在当前依赖环境下复跑有 2 个既有 CSV 导出断言失败（jsdom `Blob` 缺 `text()`），根因与复现见[验收记录第 5 节](sql-optimizer-live-acceptance.md) |
 | `env VITE_ENABLE_API_MOCK=false pnpm build` | 生产构建通过；生产 Mock 保护保留 |
 | `pnpm e2e e2e/sql-optimizer.spec.ts e2e/copilot.spec.ts` | 12/12 通过（优化器 7 + Copilot 5），无跳过；含390px、完整优化器场景与 Copilot 回归 |
 | `openspec validate add-sql-optimizer-frontend --strict`（worktree 根） | 通过 |
@@ -182,4 +182,4 @@ UI 只承诺“关页后可回来查看”；不承诺退出撤销 Token 后任�
 
 生产构建仍有既有 Monaco bundle >500kB 提示，不影响构建门禁。Mock 通过 sessionStorage 模拟刷新后任务读取，仅服务开发验收。未推送、未创建 PR、未合并或发布。
 
-FE-06 单独待验收：需后端真实四接口、SQL_OPTIMIZE 用户、可见数据源/NAMESPACE 与真实身份/凭证配置；关闭 Mock 后核对 DTO/null/游标/幂等，验证真实 Worker 离页执行、凭证过期再登录与重扫。前端没有修改 service、共享契约、根配置或后端方案；不能将本地 Mock 验收标成真实联调完成。
+FE-06 已于 2026-10-13 完成：后端已合并 main，前端关闭 Mock 对接真实四接口、真实 SQL_OPTIMIZE 账号、真实数据源与真实 Agent Platform，核对 DTO/null/游标/幂等、离页执行、关页/刷新/重扫、跨用户 404、能力 403、游标 400 与凭证过期再登录链路，14 个场景全部通过，任务与报告证据见[验收记录](sql-optimizer-live-acceptance.md)，可复现驱动见 [`tools/optimizer-live/`](../tools/optimizer-live/README.md)。本次联调 `web/**` 零改动。生产身份适配器、短期凭证托管审批与生产开关不属于前端范围，仍待外部输入。前端没有修改 service、共享契约、根配置或后端方案。

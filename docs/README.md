@@ -5,18 +5,20 @@
 ## 本地运行
 
 - [第二阶段本地完整链路](./local-development.md)：本地启动 auth-service、SQL service、Web，以及对接 AI Agent Platform 的步骤。
+- [SQL 优化器真实链路验收](./sql-optimizer-live-acceptance.md)：关闭 Mock 的前后端联合验收范围、结果与未完成项；驱动工具见 [`tools/optimizer-live/`](../tools/optimizer-live/README.md)。
 
 ## 对外契约
 
 - [Agent Database Tool API](./agent-database-api.md)：`/internal/api/v1/agent/**` 的鉴权、端点、字段与错误约定。
 
-## SQL 优化器（进行中）
+## SQL 优化器（本地交付完成，生产未启用）
 
 - [并行实施入口](./plan-sql-optimizer-async-tasks.md)
 - [前后端共享契约 v1](./sql-optimizer-api-contract.md)
 - [后端实施方案](./plan-sql-optimizer-backend.md)
 - [前端实施方案](./plan-sql-optimizer-frontend.md)
 - [启动与验收约定](./sql-optimizer-kickoff.md)
+- [真实链路验收记录](./sql-optimizer-live-acceptance.md)
 
 ## 其他位置
 
