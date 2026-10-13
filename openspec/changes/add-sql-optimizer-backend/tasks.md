@@ -21,10 +21,10 @@
 ## 6. BE-06 Local acceptance
 - [x] 6.1 Verify real MySQL API isolation/idempotency/concurrent quotas/cursors and report/HTTP fixtures.
 - [x] 6.2 Verify competing workers/recovery/lease/late results/transaction boundaries and credential expiry/revocation/change/decryption.
-- [ ] 6.3 Run JDK17 mvn test and mvn verify with actual container execution and Java8 compatibility, inspect changes and stage commits.
+- [x] 6.3 Run JDK17 mvn test and mvn verify with actual container execution and Java8 compatibility, inspect changes and stage commits.
 
 ## 7. BE-07 Local handoff
-- [ ] 7.1 Provide runnable local API/Worker/auth/Agent fixtures, sample task results and contract evidence, update backend plan/execution.
+- [x] 7.1 Provide runnable local API/Worker/auth/Agent fixtures, sample task results and contract evidence, update backend plan/execution.
 
 ## 8. External acceptance (outside local Goal)
 - [ ] 8.1 Confirm production CurrentUserPort, verified Bearer and real Agent callback configuration.

@@ -1,0 +1,31 @@
+{
+  "id": "76e0af68-c9ad-49ff-bb04-a1b722734309",
+  "name": "Local real JOIN plan",
+  "datasourceId": "0374667b-03ef-4446-a896-9781c6eb22c2",
+  "datasourceName": "Optimizer local fixture",
+  "database": "optimizer_fixture",
+  "sql": "SELECT a.id FROM sql_data_source a JOIN sql_data_source b ON a.id=b.id",
+  "status": "SUCCEEDED",
+  "createdAt": "2026-10-13T05:57:12.501660Z",
+  "startedAt": "2026-10-13T05:57:12.990730Z",
+  "completedAt": "2026-10-13T05:57:13.082301Z",
+  "sourceTaskId": null,
+  "reportSchemaVersion": 1,
+  "report": {
+    "verdict": "本地 Stub：已读取真实数据库计划，未运行真实模型",
+    "issues": [],
+    "suggestions": [],
+    "limitations": [
+      {
+        "ruleId": null,
+        "reason": "仅用于本地认证、EXPLAIN 回调与异步生命周期验收；无真实 Agent 质量结论"
+      }
+    ]
+  },
+  "summary": {
+    "policyIssueCount": 0,
+    "performanceIssueCount": 0,
+    "limitationCount": 1
+  },
+  "error": null
+}

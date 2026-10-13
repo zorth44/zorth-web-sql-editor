@@ -70,12 +70,26 @@ public class SqlLiteAgentClient {
             }
             if (timedOut.get()) throw new OptimizationFailure("AGENT_TIMEOUT");
             JsonNode root;
-            try { root = json.readTree(bytes); } catch (Exception e) { throw new OptimizationFailure("REPORT_INVALID"); }
+            try { checkEnvelope(bytes); root = json.readTree(bytes); } catch (Exception e) { throw new OptimizationFailure("REPORT_INVALID"); }
             return reports.validate(root == null ? null : root.get("structuredOutput"));
         } catch (OptimizationFailure e) { throw e; }
         catch (SocketTimeoutException e) { throw new OptimizationFailure("AGENT_TIMEOUT"); }
         catch (Exception e) { throw new OptimizationFailure(timedOut.get() ? "AGENT_TIMEOUT" : "AGENT_UNAVAILABLE"); }
         finally { if (deadline != null) deadline.cancel(false); if (connection != null) connection.disconnect(); }
+    }
+    private void checkEnvelope(byte[] bytes) throws Exception {
+        // Bound tree construction depth and reject duplicate keys/trailing JSON before allocating a tree.
+        try (com.fasterxml.jackson.core.JsonParser parser = json.getFactory().createParser(bytes)) {
+            parser.enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+            int depth = 0, roots = 0;
+            com.fasterxml.jackson.core.JsonToken token;
+            while ((token = parser.nextToken()) != null) {
+                if (depth == 0) roots++;
+                if (token.isStructStart() && ++depth > 64) throw new OptimizationFailure("REPORT_INVALID");
+                if (token.isStructEnd()) depth--;
+            }
+            if (roots != 1 || depth != 0) throw new OptimizationFailure("REPORT_INVALID");
+        }
     }
     public static String message(String datasourceId, String database, String sql) {
         coordinate(datasourceId); coordinate(database);

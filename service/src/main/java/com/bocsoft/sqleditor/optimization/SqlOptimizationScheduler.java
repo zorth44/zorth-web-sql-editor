@@ -23,15 +23,16 @@ public class SqlOptimizationScheduler {
         int size=Math.max(1,properties.getWorkerConcurrency());slots=new Semaphore(size);workers=Executors.newFixedThreadPool(size,r->{Thread t=new Thread(r,"optimization-worker");t.setDaemon(true);return t;});
     }
     @PostConstruct public void start(){
-        if(properties.isEnabled()&&properties.isSchedulerEnabled())maintenance.scheduleWithFixedDelay(()->{
+        if(properties.isSchedulerEnabled())maintenance.scheduleWithFixedDelay(()->{
             try{tick();}catch(Exception ignored){metrics.counter("sql.optimization.scheduler.errors").increment();}
         },0,2000,TimeUnit.MILLISECONDS);
     }
     public void tick(){
-        if(closed.get()||!properties.isEnabled()||!properties.isIntegrationReady())return;
+        if(closed.get())return;
         repository.maintain(clock.instant(),properties.getAttemptBudgetSeconds());
         metrics.gauge("sql.optimization.queued",repository,r->r.queued());metrics.gauge("sql.optimization.running",repository,r->r.running());
         metrics.gauge("sql.optimization.oldest.wait.seconds",repository,r->r.oldestWait(clock.instant()));
+        if(!properties.isEnabled()||!properties.isIntegrationReady())return;
         while(!closed.get() && slots.tryAcquire()){
             try{
                 OptimizationAttempt attempt=repository.claim(clock.instant(),properties.getAttemptBudgetSeconds(),properties.getLeaseSeconds(),workerId);

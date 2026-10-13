@@ -1,0 +1,31 @@
+{
+  "id": "1f6506b3-cccd-4882-aa89-77feb68af535",
+  "name": "Local callback success",
+  "datasourceId": "0374667b-03ef-4446-a896-9781c6eb22c2",
+  "datasourceName": "Optimizer local fixture",
+  "database": "optimizer_fixture",
+  "sql": "SELECT 1",
+  "status": "SUCCEEDED",
+  "createdAt": "2026-10-13T05:57:12.629618Z",
+  "startedAt": "2026-10-13T05:57:13.000209Z",
+  "completedAt": "2026-10-13T05:57:13.076054Z",
+  "sourceTaskId": "c33e56b7-defa-45cc-80b1-9484c470957e",
+  "reportSchemaVersion": 1,
+  "report": {
+    "verdict": "本地 Stub：已读取真实数据库计划，未运行真实模型",
+    "issues": [],
+    "suggestions": [],
+    "limitations": [
+      {
+        "ruleId": null,
+        "reason": "仅用于本地认证、EXPLAIN 回调与异步生命周期验收；无真实 Agent 质量结论"
+      }
+    ]
+  },
+  "summary": {
+    "policyIssueCount": 0,
+    "performanceIssueCount": 0,
+    "limitationCount": 1
+  },
+  "error": null
+}

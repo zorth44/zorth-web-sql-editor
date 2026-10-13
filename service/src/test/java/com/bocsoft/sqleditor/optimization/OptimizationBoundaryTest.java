@@ -69,6 +69,14 @@ class OptimizationBoundaryTest {
             server.resetAll(); server.stubFor(post(urlEqualTo(path)).willReturn(okJson(CLEAN).withFixedDelay(700)));
             assertEquals("AGENT_TIMEOUT", assertThrows(OptimizationFailure.class, () -> client.analyze("ds","db","SELECT 1","s","r","secret",auth)).getCode());
             server.verify(1, postRequestedFor(urlEqualTo(path)));
+            String deep = "["; for (int i=0;i<70;i++) deep += "["; deep += "0"; for(int i=0;i<71;i++) deep += "]";
+            for (String invalid : new String[]{"{\"structuredOutput\":"+CLEAN+",\"structuredOutput\":"+CLEAN+"}", "{\"structuredOutput\":"+CLEAN+"} {}", deep}) {
+                server.resetAll();server.stubFor(post(urlEqualTo(path)).willReturn(okJson(invalid)));
+                assertEquals("REPORT_INVALID", assertThrows(OptimizationFailure.class, () -> client.analyze("ds","db","SELECT 1","s","r","secret",auth)).getCode());
+            }
+            server.resetAll();server.stubFor(post(urlEqualTo(path)).willReturn(okJson("{\"structuredOutput\":"+CLEAN+"}").withChunkedDribbleDelay(10,1500)));
+            long started=System.nanoTime();assertEquals("AGENT_TIMEOUT",assertThrows(OptimizationFailure.class,()->client.analyze("ds","db","SELECT 1","s","r","secret",auth)).getCode());
+            assertTrue(java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-started)<1000,"Deadline must bound a trickled response");
             p.setMaxReportBytes(10); server.resetAll(); server.stubFor(post(urlEqualTo(path)).willReturn(okJson(CLEAN)));
             assertEquals("REPORT_TOO_LARGE", assertThrows(OptimizationFailure.class, () -> client.analyze("ds","db","SELECT 1","s","r","secret",auth)).getCode());
             assertThrows(OptimizationFailure.class, () -> SqlLiteAgentClient.message("ds\nother: bad", "db", "SELECT 1"));

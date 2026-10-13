@@ -43,7 +43,7 @@ public class OptimizationRepository {
         jdbc.update("INSERT INTO sql_optimization_credential (task_id,ciphertext,key_version,expires_at) VALUES (?,?,?,?)", t.id,c.ciphertext,c.version,time(c.expiresAt));
     }
     public List<OptimizationTask> list(String user, String product, String filter, Instant at, String id, int limit) {
-        String query="SELECT t.* FROM sql_optimization_task t JOIN sql_data_source d ON d.id=t.data_source_id AND d.product_id=t.product_id WHERE t.user_id=? AND t.product_id=?";
+        String query="SELECT t.id,t.user_id,t.product_id,t.name,t.data_source_id,t.data_source_name,t.engine_id,t.database_name,LEFT(REPLACE(REPLACE(t.statement_text,CHAR(13),' '),CHAR(10),' '),160) AS statement_text,t.source_task_id,t.idempotency_key,t.request_fingerprint,t.status,t.current_attempt_id,t.version,t.report_schema_version,NULL AS report_json,t.policy_issue_count,t.performance_issue_count,t.limitation_count,t.error_code,t.error_message,t.request_id,t.created_at,t.started_at,t.completed_at,t.expires_at FROM sql_optimization_task t JOIN sql_data_source d ON d.id=t.data_source_id AND d.product_id=t.product_id WHERE t.user_id=? AND t.product_id=?";
         java.util.List<Object> args=new java.util.ArrayList<Object>(); args.add(user);args.add(product);
         if(filter!=null){query+=" AND t.status=?";args.add(filter);}
         if(at!=null){query+=" AND (t.created_at<? OR (t.created_at=? AND t.id<?))";args.add(time(at));args.add(time(at));args.add(id);}
