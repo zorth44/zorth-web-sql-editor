@@ -6,7 +6,7 @@
 
 ## 前置条件
 
-- JDK 17（脚本按 Homebrew 路径自动探测，可用 `JAVA_HOME_17` 覆盖）、Maven、Node/pnpm、`shasum`、`curl`、Python 3.9+。
+- JDK 17（脚本按 Homebrew 路径自动探测，可用 `JAVA_HOME_17` 覆盖）、Maven、Node `^20.19.0 || >=22.12.0` 与 pnpm、`shasum`、`curl`、Python 3.9+。web 开发服务器由 vite 7 驱动，`stack.sh` 在启动前校验 Node 版本，不符会直接报错并提示用 nvm 切换。
 - 可访问的 MySQL 8.0 服务器，具备建库权限。脚本不会创建数据库，需要先准备两个库：
   - 元数据库（默认 `sqleditor_dev`）：Flyway V1–V8 由服务启动时应用。
   - 目标库（默认 `optimizer_demo`）：被 SQL 编辑器连接并执行 plan-only EXPLAIN 的库。建议放几张只有主键、数据量达万级的表，这样真实计划才会出现全表扫描等可解释的问题。

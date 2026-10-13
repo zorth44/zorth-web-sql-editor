@@ -8,6 +8,7 @@
 # Usage: stack.sh <up|down|restart|status>
 #
 # Required environment: MYSQL_HOST MYSQL_PORT MYSQL_USER MYSQL_PASSWORD LLM_API_KEY
+# Node must satisfy ^20.19.0 || >=22.12.0 for the web dev server (vite 7); checked before start.
 # Optional: OPTIMIZER_LIVE_RUNTIME (default /private/tmp/optimizer-live), AGENT_REPO, JAVA_HOME_17,
 #           API_PORT/AUTH_PORT/AGENT_PORT/WEB_PORT, OPTIMIZER_USERS, OPTIMIZER_DENIED_USER,
 #           OPTIMIZER_PASSWORD, OPTIMIZATION_SCHEDULER_ENABLED, MYSQL_DEMO_DATABASE
@@ -36,6 +37,44 @@ LOGS="$RUNTIME/logs"
 
 die() { echo "error: $*" >&2; exit 1; }
 need() { [ -n "${!1:-}" ] || die "$1 is required"; }
+
+# web/ (vite 7) declares engines ^20.19.0 || >=22.12.0; any other version makes the dev
+# server exit at startup while the rest of the stack still looks healthy.
+web_node_ok() {
+  local version major minor
+  version=$(node -v 2>/dev/null) || return 1
+  version=${version#v}
+  case "$version" in
+    [0-9]*.[0-9]*) ;;
+    *) return 1 ;;
+  esac
+  major=${version%%.*}
+  minor=${version#*.}
+  minor=${minor%%.*}
+  case "$major" in
+    20) [ "$minor" -ge 19 ] ;;
+    21) return 1 ;;
+    22) [ "$minor" -ge 12 ] ;;
+    *) [ "$major" -ge 23 ] ;;
+  esac
+}
+
+web_node_hint() {
+  cat >&2 <<EOF
+  web/ needs Node ^20.19.0 || >=22.12.0 (vite 7); this shell resolves node to $(node -v 2>/dev/null || echo 'nothing')
+  switch with nvm in the shell that starts the stack:
+    nvm install --lts && nvm use --lts    # or: nvm use default
+  check with: node -v
+  dev server log: $LOGS/web.log
+EOF
+}
+
+require_web_node() {
+  if web_node_ok; then return 0; fi
+  echo "error: node is too old for the web dev server (vite 7)" >&2
+  web_node_hint
+  exit 1
+}
 
 resolve_java() {
   if [ -n "${JAVA_HOME_17:-}" ]; then echo "$JAVA_HOME_17"; return; fi
@@ -109,19 +148,21 @@ start() { # start <name> <port> <command...>
   echo "started $name (pid $(cat "$RUNTIME/$name.pid"), log $LOGS/$name.log)"
 }
 
-# Any HTTP answer (including 404) means the listener is up.
+# Any HTTP answer (including 404) means the listener is up. Returns non-zero when
+# nothing answered in time, so the caller can stay up and print a hint instead.
 wait_port() {
   local port=$1 deadline=$((SECONDS + 120))
   until curl -s -o /dev/null "http://127.0.0.1:$port/"; do
     if [ $SECONDS -ge $deadline ]; then
       echo "warning: port $port did not answer within 120s" >&2
-      return 0
+      return 1
     fi
     sleep 2
   done
 }
 
 up() {
+  require_web_node
   need MYSQL_HOST; need MYSQL_PORT; need MYSQL_USER; need MYSQL_PASSWORD; need LLM_API_KEY
   [ -d "$AGENT_REPO" ] || die "Agent Platform checkout not found: $AGENT_REPO (set AGENT_REPO)"
   mkdir -p "$RUNTIME" "$LOGS"
@@ -197,8 +238,15 @@ data = {
 with open(state, 'w') as handle:
     json.dump(data, handle, indent=2)
 PY
-  wait_port "$API_PORT"; wait_port "$AGENT_PORT"; wait_port "$WEB_PORT"
-  echo "stack is up; runtime state: $STATE (runtime.json holds the same values)"
+  local unanswered=''
+  wait_port "$API_PORT" || unanswered="$unanswered $API_PORT"
+  wait_port "$AGENT_PORT" || unanswered="$unanswered $AGENT_PORT"
+  wait_port "$WEB_PORT" || { web_node_hint; unanswered="$unanswered $WEB_PORT"; }
+  if [ -n "$unanswered" ]; then
+    echo "stack started, but nothing answered on port(s):$unanswered (logs: $LOGS)" >&2
+  else
+    echo "stack is up; runtime state: $STATE (runtime.json holds the same values)"
+  fi
   cp "$STATE" "$RUNTIME/runtime.json"
 }
 
@@ -230,7 +278,8 @@ status() {
 case "${1:-}" in
   up) up ;;
   down) down ;;
-  restart) down; sleep 3; up ;;
+  # check before stopping anything: a rejected up() would leave the stack down
+  restart) require_web_node; down; sleep 3; up ;;
   status) status ;;
   *) die "usage: stack.sh <up|down|restart|status>" ;;
 esac
