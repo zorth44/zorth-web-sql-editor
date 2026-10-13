@@ -1,5 +1,7 @@
 # Agent Database Tool API
 
+Consumer reference for the current [behavior specification](../openspec/specs/backend-agent-database-api/spec.md). Keep wire fields and examples aligned with implementation and specs; maintenance entry: [Agent database API](subsystems/agent-database-api.md).
+
 Versioned Agent adapter under `/internal/api/v1/agent`. It reuses datasource, metadata, SQL safety, plan-only explain, and execution services. It does not open JDBC itself and does not change `/api/v1` Web SQL Editor contracts.
 
 Depends on the plan-only explain path from `add-agent-table-info-explain-apis` (`EngineSupport.rewriteExplain`, `POST /api/v1/sql/explains`). Analyzed explain is not exposed on this Tool API.

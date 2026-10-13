@@ -44,7 +44,7 @@
 - 当前阶段：FE-01～FE-05 本地完成，15/16 tasks 完成；唯一待验收任务为 6.1（FE-06 真实联调，不属于本地 Goal）。
 - 最近实现/验收提交：031996e；此前 d55b78a / 830dd69 / 30ef7ff。最终恢复文档提交可用 `git log -1 --oneline` 查询。
 - 自查：所有变更属于 web/**、前端实施方案与本 change；共享契约、后端、根配置未修改，未提交凭证/个人配置/构建产物。`git diff --check` 和 OpenSpec strict validation 通过。
-- 运行方式与详细测试/已知限制见 docs/plan-sql-optimizer-frontend.md 文末。本任务 Vite 5173 预览保持运行；已确认 HTTP200。339 单测、7 优化器 E2E 和5 Copilot E2E 均通过，无跳过；生产构建及 typecheck/lint 通过。现有 Monaco 大包提示仍在，不影响门禁。
+- 运行方式与详细测试/已知限制见 docs/archive/2026-10-13-sql-optimizer-delivery.md 的前端交付记录。本任务 Vite 5173 预览保持运行；已确认 HTTP200。339 单测、7 优化器 E2E 和5 Copilot E2E 均通过，无跳过；生产构建及 typecheck/lint 通过。现有 Monaco 大包提示仍在，不影响门禁。
 - 已完成本地阶段提交；未推送、PR、合并或发布；未 archive change，以保留 FE-06 真实验收清单。
 - 下一步：后端真实四接口、SQL_OPTIMIZE 用户/可见坐标与真实身份凭证就绪后，关闭 Mock 执行 6.1。恢复时先读 AGENTS/tasks/execution 与 git 状态，不重做已验收的本地流程。
 
@@ -52,7 +52,7 @@
 
 - 前置已就绪：`feat/sql-optimizer-backend` 已合并进 main（PR #4），后端四接口、Worker、真实 Agent 回调链路均可用。
 - 链路：Vite 5173（`VITE_ENABLE_API_MOCK=false`）→ SQL service 8080（优化器开启）→ MySQL `sqleditor_dev`/`optimizer_demo`、auth-service 8090、Agent Platform 8081（真实模型）。一键脚本 `tools/optimizer-live/stack.sh up`，驱动 `live-e2e.mjs` / `live-failures.mjs`。
-- 结果：第 2 节 14 个场景全部通过，真实任务 7 个（5 SUCCEEDED、1 FAILED/`CREDENTIAL_EXPIRED`、1 跨用户隔离样本），真实报告含 `explain_sql` 的 `accessType=ALL`/`estimatedRows≈20297` 证据（与 20000 行 orders 表一致），页面渲染、关页继续、刷新/换页、重扫 `sourceTaskId`、403/404、游标 400、内部 API 边界四项断言均核对通过。完整证据与任务清单见 `docs/sql-optimizer-live-acceptance.md`。
+- 结果：第 2 节 14 个场景全部通过，真实任务 7 个（5 SUCCEEDED、1 FAILED/`CREDENTIAL_EXPIRED`、1 跨用户隔离样本），真实报告含 `explain_sql` 的 `accessType=ALL`/`estimatedRows≈20297` 证据（与 20000 行 orders 表一致），页面渲染、关页继续、刷新/换页、重扫 `sourceTaskId`、403/404、游标 400、内部 API 边界四项断言均核对通过。完整证据与任务清单见 `docs/archive/2026-10-13-sql-optimizer-live-acceptance.md`。
 - 本次改动仅新增 `tools/optimizer-live/`（脚本与 README）与文档；`web/**` 在联调期间零改动（`git status` 中 web/ 干净），因此本地门禁结论继续有效。联调期复跑 `pnpm typecheck`、`pnpm lint` 通过，优化器 Playwright 7/7 通过（38.3s）。
 - 既有失败（非本次回归）：`web/src/api/executions.test.ts:21` 与 `web/src/api/phase-two.test.ts:33` 各 1 个 CSV 导出断言失败（`csv.blob?.text is not a function`），根因为 vitest 下 jsdom 26.1.0 的 `Blob` 缺 `text()`/`arrayBuffer()`；在原前端 worktree 交付提交与 main 上同样可复现，被测代码未改动。未删除测试或放宽断言，FE-05 的“339 全通过”在当前依赖环境下不再复现，如实记录在验收文档第 5 节。
 - 6.1 已完成（Mock 关闭的真实链路核对）；生产身份适配器、短期凭证托管审批、生产开关与保留策略不在前端范围，保留在后端 change 的 8.x。

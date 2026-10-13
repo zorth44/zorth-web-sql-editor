@@ -1,8 +1,10 @@
 # SQL 优化器前后端共享契约 v1
 
-日期：2026-10-13。状态：并行开发基线；以下任务 API 尚未实现。
+更新：2026-10-13。状态：四个任务 API 已实现，本地真实链路已验收；生产未启用。
 
-后端按此实现 DTO/接口，前端按此实现 TypeScript/MSW。部署地址、后台凭证与 Agent 调用细节属于后端，不进入浏览器业务 DTO。契约变化必须双方同步，不能各自添加互不兼容的字段或状态。
+行为规格见[后端规格](../openspec/specs/backend-sql-optimization/spec.md)与[UI 规格](../openspec/specs/sql-optimizer-ui/spec.md)。本文补充精确线协议；维护入口见[SQL 优化器](subsystems/sql-optimizer.md)，生产状态见[待验收项](sql-optimizer-production-readiness.md)。
+
+后端 DTO/接口与前端 TypeScript/MSW 按此协议同步维护。部署地址、后台凭证与 Agent 调用细节属于后端，不进入浏览器业务 DTO。契约变化必须双方同步，不能各自添加互不兼容的字段或状态。
 
 ## 1. 请求约定与功能范围
 
@@ -144,8 +146,8 @@ HTTP 请求失败沿用本项目 ApiErrorBody，不与 TaskDetail.error 混用�
 
 GET 查询到 FAILED 任务仍为 HTTP 200。暂时网络故障不等于任务失败，前端应保留已知状态并提示刷新。
 
-## 5. 并行开发夹具与联合验收
+## 5. 契约夹具与联合验证
 
 前端 MSW 与后端契约测试各自保留对应目录中的夹具，遵循相同场景而不竞争共享 fixture 文件：QUEUED、RUNNING、无问题报告、POLICY + PERFORMANCE + linked suggestions、只有 limitations 的报告、凭证过期、越权 404、配额 429、幂等重放与冲突。
 
-联合核对 JSON 字段/空值、状态枚举、retry 无请求体、列表游标、202/Location、HTTP 失败与任务失败的区别。真实联调关闭 Mock，验证刷新和离页后能够读取同一任务，两个分支都不得依赖客户端 sessionId 或前端本地持久任务。
+联合核对 JSON 字段/空值、状态枚举、retry 无请求体、列表游标、202/Location、HTTP 失败与任务失败的区别。真实联调关闭 Mock，验证刷新和离页后能够读取同一任务，前后端均不得依赖客户端 sessionId 或前端本地持久任务。

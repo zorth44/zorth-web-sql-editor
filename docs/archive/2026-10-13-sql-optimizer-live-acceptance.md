@@ -1,6 +1,6 @@
 # SQL 优化器前后端真实链路验收
 
-日期：2026-10-13。范围：本机真实服务链路的前后端联合验收——前端关闭 Mock、后端真实数据库与 Worker、真实 Agent Platform 与真实模型、真实目标 MySQL。本文件是 `add-sql-optimizer-frontend` FE-06 与 `add-sql-optimizer-backend` 8.x 的验收证据，运行方式见 [`tools/optimizer-live/README.md`](../tools/optimizer-live/README.md)。
+日期：2026-10-13。范围：本机真实服务链路的前后端联合验收——前端关闭 Mock、后端真实数据库与 Worker、真实 Agent Platform 与真实模型、真实目标 MySQL。本文件是 `add-sql-optimizer-frontend` FE-06 与 `add-sql-optimizer-backend` 8.x 的验收证据，运行方式见 [`tools/optimizer-live/README.md`](../../tools/optimizer-live/README.md)。
 
 生产身份适配器、短期凭证托管政策审批、生产开关与保留期确认仍未验收，见文末第 7 节。本文不代表生产环境已启用。
 
@@ -95,7 +95,9 @@ node tools/optimizer-live/live-failures.mjs verify        # 重启后恢复与�
 
 截图与运行记录（未入库）：`/private/tmp/optimizer-integration/`（本次验收）与 `/private/tmp/optimizer-live/`（复跑），均为 `live-01..05*.png`、`live-report.txt`、`live-failure.txt`、`live-result.json`、`failure-state.json`、`logs/`。
 
-## 7. 未完成项与外部依赖
+## 7. 验收当时未完成项与外部依赖
+
+以下保留验收时的范围边界，后续状态统一维护在[生产待验收项](../sql-optimizer-production-readiness.md)。
 
 | 项 | 状态 | 所需输入 |
 | --- | --- | --- |

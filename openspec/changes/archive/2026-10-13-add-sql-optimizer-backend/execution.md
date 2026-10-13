@@ -42,4 +42,4 @@ Partial 8.1: Bearer propagation and real Agent callback configuration verified a
 
 Known issues recorded in the acceptance doc: upstream DeepSeek `response_format` 400 with a successful non-structured fallback on the Agent Platform side; 60 s auth-context cache on `GET /api/v1/session` (worker unaffected, it reauthorizes uncached); two pre-existing frontend CSV-export unit failures caused by jsdom 26.1.0's `Blob` lacking `text()`/`arrayBuffer()`, reproducible on main and on the delivered frontend worktree before this work — not a regression, not weakened.
 
-No production enablement, publication, key change or credential committed. Evidence: `docs/sql-optimizer-live-acceptance.md`; run instructions in `docs/local-development.md` §6 and `tools/optimizer-live/README.md`.
+No production enablement, publication, key change or credential committed. Evidence: `docs/archive/2026-10-13-sql-optimizer-live-acceptance.md`; run instructions in `docs/local-development.md` §6 and `tools/optimizer-live/README.md`.

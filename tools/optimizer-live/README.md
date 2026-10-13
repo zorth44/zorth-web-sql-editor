@@ -1,6 +1,6 @@
 # SQL 优化器真实链路验收工具
 
-本目录是 [`docs/sql-optimizer-live-acceptance.md`](../../docs/sql-optimizer-live-acceptance.md) 记录的验收驱动：在本机拉起 **真实** 链路——真实 SQL service、真实 auth-service、真实 Agent Platform（真实模型）、真实 MySQL 与关闭 Mock 的前端——然后用 Playwright 驱动浏览器和接口走完契约场景。
+本目录是 [`docs/archive/2026-10-13-sql-optimizer-live-acceptance.md`](../../docs/archive/2026-10-13-sql-optimizer-live-acceptance.md) 记录的验收驱动：在本机拉起 **真实** 链路——真实 SQL service、真实 auth-service、真实 Agent Platform（真实模型）、真实 MySQL 与关闭 Mock 的前端——然后用 Playwright 驱动浏览器和接口走完契约场景。
 
 不是 Mock/Stub 验收，也不能替代生产验收：身份使用 `dev` 开发头，凭证托管政策与生产开关仍未批准。
 

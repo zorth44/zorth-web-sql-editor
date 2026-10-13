@@ -28,7 +28,7 @@
 
 ## 8. External acceptance (outside local Goal)
 
-未勾选项全部依赖生产输入，随本 change 归档后由 `docs/sql-optimizer-live-acceptance.md` 第 7 节与 `docs/plan-sql-optimizer-backend.md` 的外部依赖表继续跟踪；本 change 交付的代码与契约不因此缺失。
+未勾选项全部依赖生产输入，随本 change 归档后由 `docs/sql-optimizer-production-readiness.md` 继续跟踪，验收时边界保留在 `docs/archive/2026-10-13-sql-optimizer-live-acceptance.md` 第 7 节；本 change 交付的代码与契约不因此缺失。
 
 - [ ] 8.1 Confirm production CurrentUserPort, verified Bearer and real Agent callback configuration.
   - [x] 2026-10-13 local run against a real Agent Platform and real MySQL: user Bearer propagated on the Agent chat call, paired callback key enforced (`X-Internal-Service-Key` alone 401, wrong/missing key 401, bearer + paired key 200) and the internal key never substitutes user identity.
@@ -36,4 +36,4 @@
 - [ ] 8.2 Approve production credential custody/expiry/key sources and Agent state retention.
   - [ ] Pending: short-lived token persistence approval, real `tokenExpiresAt` source, independent key sources and rotation, 90-day retention confirmation, Agent session retention policy.
 - [x] 8.3 Verify real SELECT/JOIN/evidence gaps with actual Agent and frontend with Mock disabled.
-  - [x] 2026-10-13 completed: real Agent + real target MySQL + Mock-disabled frontend; 7 real tasks (5 SUCCEEDED with evidence-bearing reports, 1 FAILED/`CREDENTIAL_EXPIRED`, cross-user 404 samples), evidence in `docs/sql-optimizer-live-acceptance.md`, driver in `tools/optimizer-live/`.
+  - [x] 2026-10-13 completed: real Agent + real target MySQL + Mock-disabled frontend; 7 real tasks (5 SUCCEEDED with evidence-bearing reports, 1 FAILED/`CREDENTIAL_EXPIRED`, cross-user 404 samples), evidence in `docs/archive/2026-10-13-sql-optimizer-live-acceptance.md`, driver in `tools/optimizer-live/`.
