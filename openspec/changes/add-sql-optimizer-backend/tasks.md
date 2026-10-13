@@ -27,6 +27,9 @@
 - [x] 7.1 Provide runnable local API/Worker/auth/Agent fixtures, sample task results and contract evidence, update backend plan/execution.
 
 ## 8. External acceptance (outside local Goal)
+
+未勾选项全部依赖生产输入，随本 change 归档后由 `docs/sql-optimizer-live-acceptance.md` 第 7 节与 `docs/plan-sql-optimizer-backend.md` 的外部依赖表继续跟踪；本 change 交付的代码与契约不因此缺失。
+
 - [ ] 8.1 Confirm production CurrentUserPort, verified Bearer and real Agent callback configuration.
   - [x] 2026-10-13 local run against a real Agent Platform and real MySQL: user Bearer propagated on the Agent chat call, paired callback key enforced (`X-Internal-Service-Key` alone 401, wrong/missing key 401, bearer + paired key 200) and the internal key never substitutes user identity.
   - [ ] Production CurrentUserPort adapter, its deployment location and formal end-user identity are still unverified; local acceptance used the `dev` development user header.

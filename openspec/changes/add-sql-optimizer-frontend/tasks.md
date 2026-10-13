@@ -31,4 +31,4 @@
 ## 6. FE-06 真实链路联调
 
 - [x] 6.1 关闭 Mock 对接真实后端：真实 SQL_OPTIMIZE 能力、创建与轮询、报告渲染、关页/刷新/重扫、403/404、游标契约与凭证过期均已在真实链路上核对，证据见 `docs/sql-optimizer-live-acceptance.md`，驱动见 `tools/optimizer-live/`。
-  - 生产身份、凭证托管与生产开关不在本次范围，仍在后端 change 的 8.x 列出。
+  - 生产身份、凭证托管与生产开关不在本次范围，列在 `docs/sql-optimizer-live-acceptance.md` 第 7 节与后端 change 的 8.x。
