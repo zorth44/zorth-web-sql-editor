@@ -1,4 +1,5 @@
 import { delay, http, HttpResponse } from 'msw'
+import { optimizationHandlers } from '@/mocks/sql-optimization-handlers'
 import { appEnv } from '@/env'
 import { initialDataSources, mockDataSources, mockSession } from '@/mocks/fixtures'
 import { mockEngineCatalog } from '@/mocks/engines'
@@ -320,6 +321,7 @@ const allowedCreateKeys = new Set([
 ])
 
 export const handlers = [
+  ...optimizationHandlers,
   http.post(auth('/ldap/login'), async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>
     if (!body.username || !body.password)
@@ -356,7 +358,16 @@ export const handlers = [
   http.post(auth('/logout'), () => HttpResponse.json({ code: 200, msg: '退出成功' })),
   http.get(
     sql('/api/v1/session'),
-    ({ request }) => authorized(request) || HttpResponse.json(mockSession),
+    ({ request }) =>
+      authorized(request) ||
+      HttpResponse.json(
+        request.headers.get('Authorization') === 'Bearer no-optimize-token'
+          ? {
+              ...mockSession,
+              capabilities: mockSession.capabilities.filter((c) => c !== 'SQL_OPTIMIZE'),
+            }
+          : mockSession,
+      ),
   ),
   http.get(sql('/api/v1/engines'), ({ request }) => {
     const denied = authorized(request)

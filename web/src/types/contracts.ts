@@ -4,6 +4,7 @@ export type Capability =
   | 'SQL_EXPORT'
   | 'HISTORY_READ'
   | 'SCRIPT_MANAGE'
+  | 'SQL_OPTIMIZE'
 
 export interface Session {
   user: { id: string; username: string; displayName: string }
