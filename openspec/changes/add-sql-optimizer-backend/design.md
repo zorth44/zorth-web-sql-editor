@@ -5,7 +5,7 @@ Spring Boot 2.7 MVC/MyBatis/Flyway/MySQL, Java 8 API compatibility. Shared contr
 Durable single-SQL tasks and locally verified API/worker/credential/report lifecycle. No execution, automatic POST retries, production integration or frontend changes.
 
 ## Decisions
-- V8 task/attempt/credential tables; a seeded quota mutex row serializes creation counts and idempotency checks across instances. Short TransactionTemplate units ensure remote HTTP holds no metadata transaction.
+- V8 task/attempt/credential tables using the existing Spring JDBC dependency and explicit TransactionTemplate units (existing MyBatis features stay unchanged); a seeded quota mutex row serializes creation counts and idempotency checks across instances. Short TransactionTemplate units ensure remote HTTP holds no metadata transaction.
 - Atomic QUEUED claim and current-attempt/status guarded terminal writes; heartbeats only update lease, never task version. Expired leases fail WORKER_LOST without requeue.
 - Independent bounded worker and maintenance/heartbeat executors; no sqlExecutionExecutor reuse. Local slot precedes database claim.
 - AES-GCM credential vault with task-bound purpose AAD and key version. No built-in key; actual token expiry and TTL are capped, with full-attempt headroom required.

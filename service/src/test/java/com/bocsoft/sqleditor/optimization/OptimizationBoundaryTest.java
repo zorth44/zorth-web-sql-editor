@@ -25,6 +25,17 @@ class OptimizationBoundaryTest {
         ObjectNode missing = (ObjectNode) json.readTree(CLEAN); missing.remove("suggestions");
         assertThrows(OptimizationFailure.class, () -> validator.validate(missing));
     }
+    @Test void rejectsWritableCtesSelectIntoAndExecutableComments() {
+        for (String sql : new String[]{"WITH changed AS (DELETE FROM x RETURNING *) SELECT * FROM changed", "WITH x AS (SELECT 1) UPDATE y SET z=1", "SELECT * INTO OUTFILE '/tmp/file' FROM x", "SELECT 1 /*! INTO OUTFILE '/tmp/file' */"})
+            assertThrows(com.bocsoft.sqleditor.common.ApiException.class, () -> OptimizationSqlGuard.requireReadOnly(sql, "POSTGRESQL"));
+        for (String sql : new String[]{"WITH x AS (SELECT 1) SELECT * FROM x", "SELECT 'delete', `update` FROM x -- INTO\n", "SELECT $$UPDATE x$$", "SELECT 1 /* DELETE x */"})
+            assertDoesNotThrow(() -> OptimizationSqlGuard.requireReadOnly(sql, "POSTGRESQL"));
+    }
+    @Test void engineTriviaCannotHideWritableCtes() {
+        assertThrows(com.bocsoft.sqleditor.common.ApiException.class, () -> OptimizationSqlGuard.requireReadOnly("WITH c AS (SELECT 1 # 2) DELETE FROM x", "POSTGRESQL"));
+        assertDoesNotThrow(() -> OptimizationSqlGuard.requireReadOnly("SELECT 1 # DELETE FROM x", "MYSQL"));
+        assertThrows(com.bocsoft.sqleditor.common.ApiException.class, () -> OptimizationSqlGuard.requireReadOnly("WITH c AS (SELECT 'a\\\\') DELETE FROM x -- '", "POSTGRESQL"));
+    }
     @Test void vaultUsesPurposeTaskAndVersionWithAuthenticatedEncryption() {
         OptimizationProperties p = new OptimizationProperties(); p.getCredentialKeys().put("v1", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         TaskCredentialVault vault = new TaskCredentialVault(p);
