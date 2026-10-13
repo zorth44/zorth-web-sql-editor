@@ -5,7 +5,7 @@ import { useOptimizerAccess } from '@/sql-optimizer/queries'
 const { allowed } = useOptimizerAccess()
 </script>
 <template>
-  <section>
+  <section class="sql-optimizer-surface">
     <header class="mb-6">
       <p class="text-sm font-medium text-brand">异步 SQL 分析</p>
       <h1 class="mt-1 text-3xl font-semibold">SQL 优化器</h1>

@@ -77,6 +77,9 @@ body {
   min-width: 1024px;
   min-height: 100vh;
 }
+body:has(.sql-optimizer-surface) {
+  min-width: 320px;
+}
 button,
 input,
 select,

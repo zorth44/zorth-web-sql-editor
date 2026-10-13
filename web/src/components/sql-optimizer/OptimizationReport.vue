@@ -20,7 +20,7 @@ async function copy(detail: string) {
 }
 </script>
 <template>
-  <div ref="root" class="space-y-5">
+  <div ref="root" class="space-y-5 break-words">
     <p v-if="!report" class="panel p-5 text-danger" role="alert">
       报告格式异常或版本不受支持，请联系管理员核对报告。
     </p>

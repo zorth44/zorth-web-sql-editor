@@ -142,4 +142,11 @@ describe('SQL optimizer contract', () => {
     saveToken('no-optimize-token', false)
     await expect(listOptimizationTasks({})).rejects.toMatchObject({ status: 403 })
   })
+  it('can recover a temporary GET interruption without changing terminal state', async () => {
+    const task = await createOptimizationTask({ ...payload, name: 'mock:network' }, randomUUID())
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6000)
+    expect((await getOptimizationTask(task.id)).status).toBe('SUCCEEDED')
+    await expect(getOptimizationTask(task.id)).rejects.toMatchObject({ status: 0 })
+    expect((await getOptimizationTask(task.id)).status).toBe('SUCCEEDED')
+  })
 })

@@ -68,7 +68,7 @@ function retry() {
 }
 </script>
 <template>
-  <section class="space-y-5">
+  <section class="sql-optimizer-surface space-y-5">
     <RouterLink to="/sql-optimizer" class="text-sm text-brand">← 返回 SQL 优化器</RouterLink>
     <p v-if="!allowed" class="panel p-8" role="alert">当前账号没有 SQL 优化器能力。</p>
     <template v-else>

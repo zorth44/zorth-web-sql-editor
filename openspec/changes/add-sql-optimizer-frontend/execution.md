@@ -26,3 +26,15 @@
 - 检查：`pnpm test` 55 文件 338 测试全部通过，无跳过；`pnpm typecheck`、`pnpm build` 通过，生产无 Mock；`pnpm lint` 已通过。
 - 过程失败已修复：exactOptionalPropertyTypes 的可选 signal；prettier 多语句模板事件；测试参数类型；末尾纯注释误计。
 - 下一步：FE-05 浏览器验收、最终自查/预览/提交。仅 FE-06 外部联调待验收。
+
+## FE-05 验收
+
+- 最近实现提交：30ef7ff；完成新增优化器 E2E、390px 页面布局、Mock 查询中断夹具与测试清理隔离。
+- 最终门禁：`pnpm typecheck`、`pnpm lint`（0 error/warning）、`pnpm test`（55 文件 339 测试，0 failed/skipped）、`env VITE_ENABLE_API_MOCK=false pnpm build` 均通过。
+- 浏览器：`pnpm e2e e2e/sql-optimizer.spec.ts e2e/copilot.spec.ts`，12/12 通过（优化器 7 + Copilot 5），无跳过，38.7 秒。包括移动端、离页/返回/刷新、401 原详情回跳、能力/HTTP403/404、409/429、创建和重扫响应丢失幂等恢复、linked suggestion、limitations 与 CREDENTIAL_EXPIRED。
+- 生产构建检查：生成 JS 不含优化器 Mock storage 代码；生产禁止 Mock 的既有保护未修改。
+- 视觉：实际 Chromium 的完整报告与390px创建截图检查通过；截图 /private/tmp/sql-optimizer-report.png、/private/tmp/sql-optimizer-mobile.png 未提交。
+- 预览：Vite http://127.0.0.1:5173/sql-optimizer 启动并 HTTP200；终端 session 89923。原生 browser connector 不可用，视觉检查用 Playwright。
+- 过程浏览器失败：第一轮2定位器失败/1中断/3未运行（隐式label）；第二轮2失败/4未运行（Monaco IME textarea）；一次构建发现列表 computed ref 模板误用 .value；移动测试1失败（body min-width1024）。均已修复，未删除场景或降低断言；最终完整12项通过。最小宽度仅优化器路由调整。
+- 外部依赖：仅 FE-06，需真实后端API、SQL_OPTIMIZE身份与数据源/NAMESPACE、凭证/Agent配置，关闭Mock联合验收。尚未运行真实链路，不将其记为完成。
+- 下一步：本地验收阶段提交、最终交付文档自查与提交；不推送/PR/合并/发布。

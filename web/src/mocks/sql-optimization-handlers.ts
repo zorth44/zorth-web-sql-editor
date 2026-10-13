@@ -11,6 +11,7 @@ type Replay = { fingerprint: string; id: string }
 const storageKey = 'zorth.mock.sql-optimization'
 let records: RecordTask[] = []
 let replays: Record<string, Replay> = {}
+const interruptedQueries = new Set<string>()
 try {
   const raw = sessionStorage.getItem(storageKey)
   if (raw) ({ records, replays } = JSON.parse(raw))
@@ -27,6 +28,7 @@ function persist(): void {
 export function resetOptimizationMock(): void {
   records = []
   replays = {}
+  interruptedQueries.clear()
   persist()
 }
 const path = `${appEnv.sqlApiBase}/api/v1/sql-optimization/tasks`
@@ -232,8 +234,18 @@ export const optimizationHandlers = [
   http.get(`${path}/:id`, ({ request, params }) => {
     const denied = authorize(request)
     if (denied) return denied
+    if (params.id === 'mock-forbidden')
+      return error(request, 403, 'SQL_OPTIMIZE_FORBIDDEN', '当前账号没有 SQL 优化器能力。')
     const task = records.find((r) => r.owner === owner(request) && r.task.id === params.id)?.task
     if (!task) return error(request, 404, 'OPTIMIZATION_TASK_NOT_FOUND', '任务不存在或不可见。')
+    if (
+      task.name === 'mock:network' &&
+      task.status !== 'QUEUED' &&
+      !interruptedQueries.has(task.id)
+    ) {
+      interruptedQueries.add(task.id)
+      return HttpResponse.error()
+    }
     const result = advance(task)
     persist()
     return HttpResponse.json(result)

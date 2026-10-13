@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { listOptimizationTasks } from '@/api/sql-optimization'
+import { isApiError } from '@/api/api-error'
 import type { TaskStatus } from '@/sql-optimizer/contracts'
 import {
   activeTask,
@@ -42,11 +43,16 @@ const query = useQuery({
   refetchIntervalInBackground: false,
   refetchOnWindowFocus: 'always',
 })
+const data = computed(() =>
+  isApiError(query.error.value) && [403, 404].includes(query.error.value.status)
+    ? undefined
+    : query.data.value,
+)
 watch(visible, (value) => {
   if (value && allowed.value) void query.refetch()
 })
 function next() {
-  const token = query.data.value?.nextPageToken
+  const token = data.value?.nextPageToken
   if (!token || query.isFetching.value) return
   cursors.value = [...cursors.value.slice(0, pageIndex.value + 1), token]
   pageIndex.value += 1
@@ -74,13 +80,14 @@ function next() {
       </button>
     </header>
     <div v-if="query.isError.value" class="p-4 text-sm text-danger" role="alert">
-      {{ queryErrorMessage(query.error.value) }} 最近已知任务状态保留；请刷新列表。
+      {{ queryErrorMessage(query.error.value) }}
+      <span v-if="data">最近已知任务状态保留；请刷新列表。</span>
     </div>
     <p v-if="query.isPending.value" class="p-8 text-muted" role="status">正在加载任务…</p>
-    <p v-else-if="query.data.value && !query.data.value.items.length" class="p-8 text-muted">
+    <p v-else-if="data && !data.items.length" class="p-8 text-muted">
       暂无扫描任务。提交一条 SQL 开始分析。
     </p>
-    <div v-if="query.data.value?.items.length" class="overflow-x-auto">
+    <div v-if="data?.items.length" class="overflow-x-auto">
       <table class="w-full text-left text-sm">
         <thead class="bg-subtle text-xs text-muted">
           <tr>
@@ -92,7 +99,7 @@ function next() {
           </tr>
         </thead>
         <tbody class="divide-y divide-line">
-          <tr v-for="task in query.data.value.items" :key="task.id" class="hover:bg-wash">
+          <tr v-for="task in data.items" :key="task.id" class="hover:bg-wash">
             <td class="max-w-sm p-4">
               <RouterLink
                 :to="`/sql-optimizer/tasks/${encodeURIComponent(task.id)}`"
@@ -132,7 +139,7 @@ function next() {
       ><button
         class="btn"
         type="button"
-        :disabled="!query.data.value?.nextPageToken || query.isFetching.value"
+        :disabled="!data?.nextPageToken || query.isFetching.value"
         @click="next"
       >
         下一页
