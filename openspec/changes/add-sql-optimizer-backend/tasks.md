@@ -28,5 +28,9 @@
 
 ## 8. External acceptance (outside local Goal)
 - [ ] 8.1 Confirm production CurrentUserPort, verified Bearer and real Agent callback configuration.
+  - [x] 2026-10-13 local run against a real Agent Platform and real MySQL: user Bearer propagated on the Agent chat call, paired callback key enforced (`X-Internal-Service-Key` alone 401, wrong/missing key 401, bearer + paired key 200) and the internal key never substitutes user identity.
+  - [ ] Production CurrentUserPort adapter, its deployment location and formal end-user identity are still unverified; local acceptance used the `dev` development user header.
 - [ ] 8.2 Approve production credential custody/expiry/key sources and Agent state retention.
-- [ ] 8.3 Verify real SELECT/JOIN/evidence gaps with actual Agent and frontend with Mock disabled.
+  - [ ] Pending: short-lived token persistence approval, real `tokenExpiresAt` source, independent key sources and rotation, 90-day retention confirmation, Agent session retention policy.
+- [x] 8.3 Verify real SELECT/JOIN/evidence gaps with actual Agent and frontend with Mock disabled.
+  - [x] 2026-10-13 completed: real Agent + real target MySQL + Mock-disabled frontend; 7 real tasks (5 SUCCEEDED with evidence-bearing reports, 1 FAILED/`CREDENTIAL_EXPIRED`, cross-user 404 samples), evidence in `docs/sql-optimizer-live-acceptance.md`, driver in `tools/optimizer-live/`.

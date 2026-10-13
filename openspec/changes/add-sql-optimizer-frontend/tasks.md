@@ -28,6 +28,7 @@
 - [x] 5.3 解决既有前端 lint 门禁，完成 typecheck/lint/test/生产 build/E2E 并记录实际结果。
 - [x] 5.4 完成自查、阶段提交、运行预览和前端方案/execution 交付记录。
 
-## 6. FE-06 外部真实联调（不属于本地 Goal）
+## 6. FE-06 真实链路联调
 
-- [ ] 6.1 后端与真实 SQL_OPTIMIZE 用户就绪后关闭 Mock，核对契约及真实关页/凭证过期/重扫授权链路。
+- [x] 6.1 关闭 Mock 对接真实后端：真实 SQL_OPTIMIZE 能力、创建与轮询、报告渲染、关页/刷新/重扫、403/404、游标契约与凭证过期均已在真实链路上核对，证据见 `docs/sql-optimizer-live-acceptance.md`，驱动见 `tools/optimizer-live/`。
+  - 生产身份、凭证托管与生产开关不在本次范围，仍在后端 change 的 8.x 列出。

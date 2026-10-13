@@ -48,9 +48,13 @@ The UI MUST render supported valid reports as plain text in verdict/issues/sugge
 - **WHEN** schema version or report shape is invalid
 - **THEN** the UI displays a report format error without guessing report data
 
-### Requirement: Local acceptance boundaries
-The change SHALL provide unit/component/API and browser evidence with production Mock disabled, and SHALL label real integration as pending separately.
+### Requirement: Acceptance boundaries
+The change SHALL provide unit/component/API and browser evidence with production Mock disabled, SHALL record a Mock-disabled acceptance run against real services when they are available, and SHALL keep every item that run did not cover listed separately.
 
 #### Scenario: Local delivery
 - **WHEN** local implementation is delivered
 - **THEN** typecheck, lint, tests, build and optimizer E2E results plus commits and recovery record are available
+
+#### Scenario: Real stack delivery
+- **WHEN** a Mock-disabled build runs against real task APIs, a real Agent Platform and a real target database
+- **THEN** capability gating, creation, polling, report rendering, page close, refresh, retry, cross-user isolation, cursor contract and credential expiry are recorded with actual task identifiers, and uncovered production items such as identity adapter and credential custody stay listed as pending
