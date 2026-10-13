@@ -3,9 +3,7 @@
 ## Purpose
 
 Define Bearer Token authentication, external authorization context consumption, Session projection, request correlation, caching, and authentication-secret confidentiality.
-
 ## Requirements
-
 ### Requirement: Bearer Token authentication
 The SQL service SHALL require an `Authorization: Bearer` Token for every `/api/v1/**` request and SHALL derive identity only from the external authorization context service.
 
@@ -56,7 +54,7 @@ The SQL service SHALL expose `GET /api/v1/session` as the authenticated frontend
 
 #### Scenario: Read the current Session
 - **WHEN** an authenticated user requests `/api/v1/session`
-- **THEN** the service SHALL return the documented user and product objects, `expiresAt` from the Token context, and exactly `DATA_SOURCE_MANAGE`, `SQL_EXECUTE`, `SQL_EXPORT`, `HISTORY_READ`, and `SCRIPT_MANAGE`
+- **THEN** the service SHALL return the documented user and product objects, `expiresAt` from the Token context, and `DATA_SOURCE_MANAGE`, `SQL_EXECUTE`, `SQL_EXPORT`, `HISTORY_READ`, and `SCRIPT_MANAGE`; it SHALL additionally include `SQL_OPTIMIZE` only when the optimization feature and verified integration are enabled and both configured user and product allowlists permit the principal
 
 #### Scenario: Session response minimizes identity data
 - **WHEN** the Session is returned
@@ -74,10 +72,9 @@ The SQL service SHALL assign a safe request identifier to every request and make
 - **THEN** the service SHALL generate a UUID and return the generated value in the response header and any error body
 
 ### Requirement: Authentication secret confidentiality
-Authentication processing MUST prevent Tokens and internal-service credentials from entering application logs, metrics labels, error bodies, persistence, or health details.
+Authentication processing MUST prevent Tokens and internal-service credentials from entering application logs, metrics labels, error bodies, ordinary persistence, or health details; the sole exception SHALL be isolated authenticated-encryption task credentials with independent versioned keys, explicit expiry, task-bound purpose and terminal cleanup.
 
 #### Scenario: Diagnose an authorization failure
 - **WHEN** an authorization call fails or an authenticated request is rejected
 - **THEN** logs SHALL contain the request ID and safe failure classification but SHALL NOT contain the raw Token or internal-service key
-
 
