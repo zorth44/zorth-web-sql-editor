@@ -1,4 +1,5 @@
 import { delay, http, HttpResponse } from 'msw'
+import { optimizationHandlers } from '@/mocks/sql-optimization-handlers'
 import { appEnv } from '@/env'
 import { initialDataSources, mockDataSources, mockSession } from '@/mocks/fixtures'
 import { mockEngineCatalog } from '@/mocks/engines'
@@ -320,6 +321,7 @@ const allowedCreateKeys = new Set([
 ])
 
 export const handlers = [
+  ...optimizationHandlers,
   http.post(auth('/ldap/login'), async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>
     if (!body.username || !body.password)

@@ -1,8 +1,8 @@
 ## 1. FE-01 类型、API 与 Mock
 
-- [ ] 1.1 精确 DTO 与 sql-client 四接口、幂等 headers 和 retry 无 body。
-- [ ] 1.2 MSW 生命周期、幂等、游标和全部报告/失败/HTTP 夹具；Mock capability。
-- [ ] 1.3 API 与 Mock 契约测试。
+- [x] 1.1 精确 DTO 与 sql-client 四接口、幂等 headers 和 retry 无 body。
+- [x] 1.2 MSW 生命周期、幂等、游标和全部报告/失败/HTTP 夹具；Mock capability。
+- [x] 1.3 API 与 Mock 契约测试。
 
 ## 2. FE-02 导航与创建
 
