@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TaskList from '@/components/sql-optimizer/TaskList.vue'
 import SqlOptimizationTaskPage from './SqlOptimizationTaskPage.vue'
+import SqlOptimizerNewPage from './SqlOptimizerNewPage.vue'
 import SqlOptimizerPage from './SqlOptimizerPage.vue'
 import { mockSession } from '@/mocks/fixtures'
 import { useAuthStore } from '@/stores/auth'
@@ -42,7 +43,11 @@ const detail: TaskDetail = {
   error: null,
 }
 async function render(
-  component: typeof TaskList | typeof SqlOptimizationTaskPage | typeof SqlOptimizerPage,
+  component:
+    | typeof TaskList
+    | typeof SqlOptimizationTaskPage
+    | typeof SqlOptimizerPage
+    | typeof SqlOptimizerNewPage,
   capabilities = mockSession.capabilities,
 ) {
   const pinia = createPinia()
@@ -52,11 +57,16 @@ async function render(
     history: createMemoryHistory(),
     routes: [
       { path: '/sql-optimizer', component: SqlOptimizerPage },
+      { path: '/sql-optimizer/new', component: SqlOptimizerNewPage },
       { path: '/sql-optimizer/tasks/:taskId', component: SqlOptimizationTaskPage },
     ],
   })
   await router.push(
-    component === SqlOptimizationTaskPage ? '/sql-optimizer/tasks/t1' : '/sql-optimizer',
+    component === SqlOptimizationTaskPage
+      ? '/sql-optimizer/tasks/t1'
+      : component === SqlOptimizerNewPage
+        ? '/sql-optimizer/new'
+        : '/sql-optimizer',
   )
   const wrapper = mount(component, {
     global: { plugins: [pinia, [VueQueryPlugin, { queryClient }], router] },
@@ -146,7 +156,11 @@ describe('optimizer queries', () => {
       .find((b) => b.text() === '上一页')!
       .trigger('click')
     await flushPromises()
-    await wrapper.get('[aria-label="任务状态"]').setValue('FAILED')
+    const failed = wrapper
+      .get('[aria-label="任务状态"]')
+      .findAll('button')
+      .find((button) => button.text() === '失败')
+    await failed!.trigger('click')
     await flushPromises()
     expect(listOptimizationTasks).toHaveBeenLastCalledWith(
       { status: 'FAILED', pageSize: 20 },
@@ -169,6 +183,24 @@ describe('optimizer queries', () => {
     expect(denied.wrapper.text()).toContain('没有 SQL 优化器能力')
     expect(listOptimizationTasks).not.toHaveBeenCalled()
     denied.wrapper.unmount()
+  })
+  it('shows only the task list on home and links empty results to a new scan', async () => {
+    const { wrapper } = await render(SqlOptimizerPage)
+    expect(wrapper.find('form').exists()).toBe(false)
+    expect(wrapper.find('button[type="submit"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('更多选项')
+    expect(wrapper.get('a[href="/sql-optimizer/new"]').text()).toContain('新建扫描')
+    expect(wrapper.text()).toContain('暂无扫描任务')
+    expect(wrapper.findAll('a[href="/sql-optimizer/new"]')).toHaveLength(2)
+    wrapper.unmount()
+  })
+  it('renders the create form only on /sql-optimizer/new', async () => {
+    const { wrapper } = await render(SqlOptimizerNewPage)
+    expect(wrapper.find('form').exists()).toBe(true)
+    expect(wrapper.text()).toContain('提交扫描')
+    expect(wrapper.text()).toContain('更多选项')
+    expect(wrapper.get('a[href="/sql-optimizer"]').text()).toContain('返回 SQL 优化器')
+    wrapper.unmount()
   })
   it('recovers lost retry with the same key and navigates to a new task', async () => {
     vi.mocked(getOptimizationTask).mockResolvedValue({

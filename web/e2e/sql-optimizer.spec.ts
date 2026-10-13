@@ -9,6 +9,11 @@ async function login(page: Page, target = '/sql-optimizer') {
   await expect(page).toHaveURL(new RegExp(`${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`))
 }
 async function fillTask(page: Page, name: string) {
+  if (!page.url().includes('/sql-optimizer/new')) {
+    await page.getByRole('link', { name: '新建扫描', exact: true }).first().click()
+    await expect(page).toHaveURL(/\/sql-optimizer\/new$/)
+  }
+  await page.getByText('更多选项', { exact: true }).click()
   await page.getByLabel('任务名称（可选）').fill(name)
   await page.getByRole('combobox', { name: '数据源', exact: true }).selectOption('ds-orders-a')
   await page.getByLabel('数据库 / 命名空间').selectOption('orders')
@@ -105,6 +110,9 @@ test.describe('SQL optimizer Mock acceptance', () => {
     await expect(page.getByRole('button', { name: '再次扫描' })).toHaveCount(0)
     await page.goto('/sql-optimizer')
     await expect(page.getByRole('button', { name: '提交扫描' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: '新建扫描', exact: true })).toHaveCount(0)
+    await page.goto('/sql-optimizer/new')
+    await expect(page.getByRole('button', { name: '提交扫描' })).toHaveCount(0)
   })
   test('409 and 429 preserve inputs without automatic resubmission', async ({ page }) => {
     await login(page)
@@ -116,7 +124,14 @@ test.describe('SQL optimizer Mock acceptance', () => {
     await page.getByRole('button', { name: '提交扫描' }).click()
     await expect(page.getByText('排队配额已满，请稍后提交。')).toBeVisible()
     await expect(page.getByLabel('数据库 / 命名空间')).toHaveValue('orders')
+    await page.getByRole('link', { name: '返回 SQL 优化器', exact: true }).click()
     await expect(page.getByText('暂无扫描任务。提交一条 SQL 开始分析。')).toBeVisible()
+    await expect(
+      page.getByText('暂无扫描任务。提交一条 SQL 开始分析。').locator('..').getByRole('link', {
+        name: '新建扫描',
+        exact: true,
+      }),
+    ).toBeVisible()
   })
   test('limitations stay visible and credential expiry is a business failure', async ({ page }) => {
     await login(page)
@@ -126,6 +141,7 @@ test.describe('SQL optimizer Mock acceptance', () => {
       timeout: 12000,
     })
     await page.getByRole('link', { name: '← 返回 SQL 优化器' }).click()
+    await expect(page).toHaveURL(/\/sql-optimizer$/)
     await fillTask(page, 'mock:expired')
     await page.getByRole('button', { name: '提交扫描' }).click()
     await expect(page.getByText('后台凭证已过期，请重新登录后再次扫描。')).toBeVisible({

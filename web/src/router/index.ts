@@ -29,6 +29,11 @@ export const router = createRouter({
           component: () => import('@/pages/SqlOptimizerPage.vue'),
         },
         {
+          path: 'sql-optimizer/new',
+          name: 'sql-optimizer-new',
+          component: () => import('@/pages/SqlOptimizerNewPage.vue'),
+        },
+        {
           path: 'sql-optimizer/tasks/:taskId',
           name: 'sql-optimization-task',
           component: () => import('@/pages/SqlOptimizationTaskPage.vue'),

@@ -3,17 +3,33 @@ import { computed, ref, watch } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { listOptimizationTasks } from '@/api/sql-optimization'
 import { isApiError } from '@/api/api-error'
-import type { TaskStatus } from '@/sql-optimizer/contracts'
+import { useRouter } from 'vue-router'
 import {
   activeTask,
   formatTaskTime,
   optimizerKey,
   queryErrorMessage,
+  relativeTaskTime,
   statusLabels,
   useOptimizerAccess,
   usePageVisibility,
 } from '@/sql-optimizer/queries'
+import type { TaskListItem, TaskStatus } from '@/sql-optimizer/contracts'
+const router = useRouter()
 const { allowed, scope } = useOptimizerAccess()
+const filters: { value: TaskStatus | ''; label: string }[] = [
+  { value: '', label: '全部' },
+  ...Object.entries(statusLabels).map(([value, label]) => ({
+    value: value as TaskStatus,
+    label,
+  })),
+]
+const statusTone: Record<TaskStatus, string> = {
+  QUEUED: 'bg-warning-soft text-warning',
+  RUNNING: 'bg-brand-soft text-brand',
+  SUCCEEDED: 'bg-success-soft text-success',
+  FAILED: 'bg-danger-soft text-danger',
+}
 const visible = usePageVisibility()
 const status = ref<TaskStatus | ''>('')
 const pageSize = ref(20)
@@ -51,6 +67,9 @@ const data = computed(() =>
 watch(visible, (value) => {
   if (value && allowed.value) void query.refetch()
 })
+function openTask(task: TaskListItem) {
+  void router.push(`/sql-optimizer/tasks/${encodeURIComponent(task.id)}`)
+}
 function next() {
   const token = data.value?.nextPageToken
   if (!token || query.isFetching.value) return
@@ -59,23 +78,31 @@ function next() {
 }
 </script>
 <template>
-  <section class="panel mt-6 overflow-hidden">
-    <header class="flex flex-wrap items-center gap-4 border-b border-line p-5">
-      <h2 class="mr-auto text-lg font-semibold">我的扫描任务</h2>
-      <label class="text-sm"
-        >状态<select v-model="status" class="field ml-2 w-28" aria-label="任务状态">
-          <option value="">全部</option>
-          <option v-for="(label, key) in statusLabels" :key="key" :value="key">{{ label }}</option>
-        </select></label
+  <section class="panel overflow-hidden">
+    <header class="flex flex-wrap items-center gap-3 border-b border-line p-4">
+      <div class="flex flex-wrap gap-1" role="group" aria-label="任务状态">
+        <button
+          v-for="item in filters"
+          :key="item.label"
+          class="rounded-lg px-3 py-1.5 text-sm"
+          :class="
+            status === item.value
+              ? 'bg-brand-soft font-medium text-brand'
+              : 'text-muted hover:bg-wash'
+          "
+          :aria-pressed="status === item.value"
+          type="button"
+          @click="status = item.value"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+      <button
+        class="btn ml-auto"
+        type="button"
+        :disabled="query.isFetching.value"
+        @click="query.refetch()"
       >
-      <label class="text-sm"
-        >每页<select v-model.number="pageSize" class="field ml-2 w-20" aria-label="每页任务">
-          <option :value="2">2</option>
-          <option :value="20">20</option>
-          <option :value="50">50</option>
-        </select></label
-      >
-      <button class="btn" type="button" :disabled="query.isFetching.value" @click="query.refetch()">
         刷新列表
       </button>
     </header>
@@ -84,51 +111,90 @@ function next() {
       <span v-if="data">最近已知任务状态保留；请刷新列表。</span>
     </div>
     <p v-if="query.isPending.value" class="p-8 text-muted" role="status">正在加载任务…</p>
-    <p v-else-if="data && !data.items.length" class="p-8 text-muted">
-      暂无扫描任务。提交一条 SQL 开始分析。
-    </p>
+    <div v-else-if="data && !data.items.length" class="p-8 text-center text-muted">
+      <p>暂无扫描任务。提交一条 SQL 开始分析。</p>
+      <RouterLink class="btn-primary mt-4" to="/sql-optimizer/new">新建扫描</RouterLink>
+    </div>
     <div v-if="data?.items.length" class="overflow-x-auto">
       <table class="w-full text-left text-sm">
         <thead class="bg-subtle text-xs text-muted">
           <tr>
-            <th class="p-4">任务 / SQL 摘要</th>
+            <th class="p-4">任务</th>
+            <th class="p-4">SQL</th>
             <th class="p-4">数据源 / 命名空间</th>
             <th class="p-4">状态</th>
-            <th class="p-4">创建 / 完成时间</th>
-            <th class="p-4">报告计数</th>
+            <th class="p-4">时间</th>
+            <th class="p-4">计数</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-line">
-          <tr v-for="task in data.items" :key="task.id" class="hover:bg-wash">
-            <td class="max-w-sm p-4">
+          <tr
+            v-for="task in data.items"
+            :key="task.id"
+            class="cursor-pointer hover:bg-wash"
+            :class="activeTask(task.status) ? 'border-l-2 border-l-brand' : ''"
+            tabindex="0"
+            @click="openTask(task)"
+            @keydown.enter="openTask(task)"
+          >
+            <td class="p-4 font-medium">
               <RouterLink
                 :to="`/sql-optimizer/tasks/${encodeURIComponent(task.id)}`"
-                class="font-medium text-brand"
+                class="text-ink"
+                @click.stop
                 >{{ task.name }}</RouterLink
               >
-              <p class="mt-2 break-all font-mono text-xs text-muted">{{ task.sqlPreview }}</p>
+            </td>
+            <td class="max-w-xs p-4">
+              <p class="truncate font-mono text-xs text-muted">{{ task.sqlPreview }}</p>
             </td>
             <td class="p-4">
               {{ task.datasourceName }}
               <p class="mt-1 text-xs text-muted">{{ task.database }}</p>
             </td>
-            <td class="whitespace-nowrap p-4">{{ statusLabels[task.status] }}</td>
-            <td class="p-4 text-xs">
-              {{ formatTaskTime(task.createdAt) }}
-              <p class="mt-1 text-muted">{{ formatTaskTime(task.completedAt) }}</p>
+            <td class="whitespace-nowrap p-4">
+              <span
+                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+                :class="statusTone[task.status]"
+              >
+                <span
+                  v-if="task.status === 'RUNNING'"
+                  class="h-1.5 w-1.5 animate-pulse rounded-full bg-brand"
+                  aria-hidden="true"
+                />
+                {{ statusLabels[task.status] }}
+              </span>
             </td>
             <td class="p-4 text-xs">
-              <template v-if="task.status === 'SUCCEEDED' && task.summary"
-                >规范 {{ task.summary.policyIssueCount }} · 性能
-                {{ task.summary.performanceIssueCount }}
-                <p class="mt-1 text-muted">证据缺口 {{ task.summary.limitationCount }}</p></template
-              ><span v-else>—</span>
+              <time :datetime="task.createdAt" :title="formatTaskTime(task.createdAt)">{{
+                relativeTaskTime(task.createdAt)
+              }}</time>
+              <p v-if="task.completedAt" class="mt-1 text-muted">
+                <time :datetime="task.completedAt" :title="formatTaskTime(task.completedAt)">{{
+                  relativeTaskTime(task.completedAt)
+                }}</time>
+              </p>
+            </td>
+            <td class="p-4 text-xs">
+              <template v-if="task.status === 'SUCCEEDED' && task.summary">
+                <span class="mr-2">规范 {{ task.summary.policyIssueCount }}</span>
+                <span class="mr-2">性能 {{ task.summary.performanceIssueCount }}</span>
+                <span class="text-muted">缺口 {{ task.summary.limitationCount }}</span>
+              </template>
+              <span v-else>—</span>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
-    <footer class="flex justify-end gap-2 border-t border-line p-4">
+    <footer class="flex flex-wrap items-center justify-end gap-3 border-t border-line p-4">
+      <label class="mr-auto text-sm text-muted"
+        >每页<select v-model.number="pageSize" class="field ml-2 w-20" aria-label="每页任务">
+          <option :value="2">2</option>
+          <option :value="20">20</option>
+          <option :value="50">50</option>
+        </select></label
+      >
       <button
         class="btn"
         type="button"
