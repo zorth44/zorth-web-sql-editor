@@ -175,7 +175,8 @@ UI 只承诺“关页后可回来查看”；不承诺退出撤销 Token 后任�
 - `d55b78a`：OpenSpec 计划与执行记录。
 - `830dd69`：API 精确 DTO、Mock 生命周期与契约测试。
 - `30ef7ff`：导航/表单/列表/详情/轮询/报告/重扫与组件测试，Copilot/scanner 门禁修复。
-- 后续验收与交付提交见本侧 execution.md 与 `git log --oneline 3a81b8c..HEAD`。
+- `031996e`：浏览器验收、移动端布局、Mock 网络夹具与交付证据。
+- 最终恢复文档提交见本侧 execution.md 与 `git log --oneline 3a81b8c..HEAD`。
 
 ### 已知限制与外部依赖
 

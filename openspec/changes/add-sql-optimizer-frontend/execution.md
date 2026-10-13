@@ -38,3 +38,12 @@
 - 过程浏览器失败：第一轮2定位器失败/1中断/3未运行（隐式label）；第二轮2失败/4未运行（Monaco IME textarea）；一次构建发现列表 computed ref 模板误用 .value；移动测试1失败（body min-width1024）。均已修复，未删除场景或降低断言；最终完整12项通过。最小宽度仅优化器路由调整。
 - 外部依赖：仅 FE-06，需真实后端API、SQL_OPTIMIZE身份与数据源/NAMESPACE、凭证/Agent配置，关闭Mock联合验收。尚未运行真实链路，不将其记为完成。
 - 下一步：本地验收阶段提交、最终交付文档自查与提交；不推送/PR/合并/发布。
+
+## 本地交付完成 / 恢复入口
+
+- 当前阶段：FE-01～FE-05 本地完成，15/16 tasks 完成；唯一待验收任务为 6.1（FE-06 真实联调，不属于本地 Goal）。
+- 最近实现/验收提交：031996e；此前 d55b78a / 830dd69 / 30ef7ff。最终恢复文档提交可用 `git log -1 --oneline` 查询。
+- 自查：所有变更属于 web/**、前端实施方案与本 change；共享契约、后端、根配置未修改，未提交凭证/个人配置/构建产物。`git diff --check` 和 OpenSpec strict validation 通过。
+- 运行方式与详细测试/已知限制见 docs/plan-sql-optimizer-frontend.md 文末。本任务 Vite 5173 预览保持运行；已确认 HTTP200。339 单测、7 优化器 E2E 和5 Copilot E2E 均通过，无跳过；生产构建及 typecheck/lint 通过。现有 Monaco 大包提示仍在，不影响门禁。
+- 已完成本地阶段提交；未推送、PR、合并或发布；未 archive change，以保留 FE-06 真实验收清单。
+- 下一步：后端真实四接口、SQL_OPTIMIZE 用户/可见坐标与真实身份凭证就绪后，关闭 Mock 执行 6.1。恢复时先读 AGENTS/tasks/execution 与 git 状态，不重做已验收的本地流程。
