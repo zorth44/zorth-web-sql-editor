@@ -1,6 +1,6 @@
 # SQL 优化器：后端实施方案
 
-日期：2026-10-13。状态：待实施。负责 worktree：`feat/sql-optimizer-backend`。
+日期：2026-10-13。状态：BE-01～BE-07 本地交付已验收；生产身份、真实 Agent 和前后端联合验收待完成。负责 worktree：`feat/sql-optimizer-backend`。
 
 先读 [共享契约 v1](sql-optimizer-api-contract.md) 与 [并行实施入口](plan-sql-optimizer-async-tasks.md)。本分支拥有 `service/**`，不修改 `web/**`。前端按契约独立开发，不等待本分支完成。
 
@@ -236,3 +236,43 @@ reportSchemaVersion 初始为 1，由本项目 wrapper 管理，不能冒充上�
 - [ ] 给出至少成功、证据不足和失败的真实 taskId，以及返回 JSON（脱敏且不含凭证）。
 - [ ] 确认终态轮询查询是 200、幂等重放状态可为终态、retry 无 body 并产生新任务。
 - [ ] 文档同步只改本后端文档和后端 OpenSpec change；共用文档/契约变更单独协调。
+
+
+## 本地实施与验收记录（2026-10-13）
+
+完成状态以 `openspec/changes/add-sql-optimizer-backend/tasks.md` 为唯一清单；本方案中的原始条目继续作为范围基线，不重复打勾。恢复入口为同 change 的 `execution.md`。仅修改后端归属文件，共享契约 v1 未变。
+
+实现四个任务 API、V8 task/attempt/credential 表、短事务 JDBC repository、数据库持久队列和独立 Worker。创建 mutex 同时串行化幂等与配额；幂等重放检查先于新增配额和执行资格。读取按用户/产品隔离并实时校验可见数据源；游标签名绑定身份/过滤/页大小。列表数据库投影只取 160 字符 SQL 预览，不加载完整报告。引擎 scanner 与安全 evaluator 外再保守拒绝写入 CTE、SELECT INTO 和可执行注释；它不代替 SQL/模型事实验证。
+
+功能默认关闭。显式 user/product allowlist 与 integration-ready 同时满足才授予/校验 SQL_OPTIMIZE。短期已验证 Token 使用独立 AES-GCM 密钥、task/purpose/version AAD、真实到期与 TTL 的较早值，并预留完整 attempt 预算。禁止复用当前数据源密码密钥，缺密钥时失败关闭。Worker 直接调用 uncached AuthClient、核对身份/产品/权限，发送前确认有效 lease，后台不读取请求 ThreadLocal。终态与到期清理密文；功能关闭仍保留维护职责。
+
+领取前先拿本地执行槽，领取/attempt/结果用短事务，HTTP 等待不持有元库事务。心跳不修改任务 version；完成必须匹配 RUNNING/current attempt/version/有效 lease 与 hard deadline。过期 running 统一 WORKER_LOST，迟到结果不能覆盖；无自动 POST 重发。StructuredOutput 校验类型/枚举/ID/引用/分类证据，限制响应字节和 JSON 深度，拒绝重复键和多根 JSON，保存 schema 1 快照与派生 summary。
+
+### 实际验证
+
+- JDK 17 + `mvn -q -Dapi.version=1.44 test`：53 suites，241 tests，0 failure/error/skipped。
+- JDK 17 + `mvn -q -Dapi.version=1.44 verify`：同样 241 tests，无失败/跳过；打包及 Animal Sniffer Java 8 API 检查通过。
+- 新增 19 tests：5 边界、2 配置、12 独立 MySQL/HTTP 集成。既有 MySQL 11 tests、PostgreSQL 1 test 实际执行；未用跳过门禁替代容器验收。
+- 并发幂等/配额、两个 Worker 抢占、恢复队列、自己的心跳、lease/hard budget、迟到 HTTP、零元库长事务、Token 到期/身份变化/密文破坏/缺密钥/事务回滚/终态清理/retention cascade 均有测试。
+- 真实随机端口 Spring HTTP 内部 validate/EXPLAIN 回调验证 Bearer 与配对内部 key；内部 key 单独不能认证用户。
+- 本地打包服务 API `http://127.0.0.1:18080`、Stub `127.0.0.1:18090`，独立 MySQL 动态 loopback 端口。SELECT、JOIN 的 validate 与 plan-only EXPLAIN 实际执行；从未调用 query/ANALYZE。模拟 EXPLAIN/索引信息缺口保持 limitations，模拟 503 落 AGENT_UNAVAILABLE。
+- 创建返回 202/Location；失败详情为 200；无 body retry 产生新任务并关联 sourceTaskId，实际轮询到终态。
+- OpenSpec strict validate 与 git diff --check 通过。所有测试失败均已修复；测试容器关闭后仍活跃的 cached Spring context 产生 Hikari 已关闭连接校验告警，不是失败/跳过。
+
+### 运行与联调证据
+
+`service/tools/README-optimizer-local.md` 给出可重复的 API/Worker/auth/Agent fixture 运行方式。启动 `python3 tools/optimizer_local_fixture.py`，运行时生成独立 Token、密钥、测试账户/产品和可见数据源，凭证仅存在私有临时文件，不入仓库。使用打印的 client.json 路径调用 CLI，无需将 Token 写到终端参数或文档。Ctrl-C 或 SIGTERM 到该 harness 的 PID 只关闭本次 API 和容器。
+
+脱敏实际响应保存在 `service/src/test/resources/optimization/local-acceptance/`：`tasks.json` 的成功/证据不足/失败，`join-task.json` 与 `join-callback.json` 的 JOIN 计划取证，`retry-task.json` 的重扫关联。示例 taskIds 仅属于本地 fixture，不代表生产链路。
+
+本地阶段提交：c24862b（DTO/报告/Agent 边界）、0f4d497（持久 API/安全 Worker）；最终交付提交见 execution.md 与本分支 git log。未推送、创建 PR、合并或发布。
+
+### 外部依赖与未验收项
+
+| 影响项 | 已尝试/证据 | 所需输入 |
+| --- | --- | --- |
+| 生产 Agent 身份与回调 | 方案基线仅有默认关闭的 HeaderCurrentUserAdapter；本地 Stub 经已验证 Bearer + 配对 key 成功，不作为正式身份替代 | 正式 CurrentUserPort 部署位置、用户 Bearer 传播、DATASOURCE_SERVICE_ENABLED/base URL/caller key 配对及生产环境验证 |
+| 生产凭证托管与保留 | 本地独立随机密钥/到期/清理已验收；生产不自动启用 | 明确短期 Token 托管批准、真实 tokenExpiresAt、安全 key 来源/版本轮换、90 天保留确认及 Agent 持久会话保留政策 |
+| 真实 Agent 与前端闭环 | 四个接口与本地 SQL/数据库回调可运行；Stub 无真实模型结论，前端归另一 worktree | 真实 Agent 地址/账户/取证配置、真实 SELECT/JOIN/证据缺口验收、关闭前端 Mock 后双方联合验收 |
+
+这些外部条件不阻塞已完成的本地开发，但必须在整体上线验收前完成。本分支不自行修改共享契约/产品范围/生产凭证政策，不接入生产。

@@ -1,0 +1,85 @@
+[
+  {
+    "id": "c33e56b7-defa-45cc-80b1-9484c470957e",
+    "name": "Local callback success",
+    "datasourceId": "0374667b-03ef-4446-a896-9781c6eb22c2",
+    "datasourceName": "Optimizer local fixture",
+    "database": "optimizer_fixture",
+    "sql": "SELECT 1",
+    "status": "SUCCEEDED",
+    "createdAt": "2026-10-13T05:56:11.748999Z",
+    "startedAt": "2026-10-13T05:56:12.351320Z",
+    "completedAt": "2026-10-13T05:56:12.434784Z",
+    "sourceTaskId": null,
+    "reportSchemaVersion": 1,
+    "report": {
+      "verdict": "本地 Stub：已读取真实数据库计划，未运行真实模型",
+      "issues": [],
+      "suggestions": [],
+      "limitations": [
+        {
+          "ruleId": null,
+          "reason": "仅用于本地认证、EXPLAIN 回调与异步生命周期验收；无真实 Agent 质量结论"
+        }
+      ]
+    },
+    "summary": {
+      "policyIssueCount": 0,
+      "performanceIssueCount": 0,
+      "limitationCount": 1
+    },
+    "error": null
+  },
+  {
+    "id": "5d3222f8-d600-4d56-8007-709fc407f2ac",
+    "name": "Local evidence gap",
+    "datasourceId": "0374667b-03ef-4446-a896-9781c6eb22c2",
+    "datasourceName": "Optimizer local fixture",
+    "database": "optimizer_fixture",
+    "sql": "SELECT 1 /* fixture:limitations */",
+    "status": "SUCCEEDED",
+    "createdAt": "2026-10-13T05:56:11.768218Z",
+    "startedAt": "2026-10-13T05:56:12.360979Z",
+    "completedAt": "2026-10-13T05:56:12.385662Z",
+    "sourceTaskId": null,
+    "reportSchemaVersion": 1,
+    "report": {
+      "verdict": "本地 Stub：证据不足",
+      "issues": [],
+      "suggestions": [],
+      "limitations": [
+        {
+          "ruleId": null,
+          "reason": "Stub 场景模拟 EXPLAIN 不支持或索引信息不完整，未运行真实模型"
+        }
+      ]
+    },
+    "summary": {
+      "policyIssueCount": 0,
+      "performanceIssueCount": 0,
+      "limitationCount": 1
+    },
+    "error": null
+  },
+  {
+    "id": "84ce630a-b735-4662-b90e-67e1b2aa43b8",
+    "name": "Local upstream failure",
+    "datasourceId": "0374667b-03ef-4446-a896-9781c6eb22c2",
+    "datasourceName": "Optimizer local fixture",
+    "database": "optimizer_fixture",
+    "sql": "SELECT 1 /* fixture:fail */",
+    "status": "FAILED",
+    "createdAt": "2026-10-13T05:56:11.784236Z",
+    "startedAt": "2026-10-13T05:56:14.385098Z",
+    "completedAt": "2026-10-13T05:56:14.416092Z",
+    "sourceTaskId": null,
+    "reportSchemaVersion": null,
+    "report": null,
+    "summary": null,
+    "error": {
+      "code": "AGENT_UNAVAILABLE",
+      "message": "扫描未完成，请重新登录后再次扫描",
+      "requestId": "25a27d8c-b358-406d-9532-2f689746ecae"
+    }
+  }
+]

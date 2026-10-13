@@ -9,11 +9,13 @@ public class SessionResponse {
     private final Product product;
     private final Instant expiresAt;
     private final List<String> capabilities;
-    public SessionResponse(AuthContext context) {
+    public SessionResponse(AuthContext context) { this(context, false); }
+    public SessionResponse(AuthContext context, boolean optimize) {
         this.user = new User(context.getUserId(), context.getUsername(), context.getDisplayName());
         this.product = new Product(context.getProductId(), context.getProductName());
         this.expiresAt = context.getTokenExpiresAt();
-        this.capabilities = Arrays.asList("DATA_SOURCE_MANAGE", "SQL_EXECUTE", "SQL_EXPORT", "HISTORY_READ", "SCRIPT_MANAGE");
+        this.capabilities = new java.util.ArrayList<String>(Arrays.asList("DATA_SOURCE_MANAGE", "SQL_EXECUTE", "SQL_EXPORT", "HISTORY_READ", "SCRIPT_MANAGE"));
+        if (optimize) this.capabilities.add("SQL_OPTIMIZE");
     }
     public User getUser() { return user; }
     public Product getProduct() { return product; }

@@ -1,0 +1,52 @@
+{
+  "validate": {
+    "valid": true,
+    "statementType": "SELECT",
+    "readOnly": true,
+    "multiStatement": false,
+    "tables": [
+      {
+        "catalog": null,
+        "schema": null,
+        "name": "sql_data_source"
+      },
+      {
+        "catalog": null,
+        "schema": null,
+        "name": "sql_data_source"
+      }
+    ],
+    "warnings": [],
+    "violations": []
+  },
+  "explain": {
+    "supported": true,
+    "estimatedRows": 2,
+    "fullScan": false,
+    "usedIndexes": [
+      "idx_sql_ds_product_updated",
+      "PRIMARY"
+    ],
+    "tables": [
+      {
+        "table": "a",
+        "accessType": "index",
+        "estimatedRows": 1,
+        "usedIndexes": [
+          "idx_sql_ds_product_updated"
+        ]
+      },
+      {
+        "table": "b",
+        "accessType": "eq_ref",
+        "estimatedRows": 1,
+        "usedIndexes": [
+          "PRIMARY"
+        ]
+      }
+    ],
+    "findings": [],
+    "reason": null,
+    "riskLevel": "LOW"
+  }
+}

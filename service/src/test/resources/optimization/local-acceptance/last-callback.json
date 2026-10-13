@@ -1,0 +1,21 @@
+{
+  "validate": {
+    "valid": true,
+    "statementType": "SELECT",
+    "readOnly": true,
+    "multiStatement": false,
+    "tables": [],
+    "warnings": [],
+    "violations": []
+  },
+  "explain": {
+    "supported": true,
+    "estimatedRows": null,
+    "fullScan": false,
+    "usedIndexes": [],
+    "tables": [],
+    "findings": [],
+    "reason": null,
+    "riskLevel": "LOW"
+  }
+}
