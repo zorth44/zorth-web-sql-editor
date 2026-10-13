@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LogOut, Database, Code2 } from 'lucide-vue-next'
+import { LogOut, Database, Code2, ScanSearch } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ThemeToggle from '@/components/ThemeToggle.vue'
@@ -15,14 +15,19 @@ async function logout(): Promise<void> {
 </script>
 <template>
   <div class="flex h-screen flex-col overflow-hidden">
-    <header class="flex h-12 shrink-0 items-center border-b border-line bg-panel px-4">
+    <header
+      class="flex min-h-12 shrink-0 flex-wrap items-center gap-y-2 border-b border-line bg-panel px-4 py-2 md:h-12 md:flex-nowrap md:py-0"
+    >
       <RouterLink to="/sql-editor" class="flex items-center gap-2 font-semibold text-ink">
         <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand-fill text-white">
           <Database :size="18" />
         </span>
         Bddf SQL Editor
       </RouterLink>
-      <nav class="ml-8 flex items-center gap-1" aria-label="主导航">
+      <nav
+        class="order-3 flex w-full items-center gap-1 overflow-x-auto md:order-none md:ml-8 md:w-auto md:overflow-visible"
+        aria-label="主导航"
+      >
         <RouterLink
           to="/sql-editor"
           class="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted hover:bg-wash"
@@ -37,14 +42,21 @@ async function logout(): Promise<void> {
         >
           <Database :size="15" class="mr-1 inline" />数据源管理
         </RouterLink>
+        <RouterLink
+          v-if="auth.session?.capabilities.includes('SQL_OPTIMIZE')"
+          to="/sql-optimizer"
+          class="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted hover:bg-wash"
+          active-class="!bg-brand-soft !text-brand"
+          ><ScanSearch :size="15" class="mr-1 inline" />SQL 优化器</RouterLink
+        >
       </nav>
-      <div class="ml-auto flex items-center gap-4">
-        <div class="text-right">
+      <div class="ml-auto flex items-center gap-2 md:gap-4">
+        <div class="hidden text-right md:block">
           <p class="text-[11px] leading-none text-muted">当前产品</p>
           <p class="mt-1 text-sm font-medium">{{ auth.session?.product.name }}</p>
         </div>
-        <div class="h-7 w-px bg-line" />
-        <div>
+        <div class="hidden h-7 w-px bg-line md:block" />
+        <div class="hidden md:block">
           <p class="text-sm font-medium">{{ auth.session?.user.displayName }}</p>
           <p class="text-[11px] text-muted">{{ auth.session?.user.username }}</p>
         </div>

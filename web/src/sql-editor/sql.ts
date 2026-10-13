@@ -27,6 +27,7 @@ export function scanSql(source: string): SqlScript {
   let dollarTag = ''
   const add = (end: number) => {
     const raw = source.slice(start, end)
+    if (!stripLeadingNoise(raw)) return
     const left = raw.search(/\S/)
     if (left < 0) return
     const right = raw.search(/\s*$/)

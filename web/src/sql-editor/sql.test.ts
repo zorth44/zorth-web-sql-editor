@@ -62,6 +62,9 @@ describe('script scanning', () => {
   })
   it('treats a trailing line comment as terminated', () => {
     expect(scanSql('select 1; -- done').reliable).toBe(true)
+    expect(scanSql('select 1; -- done').statements.map((s) => s.text)).toEqual(['select 1'])
+    expect(scanSql('select 1; /* done; */').statements.map((s) => s.text)).toEqual(['select 1'])
+    expect(scanSql('-- only a comment').statements).toEqual([])
   })
   it('does not split on semicolons inside dollar quotes', () => {
     const script = scanSql('select $tag$ a;b $tag$; select 2')

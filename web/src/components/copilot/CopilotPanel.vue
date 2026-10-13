@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { History, Plus, Sparkles, Square, Trash2, X } from 'lucide-vue-next'
-import { renderAssistantMarkdown } from '@/sql-editor/copilot-markdown'
+import AssistantMarkdown from '@/components/copilot/AssistantMarkdown'
 import { toolStatusText } from '@/sql-editor/copilot-tools'
 import { splitAssistantContent } from '@/sql-editor/sql-fences'
 import type { AgentConversationSummary } from '@/api/ai-agent'
@@ -295,13 +295,12 @@ watch(
           </ol>
           <p v-if="message.error" class="copilot-error">{{ message.error }}</p>
           <template v-for="(segment, index) in segmentsOf(message)" :key="index">
-            <div
+            <AssistantMarkdown
               v-if="segment.type === 'text'"
               class="copilot-md"
               data-testid="copilot-md"
-              v-html="renderAssistantMarkdown(segment.text)"
+              :text="segment.text"
             />
-            <!-- eslint-disable-line vue/no-v-html -- sanitized by renderAssistantMarkdown -->
             <div v-else class="copilot-sql" data-testid="copilot-sql">
               <pre>{{ segment.sql }}</pre>
               <div v-if="!message.streaming" class="copilot-sql-actions">

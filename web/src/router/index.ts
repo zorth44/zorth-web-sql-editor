@@ -23,6 +23,16 @@ export const router = createRouter({
       path: '/',
       component: AppShell,
       children: [
+        {
+          path: 'sql-optimizer',
+          name: 'sql-optimizer',
+          component: () => import('@/pages/SqlOptimizerPage.vue'),
+        },
+        {
+          path: 'sql-optimizer/tasks/:taskId',
+          name: 'sql-optimization-task',
+          component: () => import('@/pages/SqlOptimizationTaskPage.vue'),
+        },
         { path: '', redirect: '/sql-editor' },
         {
           path: 'data-sources',
