@@ -30,7 +30,7 @@ async function finishLogin(action: () => Promise<unknown>): Promise<void> {
   } finally {
     pending.value = false
     password.value = ''
-    if (!hasAccounts.value) auth.cancelLoginBranch()
+    if (!hasAccounts.value && !auth.bindingRequired) auth.cancelLoginBranch()
   }
 }
 async function submit(): Promise<void> {

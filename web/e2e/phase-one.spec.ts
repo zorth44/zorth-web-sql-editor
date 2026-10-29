@@ -13,6 +13,16 @@ async function login(page: Page, remember = false): Promise<void> {
 }
 
 test.describe('phase-one data-source management', () => {
+  test('shows the account binding instructions when required', async ({ page }) => {
+    await page.goto('/login')
+    await page.getByLabel('用户名').fill('bind')
+    await page.getByLabel('密码').fill('ldap-e2e-secret')
+    await page.getByRole('button', { name: '登录' }).click()
+    await expect(page.getByRole('heading', { name: '需要绑定账号' })).toBeVisible()
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(page.getByLabel('密码')).toHaveValue('')
+  })
+
   test('login, exclusive Token persistence, list, search, cursor navigation, saved test, and logout', async ({
     page,
   }) => {
