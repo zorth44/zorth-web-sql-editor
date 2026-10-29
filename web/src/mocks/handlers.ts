@@ -344,7 +344,7 @@ export const handlers = [
         needSelectAccount: true,
         bindAccounts: [
           { id: '1001', username: 'zhangsan', displayName: '张三' },
-          { userId: '1002', userName: 'lisi', nickName: '李四' },
+          { userId: 1002, userName: 'lisi', nickName: '李四' },
         ],
         ldapUser: { pwd: 'sensitive' },
       })

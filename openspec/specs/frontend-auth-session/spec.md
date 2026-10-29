@@ -27,6 +27,11 @@ The frontend SHALL support selecting an already-bound local account without impl
 #### Scenario: Select a bound account
 - **WHEN** login returns `needSelectAccount: true` with `bindAccounts`
 - **THEN** the frontend SHALL present those accounts and resubmit the LDAP login with the selected `selectUserId`
+- **AND** account identifiers returned as strings or safe integers SHALL be accepted
+
+#### Scenario: No usable bound accounts are returned
+- **WHEN** login requires account selection but no valid account identifiers are returned
+- **THEN** the frontend SHALL show an error rather than silently returning to the login form
 
 #### Scenario: Local account binding is required
 - **WHEN** login returns `needBind: true`

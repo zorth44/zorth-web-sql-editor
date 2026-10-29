@@ -13,6 +13,16 @@ async function login(page: Page, remember = false): Promise<void> {
 }
 
 test.describe('phase-one data-source management', () => {
+  test('selects a bound account with a numeric user ID', async ({ page }) => {
+    await page.goto('/login')
+    await page.getByLabel('用户名').fill('multi')
+    await page.getByLabel('密码').fill('ldap-e2e-secret')
+    await page.getByRole('button', { name: '登录' }).click()
+    await expect(page.getByRole('heading', { name: '选择登录账号' })).toBeVisible()
+    await page.getByRole('button', { name: /李四/ }).click()
+    await expect(page).toHaveURL(/\/sql-editor(?:\?|$)/)
+  })
+
   test('shows the account binding instructions when required', async ({ page }) => {
     await page.goto('/login')
     await page.getByLabel('用户名').fill('bind')

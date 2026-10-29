@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { http, HttpResponse } from 'msw'
 import { login } from '@/api/auth-client'
+import { appEnv } from '@/env'
+import { server } from '@/mocks/server'
 
 describe('authorization response projection', () => {
   it('projects a token branch and drops raw legacy password fields', async () => {
@@ -26,6 +29,16 @@ describe('authorization response projection', () => {
   it('treats AjaxResult business code as failure', async () => {
     await expect(login({ username: 'failed', password: 'secret' })).rejects.toThrow(
       '用户名或密码错误',
+    )
+  })
+  it('reports an unusable account list instead of returning an empty selection', async () => {
+    server.use(
+      http.post(`${appEnv.authApiBase}/ldap/login`, () =>
+        HttpResponse.json({ code: 200, needSelectAccount: true, bindAccounts: [{ userId: null }] }),
+      ),
+    )
+    await expect(login({ username: 'user', password: 'secret' })).rejects.toThrow(
+      '授权服务未返回可选择的账号',
     )
   })
 })

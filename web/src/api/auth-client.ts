@@ -24,7 +24,9 @@ function sanitizeAccounts(value: unknown): BoundAccount[] {
   return value.flatMap((entry) => {
     const item = record(entry)
     if (!item) return []
-    const id = stringValue(item.id || item.userId)
+    const rawId = item.id ?? item.userId
+    const id =
+      typeof rawId === 'number' && Number.isSafeInteger(rawId) ? String(rawId) : stringValue(rawId)
     if (!id) return []
     return [
       {
@@ -60,8 +62,11 @@ export async function login(input: LoginInput): Promise<LoginResult> {
   )
   const token = stringValue(body.token)
   if (token) return { kind: 'authenticated', token }
-  if (body.needSelectAccount === true)
-    return { kind: 'select-account', accounts: sanitizeAccounts(body.bindAccounts) }
+  if (body.needSelectAccount === true) {
+    const accounts = sanitizeAccounts(body.bindAccounts)
+    if (!accounts.length) throw new Error('授权服务未返回可选择的账号，请联系管理员')
+    return { kind: 'select-account', accounts }
+  }
   if (body.needBind === true) return { kind: 'binding-required' }
   throw new Error('授权服务返回了无法识别的登录结果')
 }
