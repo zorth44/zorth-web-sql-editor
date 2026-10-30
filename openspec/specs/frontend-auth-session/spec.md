@@ -82,6 +82,10 @@ The frontend SHALL establish an authenticated UI session only after the SQL serv
 - **WHEN** Session validation returns 401 or `expiresAt` is not in the future
 - **THEN** the frontend SHALL clear local authentication, editor drafts/results, and query state and redirect to `/login`
 
+#### Scenario: Session validation is temporarily unavailable
+- **WHEN** Session validation fails due to a network or server error
+- **THEN** the frontend SHALL keep the stored Token, deny protected navigation, and allow the user to retry validation
+
 #### Scenario: A feature capability is absent
 - **WHEN** Session validation succeeds without `DATA_SOURCE_MANAGE`, `SQL_EXECUTE`, `SQL_EXPORT`, `HISTORY_READ`, or `SCRIPT_MANAGE`
 - **THEN** the frontend SHALL hide or disable only the corresponding operation and show an explicit unavailable state while backend errors remain authoritative

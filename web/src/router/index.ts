@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { getToken } from '@/auth/token-storage'
 import { safeRelativeRedirect } from '@/auth/redirect'
-import { useAuthStore } from '@/stores/auth'
+import { isInvalidSessionError, useAuthStore } from '@/stores/auth'
 import AppShell from '@/layouts/AppShell.vue'
 
 export const router = createRouter({
@@ -88,8 +88,9 @@ router.beforeEach(async (to) => {
       try {
         await auth.validateSession()
         return safeRelativeRedirect(to.query.redirect)
-      } catch {
-        auth.clearAuth()
+      } catch (error) {
+        if (isInvalidSessionError(error)) auth.clearAuth()
+        else auth.sessionUnavailable = true
       }
     }
     return true
@@ -98,8 +99,9 @@ router.beforeEach(async (to) => {
   try {
     if (!auth.session) await auth.validateSession()
     return true
-  } catch {
-    auth.clearAuth()
+  } catch (error) {
+    if (isInvalidSessionError(error)) auth.clearAuth()
+    else auth.sessionUnavailable = true
     return loginRedirect(to)
   }
 })
