@@ -10,14 +10,22 @@ import {
 } from '@/auth/transient-credentials'
 import { queryClient, queryKeys } from '@/query/client'
 import type { BoundAccount, Session } from '@/types/contracts'
+import { isApiError } from '@/api/api-error'
 import { useEditorStore } from '@/stores/editor'
 import { useCopilotStore } from '@/stores/copilot'
+
+export class ExpiredSessionError extends Error {}
+
+export function isInvalidSessionError(error: unknown): boolean {
+  return error instanceof ExpiredSessionError || (isApiError(error) && error.status === 401)
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<Session | null>(null)
   const accounts = ref<BoundAccount[]>([])
   const remember = ref(false)
   const bindingRequired = ref(false)
+  const sessionUnavailable = ref(false)
 
   async function validateSession(options?: { force?: boolean }): Promise<Session> {
     if (options?.force) {
@@ -29,8 +37,9 @@ export const useAuthStore = defineStore('auth', () => {
       queryFn: fetchSession,
       staleTime: options?.force ? 0 : 5 * 60_000,
     })
-    if (!isSessionValid(value)) throw new Error('登录已过期，请重新登录')
+    if (!isSessionValid(value)) throw new ExpiredSessionError('登录已过期，请重新登录')
     session.value = value
+    sessionUnavailable.value = false
     return value
   }
 
@@ -79,6 +88,7 @@ export const useAuthStore = defineStore('auth', () => {
     session.value = null
     accounts.value = []
     bindingRequired.value = false
+    sessionUnavailable.value = false
     useEditorStore().clearAll()
     useCopilotStore().reset()
     queryClient.clear()
@@ -104,6 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
     accounts,
     remember,
     bindingRequired,
+    sessionUnavailable,
     validateSession,
     submitLogin,
     selectAccount,

@@ -6,7 +6,7 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 import { appEnv } from '@/env'
 import { safeRelativeRedirect } from '@/auth/redirect'
 import { safeErrorMessage } from '@/api/api-error'
-import { useAuthStore } from '@/stores/auth'
+import { isInvalidSessionError, useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -42,6 +42,16 @@ async function submit(): Promise<void> {
 }
 async function selectAccount(id: string): Promise<void> {
   await finishLogin(() => auth.selectAccount(id))
+}
+async function retrySession(): Promise<void> {
+  await finishLogin(async () => {
+    try {
+      await auth.validateSession({ force: true })
+    } catch (reason) {
+      if (isInvalidSessionError(reason)) auth.clearAuth()
+      throw reason
+    }
+  })
 }
 function cancelSelection(): void {
   auth.cancelLoginBranch()
@@ -109,6 +119,12 @@ function cancelSelection(): void {
         <form v-else @submit.prevent="submit">
           <h1 class="text-3xl font-semibold">欢迎回来</h1>
           <p class="mt-2 text-muted">使用 EHR / LDAP 账号登录</p>
+          <div v-if="auth.sessionUnavailable" class="mt-4" role="alert">
+            <p>暂时无法验证已保存的登录状态，请重试或重新登录。</p>
+            <button class="btn mt-2" type="button" :disabled="pending" @click="retrySession">
+              重试验证
+            </button>
+          </div>
           <div class="mt-8">
             <label class="label" for="username">用户名</label
             ><input

@@ -13,6 +13,15 @@ async function login(page: Page, remember = false): Promise<void> {
 }
 
 test.describe('phase-one data-source management', () => {
+  test('restores a remembered login in a new tab', async ({ page, context }) => {
+    await login(page, true)
+    const newPage = await context.newPage()
+    await newPage.goto('/login')
+    await expect(newPage).toHaveURL(/\/sql-editor(?:\?|$)/)
+    await expect(newPage.getByTestId('welcome-start')).toBeVisible()
+    expect(await newPage.evaluate(() => sessionStorage.getItem('zorth.sql.token'))).toBeNull()
+  })
+
   test('selects a bound account with a numeric user ID', async ({ page }) => {
     await page.goto('/login')
     await page.getByLabel('用户名').fill('multi')
