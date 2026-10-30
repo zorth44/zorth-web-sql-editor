@@ -110,16 +110,34 @@ function groupKey(dataSourceId: string, database: string, group: ObjectGroup): s
 function databaseQuery(dataSourceId: string): string {
   return databaseSearchBySource.value[dataSourceId] || ''
 }
+function hasDatabaseQuery(dataSourceId: string): boolean {
+  return databaseQuery(dataSourceId).trim().length > 0
+}
+function clearTableQuery(dataSourceId: string): void {
+  if (!(dataSourceId in tableSearchBySource.value)) return
+  const next = { ...tableSearchBySource.value }
+  delete next[dataSourceId]
+  tableSearchBySource.value = next
+}
 function setDatabaseQuery(dataSourceId: string, event: Event): void {
   const value = (event.target as HTMLInputElement).value
   databaseSearchBySource.value = { ...databaseSearchBySource.value, [dataSourceId]: value }
+  if (!value.trim()) clearTableQuery(dataSourceId)
 }
 function tableQuery(dataSourceId: string): string {
   return tableSearchBySource.value[dataSourceId] || ''
 }
 function setTableQuery(dataSourceId: string, event: Event): void {
+  if (!hasDatabaseQuery(dataSourceId)) return
   const value = (event.target as HTMLInputElement).value
   tableSearchBySource.value = { ...tableSearchBySource.value, [dataSourceId]: value }
+}
+function activeTableQuery(dataSourceId: string): string {
+  return hasDatabaseQuery(dataSourceId) ? tableQuery(dataSourceId).trim().toLowerCase() : ''
+}
+function tableFilterHint(source: DataSourceListItem): string {
+  if (hasDatabaseQuery(source.id)) return '筛选表 / 视图'
+  return `请先${namespaceMeta(source)?.filterLabel || '筛选库名'}再筛选表`
 }
 function databasesOf(dataSourceId: string): DatabaseItem[] {
   const query = databaseQuery(dataSourceId).trim().toLowerCase()
@@ -128,13 +146,13 @@ function databasesOf(dataSourceId: string): DatabaseItem[] {
   return items.filter((item) => item.name.toLowerCase().includes(query))
 }
 function tablesOf(dataSourceId: string, database: string, type: ObjectGroup): TableItem[] {
-  const q = tableQuery(dataSourceId).trim().toLowerCase()
+  const q = activeTableQuery(dataSourceId)
   return (tablesByDb.value[dbKey(dataSourceId, database)] || []).filter(
     (item) => item.type === type && (!q || item.name.toLowerCase().includes(q)),
   )
 }
 function isGroupOpen(dataSourceId: string, database: string, group: ObjectGroup): boolean {
-  if (tableQuery(dataSourceId).trim()) return true
+  if (activeTableQuery(dataSourceId)) return true
   return Boolean(expandedGroups.value[groupKey(dataSourceId, database, group)])
 }
 function isActive(node: ActiveNode): boolean {
@@ -543,7 +561,8 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
               class="tree-filter-input"
               :placeholder="tableFilterLabel(source)"
               aria-label="筛选表"
-              title="筛选表 / 视图"
+              :title="tableFilterHint(source)"
+              :disabled="!hasDatabaseQuery(source.id)"
               :data-testid="`navigator-table-filter-${source.id}`"
               :value="tableQuery(source.id)"
               @input="setTableQuery(source.id, $event)"
