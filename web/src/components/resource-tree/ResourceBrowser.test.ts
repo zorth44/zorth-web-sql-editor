@@ -131,11 +131,40 @@ describe('resource navigator', () => {
       false,
     )
 
+    await wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').setValue('orders')
+    await wrapper.get('[data-testid="navigator-table-filter-ds-orders-a"]').setValue('order_view')
+    await flushPromises()
+    expect(wrapper.text()).toContain('order_view')
+    expect(wrapper.text()).not.toContain('order_item')
+    wrapper.unmount()
+  })
+
+  it('keeps the table filter disabled until the database filter is set', async () => {
+    const wrapper = await renderBrowser({ dataSourceId: 'ds-orders-a', database: 'orders' })
+    const tableFilter = () => wrapper.get('[data-testid="navigator-table-filter-ds-orders-a"]')
+    expect(tableFilter().attributes('disabled')).toBeDefined()
+    expect(tableFilter().attributes('title')).toBe('请先筛选库名再筛选表')
+
+    await wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').setValue('orders')
+    await flushPromises()
+    expect(tableFilter().attributes('disabled')).toBeUndefined()
+    expect(tableFilter().attributes('title')).toBe('筛选表 / 视图')
+
+    await tableFilter().setValue('order_view')
+    await flushPromises()
+    expect(wrapper.text()).toContain('order_view')
+    expect(wrapper.text()).not.toContain('order_item')
+
     await wrapper.get('[data-testid="navigator-db-filter-ds-orders-a"]').setValue('')
-    await wrapper.get('[data-testid="navigator-table-filter-ds-orders-a"]').setValue('order_item')
+    await flushPromises()
+    expect(tableFilter().attributes('disabled')).toBeDefined()
+    expect((tableFilter().element as HTMLInputElement).value).toBe('')
+    expect(wrapper.text()).not.toContain('order_view')
+
+    await wrapper.get('[aria-label="展开 视图"]').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('order_item')
-    expect(wrapper.text()).not.toContain('order_view')
+    expect(wrapper.text()).toContain('order_view')
     wrapper.unmount()
   })
 

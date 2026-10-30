@@ -107,6 +107,10 @@ The SQL workspace sidebar SHALL list visible data sources as tree roots. Expandi
 - **THEN** only matching NAMESPACE children of that source SHALL remain visible
 - **WHEN** the user types a table name in that source's table filter
 - **THEN** tables and views under already-expanded NAMESPACE children of that source SHALL be filtered
+- **WHEN** that source's NAMESPACE filter is empty
+- **THEN** the table filter SHALL be disabled and SHALL NOT filter tables
+- **WHEN** the user clears that source's NAMESPACE filter
+- **THEN** any table filter text for that source SHALL be cleared
 
 #### Scenario: No visible data sources
 - **WHEN** the current user has no visible data sources

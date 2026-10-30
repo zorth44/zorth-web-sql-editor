@@ -528,6 +528,9 @@ textarea {
 .tree-filter-input {
   @apply min-w-0 flex-1 rounded border border-line bg-subtle px-1.5 py-0.5 text-[11px] leading-normal text-ink placeholder:text-placeholder focus:border-brand focus:bg-panel;
 }
+.tree-filter-input:disabled {
+  @apply cursor-not-allowed bg-panel opacity-60;
+}
 .sql-split.splitpanes {
   background: transparent;
 }
