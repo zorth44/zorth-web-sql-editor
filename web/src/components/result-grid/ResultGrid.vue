@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Copy,
   Download,
+  FileText,
   Filter,
   Menu,
   PanelRight,
@@ -16,7 +17,7 @@ import {
 import type { SqlCellValue, SqlColumn, SqlExecutionResult } from '@/types/contracts'
 import { copyText } from '@/clipboard'
 import { nextTableDataSort, type TableDataSort } from '@/sql-editor/table-data-filter'
-import { cellMatches, compareCells, displayCell, previewCell } from './cell-value'
+import { cellMatches, compareCells, displayCell, isBinary, previewCell } from './cell-value'
 import {
   columnTypeGlyph,
   columnTypeKind,
@@ -70,6 +71,8 @@ const props = defineProps<{
   filterDrafts?: Record<string, string>
   filterErrors?: Record<string, string>
   sortState?: TableDataSort | null
+  tableName?: string
+  databaseName?: string
 }>()
 const emit = defineEmits<{
   export: []
@@ -97,6 +100,8 @@ const filterDraft = ref('')
 const limitDraft = ref(String(props.rowLimit ?? DEFAULT_ROW_LIMIT))
 const copied = ref('')
 const copyFailed = ref(false)
+const insertDialog = ref(false)
+const insertStatements = ref('')
 let copyTimer = 0
 let observer: ResizeObserver | undefined
 let dragging = false
@@ -268,6 +273,36 @@ async function copyResult(): Promise<void> {
     ...props.result.rows.map((row) => row.map(displayCell).join('\t')),
   ]
   await copy(lines.join('\n'), '结果已复制')
+}
+function formatSqlValue(value: SqlCellValue, jdbcType: string): string {
+  if (value === null) return 'NULL'
+  if (isBinary(value)) return 'NULL'
+  const numericTypes = ['INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'FLOAT', 'DOUBLE', 'DECIMAL', 'NUMERIC']
+  const isNumeric = numericTypes.some((t) => jdbcType.toUpperCase().includes(t))
+  if (isNumeric && typeof value === 'number') return String(value)
+  if (typeof value === 'boolean') return value ? '1' : '0'
+  const str = String(value)
+  return `'${str.replace(/'/g, "''")}'`
+}
+function generateInsertStatements(): void {
+  if (props.result?.kind !== 'RESULT_SET' || !props.tableName) return
+  const rect = selectedRect.value
+  if (!rect) return
+  const cols = props.result.columns
+  const lines: string[] = []
+  for (let rowIndex = rect.rowStart; rowIndex <= rect.rowEnd; rowIndex++) {
+    const rowData = ordered.value[rowIndex]?.row
+    if (!rowData) continue
+    const columnNames = cols.map((c) => `\`${c.name}\``).join(', ')
+    const values = cols.map((c, i) => formatSqlValue(rowData[i], c.jdbcType)).join(', ')
+    lines.push(`INSERT INTO \`${props.databaseName}\`.\`${props.tableName}\` (${columnNames}) VALUES (${values});`)
+  }
+  insertStatements.value = lines.join('\n')
+  insertDialog.value = true
+  closeMenu()
+}
+async function copyInsertStatements(): Promise<void> {
+  await copy(insertStatements.value, 'INSERT 语句已复制')
 }
 function openValue(row: number, col: number): void {
   const column = columns.value[col]
@@ -894,6 +929,14 @@ onBeforeUnmount(() => {
         <button v-if="menu.row != null" class="result-ctx-item" @click="copyRow">
           <Copy :size="14" />复制整行
         </button>
+        <button
+          v-if="selection && props.tableName"
+          class="result-ctx-item"
+          data-testid="generate-insert"
+          @click="generateInsertStatements"
+        >
+          <FileText :size="14" />生成 INSERT 语句
+        </button>
         <div class="result-ctx-item result-ctx-parent" @mouseenter="menu.submenu = 'sort'">
           <ArrowUp :size="14" />排序
           <ChevronRight :size="12" class="ml-auto text-muted" />
@@ -944,6 +987,36 @@ onBeforeUnmount(() => {
         <button class="result-ctx-item" :disabled="!pinned.length" @click="unpinAll">
           取消所有固定
         </button>
+      </div>
+    </Teleport>
+    <Teleport to="body">
+      <div
+        v-if="insertDialog"
+        class="fixed inset-0 z-40 grid place-items-center bg-overlay p-6"
+        @keydown.esc="insertDialog = false"
+      >
+        <section
+          class="flex h-[80vh] w-full max-w-3xl flex-col rounded-xl bg-panel p-6 shadow-2xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="insert-dialog-title"
+        >
+          <div class="flex items-center justify-between">
+            <h2 id="insert-dialog-title" class="text-lg font-semibold">INSERT 语句</h2>
+            <div class="flex gap-2">
+              <button class="btn" type="button" @click="copyInsertStatements">
+                <Copy :size="14" />{{ copied ? '已复制' : '复制全部' }}
+              </button>
+              <button class="icon-btn" type="button" @click="insertDialog = false">
+                <X :size="16" />
+              </button>
+            </div>
+          </div>
+          <pre
+            class="mt-4 flex-1 overflow-auto rounded-lg border border-line bg-subtle p-4 font-mono text-sm"
+            data-testid="insert-statements"
+          >{{ insertStatements }}</pre>
+        </section>
       </div>
     </Teleport>
   </section>
