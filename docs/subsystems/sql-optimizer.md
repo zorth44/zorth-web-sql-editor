@@ -4,7 +4,7 @@
 
 - 前端：`web/src/pages/SqlOptimizerPage.vue`（任务列表首页）、`SqlOptimizerNewPage.vue`（`/sql-optimizer/new` 创建页）、`SqlOptimizationTaskPage.vue`、`components/sql-optimizer/`、`sql-optimizer/`、`api/sql-optimization.ts`。Mock 位于 `web/src/mocks/sql-optimization-*`。
 - 后端：`service/src/main/java/com/bocsoft/sqleditor/optimization/`（API、repository、Scheduler、Worker、Agent client、报告验证和凭证 vault），表迁移见 `service/src/main/resources/db/migration/`。
-- 行为规格：[后端](../../openspec/specs/backend-sql-optimization/spec.md)、[UI](../../openspec/specs/sql-optimizer-ui/spec.md)。精确线协议见[共享契约 v1](../sql-optimizer-api-contract.md)。
+- 行为规格：[后端](../../openspec/specs/backend-sql-optimization/spec.md)、[UI](../../openspec/specs/sql-optimizer-ui/spec.md)。精确线协议见[共享契约 v1](../reference/sql-optimizer-api-contract.md)。
 
 ## 关键维护边界
 
@@ -19,8 +19,8 @@
 
 ## 验证、运行与生产状态
 
-前端门禁见[代码标准](../code-standards.md)，专项浏览器测试为 `web/e2e/sql-optimizer.spec.ts`。后端覆盖幂等/配额竞态、抢占、租约/重启/迟到结果、凭证与身份变化、报告边界及清理，使用独立 Testcontainers 数据库。
+前端门禁见[代码标准](../engineering/code-standards.md)，专项浏览器测试为 `web/e2e/sql-optimizer.spec.ts`。后端覆盖幂等/配额竞态、抢占、租约/重启/迟到结果、凭证与身份变化、报告边界及清理，使用独立 Testcontainers 数据库。
 
-本地 Mock 开发见 [web README](../../web/README.md)。真实链路见[本地开发](../local-development.md)与[联调驱动](../../tools/optimizer-live/README.md)；数据库 + Stub Agent 运行见[后端本地 fixture](../../service/tools/README-optimizer-local.md)。
+本地 Mock 开发见 [web README](../../web/README.md)。真实链路见[本地开发](../guides/local-development.md)与[联调驱动](../../tools/optimizer-live/README.md)；数据库 + Stub Agent 运行见[后端本地 fixture](../../service/tools/README-optimizer-local.md)。
 
-2026-10-13 本地开发和关闭 Mock 的真实 Agent 联调已完成，证据见[交付归档](../archive/2026-10-13-sql-optimizer-delivery.md)与[真实联调归档](../archive/2026-10-13-sql-optimizer-live-acceptance.md)。生产未启用；后续接入必须先看[生产待验收项](../sql-optimizer-production-readiness.md)。
+2026-10-13 本地开发和关闭 Mock 的真实 Agent 联调已完成，证据见[交付归档](../archive/2026-10-13-sql-optimizer-delivery.md)与[真实联调归档](../archive/2026-10-13-sql-optimizer-live-acceptance.md)。生产未启用；后续接入必须先看[生产待验收项](../readiness/sql-optimizer.md)。

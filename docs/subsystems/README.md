@@ -12,3 +12,49 @@
 | [SQL 优化器](sql-optimizer.md) | 持久任务、Worker、短期凭证、报告、轮询与重扫 |
 
 入口只保存代码定位、维护边界、规格链接和专项验证。产品行为以 `openspec/specs/` 为准，历史方案和验收结果见归档，不在这里复制完整 DTO 或任务清单。
+
+## 现行规格
+
+规格正文在 `openspec/specs/<name>/spec.md`。下面只按子系统归组，便于从这里跳进去。各入口里的规格链接与此表一致。
+
+### 应用与认证
+
+- [应用外壳](../../openspec/specs/frontend-application-shell/spec.md)
+- [前端认证](../../openspec/specs/frontend-auth-session/spec.md)
+- [后端认证](../../openspec/specs/backend-auth-session/spec.md)
+- [本地授权服务](../../openspec/specs/local-auth-service/spec.md)
+
+### 数据源与引擎
+
+- [产品行为](../../openspec/specs/data-source-management/spec.md)
+- [后端管理](../../openspec/specs/backend-data-source-management/spec.md)
+- [引擎目录](../../openspec/specs/backend-engine-catalog/spec.md)
+- [Engine SPI](../../openspec/specs/backend-engine-spi/spec.md)
+- [连接安全](../../openspec/specs/backend-connection-security/spec.md)
+- [PostgreSQL](../../openspec/specs/backend-postgresql-engine/spec.md)
+- [GBase 8a](../../openspec/specs/backend-gbase-8a-engine/spec.md)
+- [Hive](../../openspec/specs/backend-hive-engine/spec.md)
+- [Hive Kerberos](../../openspec/specs/backend-hive-kerberos-engine/spec.md)
+- [Iceberg](../../openspec/specs/backend-iceberg-engine/spec.md)
+- [Kerberos 与 ZooKeeper 连接](../../openspec/specs/backend-kerberos-zk-connection/spec.md)
+
+### SQL 工作台
+
+- [前端工作台](../../openspec/specs/frontend-sql-editor-workbench/spec.md)
+- [后端执行](../../openspec/specs/backend-sql-editor/spec.md)
+- [脚本](../../openspec/specs/backend-sql-scripts/spec.md)
+- [历史与导出](../../openspec/specs/backend-sql-history-export/spec.md)
+
+### SQL Copilot
+
+- [SQL Copilot](../../openspec/specs/frontend-sql-copilot/spec.md)
+
+### Agent 数据库 API
+
+- [Agent 数据库 API](../../openspec/specs/backend-agent-database-api/spec.md)
+
+### SQL 优化器
+
+- [后端](../../openspec/specs/backend-sql-optimization/spec.md)
+- [UI](../../openspec/specs/sql-optimizer-ui/spec.md)
+

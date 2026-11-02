@@ -2,7 +2,7 @@
 
 更新：2026-10-13。状态：四个任务 API 已实现，本地真实链路已验收；生产未启用。
 
-行为规格见[后端规格](../openspec/specs/backend-sql-optimization/spec.md)与[UI 规格](../openspec/specs/sql-optimizer-ui/spec.md)。本文补充精确线协议；维护入口见[SQL 优化器](subsystems/sql-optimizer.md)，生产状态见[待验收项](sql-optimizer-production-readiness.md)。
+行为规格见[后端规格](../../openspec/specs/backend-sql-optimization/spec.md)与[UI 规格](../../openspec/specs/sql-optimizer-ui/spec.md)。本文补充精确线协议；维护入口见[SQL 优化器](../subsystems/sql-optimizer.md)，生产状态见[待验收项](../readiness/sql-optimizer.md)。
 
 后端 DTO/接口与前端 TypeScript/MSW 按此协议同步维护。部署地址、后台凭证与 Agent 调用细节属于后端，不进入浏览器业务 DTO。契约变化必须双方同步，不能各自添加互不兼容的字段或状态。
 

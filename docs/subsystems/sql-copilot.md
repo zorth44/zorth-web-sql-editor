@@ -3,7 +3,7 @@
 ## 代码与规格
 
 - 前端：`web/src/components/copilot/`、`stores/copilot.ts`、`api/ai-agent.ts`、`sql-editor/copilot-*`、`sql-editor/sse.ts`。
-- 规格：[SQL Copilot](../../openspec/specs/frontend-sql-copilot/spec.md)。AI Agent Platform 为外部服务，接入见[本地开发](../local-development.md)。
+- 规格：[SQL Copilot](../../openspec/specs/frontend-sql-copilot/spec.md)。AI Agent Platform 为外部服务，接入见[本地开发](../guides/local-development.md)。
 
 ## 维护边界与验证
 

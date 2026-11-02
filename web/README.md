@@ -1,6 +1,6 @@
 # Zorth SQL Editor 前端
 
-阶段一前端提供 LDAP 登录、Session 验证和当前产品下的 MySQL 数据源管理。SQL 服务尚未实现时，可以使用与生产契约共用类型的 MSW 模拟接口。
+Vue 3 工作台，包含登录与会话、数据源管理、SQL 编辑器、Copilot，以及默认关闭的 SQL 优化器。开发时可以用 MSW 模拟 SQL、授权和 AI 接口；Mock 与生产契约共用类型。对接真实服务见文末「切换真实后端」，整条链路见 [本地开发](../docs/guides/local-development.md)。
 
 ## 本地启动
 
@@ -83,7 +83,7 @@ pnpm build
 
 ## 切换真实后端
 
-1. 启动本仓库 `service/`（见 `../service/README.md` 与 `../docs/local-development.md`），或把 API base 指向已部署的集成环境。接口契约以 `openspec/specs/` 下的 spec 为准。
+1. 启动本仓库 `service/`（见 `../service/README.md` 与 `../docs/guides/local-development.md`），或把 API base 指向已部署的集成环境。接口契约以 `openspec/specs/` 下的 spec 为准。
 2. 将两个 API base 指向集成环境，并把 `VITE_ENABLE_API_MOCK` 设为 `false`。
 3. 检查网关 CORS、Bearer Token 和 `X-Request-Id` 透传。
 4. 用同一套 Playwright 流程验证真实接口，尤其是 404 隐藏产品边界、乐观锁和空密码复用。

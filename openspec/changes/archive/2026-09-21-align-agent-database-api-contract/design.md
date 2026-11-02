@@ -43,7 +43,7 @@ Resolve effective NAMESPACE for explain and query:
 
 Validate continues to ignore namespace for safety evaluation (no connection), but must accept `schema` in JSON so binding succeeds.
 
-**Alternative considered:** Engine-specific preference (MySQL prefer `database`, PostgreSQL prefer `schema`) when both differ — rejected for this change; it invents semantics Web does not have and can silently mis-route. Agents that today send `database=business` + `schema=public` for PostgreSQL must list namespaces and pass the NAMESPACE (schema name) in either field consistently; documenting this in `docs/agent-database-api.md` is part of the change.
+**Alternative considered:** Engine-specific preference (MySQL prefer `database`, PostgreSQL prefer `schema`) when both differ — rejected for this change; it invents semantics Web does not have and can silently mis-route. Agents that today send `database=business` + `schema=public` for PostgreSQL must list namespaces and pass the NAMESPACE (schema name) in either field consistently; documenting this in `docs/reference/agent-database-tool-api.md` is part of the change.
 
 **Alternative considered:** Ignore `schema` after accepting it — rejected; consumer sends it expecting selection effect on explain/query.
 
@@ -58,13 +58,13 @@ Extend `AgentSqlExplainResponse` with optional `String riskLevel`. Compute in `A
 | `MEDIUM` | `estimatedRows >= 10000`, or any non-empty findings that did not already classify HIGH |
 | `LOW` | `supported=true` with `fullScan=false` (explicit) and no HIGH/MEDIUM triggers |
 
-Do not invent estimates or full-scan flags; only classify from fields already returned. Document the table in `docs/agent-database-api.md`.
+Do not invent estimates or full-scan flags; only classify from fields already returned. Document the table in `docs/reference/agent-database-tool-api.md`.
 
 **Alternative considered:** Leave risk classification to the consumer — rejected; consumer contract and fixtures already expect provider `riskLevel`, and black-box tests accept provider-supplied values.
 
 ### 4. Docs and contract tests as the compatibility surface
 
-Update `docs/agent-database-api.md` endpoint table and SQL body / explain response sections. Extend `AgentApiContractTest` (and integration coverage where databases listing or risk classification needs a real engine) so unknown-field rejection still applies to truly unknown keys, while `schema` succeeds.
+Update `docs/reference/agent-database-tool-api.md` endpoint table and SQL body / explain response sections. Extend `AgentApiContractTest` (and integration coverage where databases listing or risk classification needs a real engine) so unknown-field rejection still applies to truly unknown keys, while `schema` succeeds.
 
 ## Risks / Trade-offs
 
@@ -75,7 +75,7 @@ Update `docs/agent-database-api.md` endpoint table and SQL body / explain respon
 ## Migration Plan
 
 1. Land Agent DTO/controller/mapper changes and contract tests.
-2. Update `docs/agent-database-api.md`.
+2. Update `docs/reference/agent-database-tool-api.md`.
 3. Consumer `bddf-agentscope` change `align-database-tools-sql-editor-contract` adopts list-databases, keeps sending optional `schema`, and surfaces `riskLevel` (separate repo).
 4. Rollback: remove or unroute the new Agent databases mapping and revert DTO fields; Web APIs unaffected.
 

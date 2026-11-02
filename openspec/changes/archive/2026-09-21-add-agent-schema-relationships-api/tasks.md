@@ -25,7 +25,7 @@
 - [x] 4.1 Extend Agent table-detail DTO/mapping with uniqueKeys, outbound foreignKeys, cropped indexes, coverage and applied limits while omitting raw DDL/default/check/statistics/vendor fields
 - [x] 4.2 Add `GET /internal/api/v1/agent/data-sources/{id}/relationships` with strict database/table/direction/pageSize/pageToken validation and stable Agent DTOs
 - [x] 4.3 Add MVC contract tests for enriched table detail, relationship directions, opaque paging, missing/invalid fields, unsupported capability, additive internal caller key and cross-product not-found behavior
-- [x] 4.4 Update OpenAPI/`docs/agent-database-api.md` with endpoint parameters, response examples, evidence/coverage semantics, hard limits and the companion consumer change `add-schema-relationships-tools`
+- [x] 4.4 Update OpenAPI/`docs/reference/agent-database-tool-api.md` with endpoint parameters, response examples, evidence/coverage semantics, hard limits and the companion consumer change `add-schema-relationships-tools`
 
 ## 5. Real-database verification and release
 

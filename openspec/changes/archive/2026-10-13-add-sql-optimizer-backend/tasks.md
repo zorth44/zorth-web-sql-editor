@@ -28,7 +28,7 @@
 
 ## 8. External acceptance (outside local Goal)
 
-未勾选项全部依赖生产输入，随本 change 归档后由 `docs/sql-optimizer-production-readiness.md` 继续跟踪，验收时边界保留在 `docs/archive/2026-10-13-sql-optimizer-live-acceptance.md` 第 7 节；本 change 交付的代码与契约不因此缺失。
+未勾选项全部依赖生产输入，随本 change 归档后由 `docs/readiness/sql-optimizer.md` 继续跟踪，验收时边界保留在 `docs/archive/2026-10-13-sql-optimizer-live-acceptance.md` 第 7 节；本 change 交付的代码与契约不因此缺失。
 
 - [ ] 8.1 Confirm production CurrentUserPort, verified Bearer and real Agent callback configuration.
   - [x] 2026-10-13 local run against a real Agent Platform and real MySQL: user Bearer propagated on the Agent chat call, paired callback key enforced (`X-Internal-Service-Key` alone 401, wrong/missing key 401, bearer + paired key 200) and the internal key never substitutes user identity.

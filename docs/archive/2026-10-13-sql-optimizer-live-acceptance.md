@@ -97,7 +97,7 @@ node tools/optimizer-live/live-failures.mjs verify        # 重启后恢复与�
 
 ## 7. 验收当时未完成项与外部依赖
 
-以下保留验收时的范围边界，后续状态统一维护在[生产待验收项](../sql-optimizer-production-readiness.md)。
+以下保留验收时的范围边界，后续状态统一维护在[生产待验收项](../readiness/sql-optimizer.md)。
 
 | 项 | 状态 | 所需输入 |
 | --- | --- | --- |

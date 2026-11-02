@@ -4,7 +4,7 @@
 
 - 入口：`service/src/main/java/com/bocsoft/sqleditor/agentapi/`，复用 auth、datasource、metadata、execution 与 engine。
 - 行为规格：[backend-agent-database-api](../../openspec/specs/backend-agent-database-api/spec.md)。
-- 消费方接口参考：[Agent Database Tool API](../agent-database-api.md)，包含路径、字段、鉴权、限制、错误与黑盒测试说明。
+- 消费方接口参考：[Agent Database Tool API](../reference/agent-database-tool-api.md)，包含路径、字段、鉴权、限制、错误与黑盒测试说明。
 
 ## 维护边界与验证
 

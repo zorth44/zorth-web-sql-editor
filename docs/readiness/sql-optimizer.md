@@ -13,4 +13,4 @@
 
 凭证长期委派、退出后继续或排队数小时不是当前交付承诺；若新增此范围，需要授权服务与内部 API 的独立设计，不能用共享服务账号代替最终用户身份。
 
-维护入口见[SQL 优化器](subsystems/sql-optimizer.md)，部署与轮换见 [service/docs](../service/docs/deployment.md)和[凭据轮换](../service/docs/credential-rotation.md)。历史证据见[真实联调归档](archive/2026-10-13-sql-optimizer-live-acceptance.md)与[交付归档](archive/2026-10-13-sql-optimizer-delivery.md)。
+维护入口见[SQL 优化器](../subsystems/sql-optimizer.md)，部署与轮换见 [service/docs](../../service/docs/deployment.md)和[凭据轮换](../../service/docs/credential-rotation.md)。历史证据见[真实联调归档](../archive/2026-10-13-sql-optimizer-live-acceptance.md)与[交付归档](../archive/2026-10-13-sql-optimizer-delivery.md)。

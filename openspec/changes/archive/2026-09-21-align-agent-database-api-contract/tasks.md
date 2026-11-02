@@ -18,5 +18,5 @@
 
 ## 4. Docs and regression
 
-- [x] 4.1 Update `docs/agent-database-api.md` with the databases endpoint, `schema` on validate/explain/query bodies (NAMESPACE alias + conflict rule), and explain `riskLevel` derivation table; verify the doc lists the new path alongside existing Agent endpoints
+- [x] 4.1 Update `docs/reference/agent-database-tool-api.md` with the databases endpoint, `schema` on validate/explain/query bodies (NAMESPACE alias + conflict rule), and explain `riskLevel` derivation table; verify the doc lists the new path alongside existing Agent endpoints
 - [x] 4.2 Run Agent-focused tests (`AgentApiContractTest` and related agentapi tests) and fix regressions so schema acceptance, databases listing, and riskLevel assertions pass
