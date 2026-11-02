@@ -252,7 +252,9 @@ public class SqlEditorProperties {
     }
     public static class Scripts {
         @Min(1) @Max(1000) private int maxPerUser=200;
+        private String storagePath="./sql-scripts";
         public int getMaxPerUser(){return maxPerUser;} public void setMaxPerUser(int v){maxPerUser=v;}
+        public String getStoragePath(){return storagePath;} public void setStoragePath(String v){storagePath=v;}
     }
 
     public static class Http {

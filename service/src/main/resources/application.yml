@@ -102,6 +102,7 @@ sql-editor:
     stale-running-minutes: ${SQL_EDITOR_STALE_RUNNING_MINUTES:5}
   scripts:
     max-per-user: ${SQL_EDITOR_SCRIPTS_MAX_PER_USER:200}
+    storage-path: ${SQL_EDITOR_SCRIPTS_STORAGE_PATH:./sql-scripts}
   http:
     trusted-proxy-cidrs: []
   kerberos:

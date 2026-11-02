@@ -11,6 +11,7 @@ public class ScriptRecord {
     private String dataSourceId;
     private String dataSourceName;
     private String databaseName;
+    private String statementPath;
     private String statementText;
     private long version;
     private String createdBy;
@@ -28,6 +29,7 @@ public class ScriptRecord {
     public String getDataSourceId() { return dataSourceId; } public void setDataSourceId(String v) { dataSourceId = v; }
     public String getDataSourceName() { return dataSourceName; } public void setDataSourceName(String v) { dataSourceName = v; }
     public String getDatabaseName() { return databaseName; } public void setDatabaseName(String v) { databaseName = v; }
+    public String getStatementPath() { return statementPath; } public void setStatementPath(String v) { statementPath = v; }
     public String getStatementText() { return statementText; } public void setStatementText(String v) { statementText = v; }
     public long getVersion() { return version; } public void setVersion(long v) { version = v; }
     public String getCreatedBy() { return createdBy; } public void setCreatedBy(String v) { createdBy = v; }

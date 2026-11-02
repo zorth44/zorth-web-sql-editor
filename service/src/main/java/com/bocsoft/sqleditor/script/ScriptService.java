@@ -31,14 +31,16 @@ public class ScriptService {
     private final MetadataCursorCodec cursors;
     private final SqlEditorProperties properties;
     private final Clock clock;
+    private final ScriptStorageService storage;
 
     public ScriptService(ScriptMapper mapper, DataSourceService dataSources, MetadataCursorCodec cursors,
-                         SqlEditorProperties properties, Clock clock) {
+                         SqlEditorProperties properties, Clock clock, ScriptStorageService storage) {
         this.mapper = mapper;
         this.dataSources = dataSources;
         this.cursors = cursors;
         this.properties = properties;
         this.clock = clock;
+        this.storage = storage;
     }
 
     @Transactional
@@ -57,6 +59,8 @@ public class ScriptService {
         record.setProductId(auth.getProductId());
         record.setName(name);
         applyConnection(auth, record, request.getDataSourceId(), request.getDatabase());
+        String relativePath = auth.getUserId() + "/" + record.getId() + ".sql";
+        record.setStatementPath(relativePath);
         record.setStatementText(statement);
         record.setVersion(1);
         record.setCreatedBy(auth.getUserId());
@@ -65,6 +69,11 @@ public class ScriptService {
         record.setUpdatedBy(auth.getUserId());
         record.setUpdatedByName(auth.getDisplayName());
         record.setUpdatedAt(now);
+        try {
+            storage.writeScript(auth.getUserId(), record.getId(), statement);
+        } catch (ScriptStorageService.ScriptStorageException e) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "STORAGE_ERROR", "无法保存脚本文件", e);
+        }
         mapper.insert(record);
         return detailOf(auth, record);
     }
@@ -118,12 +127,18 @@ public class ScriptService {
         }
         if (current.getVersion() != request.getVersion()) throw conflict(current);
         current.setName(requireName(request.getName()));
-        current.setStatementText(requireStatement(request.getStatement()));
+        String statement = requireStatement(request.getStatement());
+        current.setStatementText(statement);
         applyConnection(auth, current, request.getDataSourceId(), request.getDatabase());
         current.setUpdatedBy(auth.getUserId());
         current.setUpdatedByName(auth.getDisplayName());
         current.setUpdatedAt(clock.instant());
         current.setVersion(request.getVersion());
+        try {
+            storage.writeScript(auth.getUserId(), id, statement);
+        } catch (ScriptStorageService.ScriptStorageException e) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "STORAGE_ERROR", "无法保存脚本文件", e);
+        }
         if (mapper.updateCurrent(current) != 1) throw conflict(requireOwned(auth, id));
         return detailOf(auth, requireOwned(auth, id));
     }
@@ -132,6 +147,7 @@ public class ScriptService {
     public void delete(AuthContext auth, String id, long version) {
         ScriptRecord current = requireOwned(auth, id);
         if (mapper.deleteCurrent(id, auth.getUserId(), version) != 1) throw conflict(current);
+        storage.deleteScript(auth.getUserId(), id);
     }
 
     private ScriptRecord requireOwned(AuthContext auth, String id) {
@@ -150,6 +166,16 @@ public class ScriptService {
                 available = true;
             } catch (ApiException ignored) {
                 available = false;
+            }
+        }
+        if (record.getStatementText() == null && record.getStatementPath() != null) {
+            try {
+                String content = storage.readScript(auth.getUserId(), record.getId());
+                if (content != null) {
+                    record.setStatementText(content);
+                }
+            } catch (ScriptStorageService.ScriptStorageException e) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "STORAGE_ERROR", "无法读取脚本文件", e);
             }
         }
         return new ScriptDetail(record, available);
