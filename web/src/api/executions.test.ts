@@ -74,16 +74,13 @@ describe('exportExecution', () => {
     saveToken('mock-token', false)
     const abort = new AbortController()
     let aborted = false
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode('partial'))
-      },
-    })
+    // 响应体用字符串而不是自建 ReadableStream：Node 18 上 msw 会把自建流转接成 Node 流，
+    // 取消时 pipeTo 返回的 promise 不 settle，测试只能等到超时。字符串响应同样先写再取消。
     server.use(
       http.post(
         `${appEnv.sqlApiBase}/api/v1/sql/exports`,
         () =>
-          new HttpResponse(stream, {
+          new HttpResponse('partial', {
             headers: {
               'Content-Type': 'text/csv',
               'Content-Disposition': 'attachment; filename="x.csv"',

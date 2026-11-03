@@ -8,7 +8,7 @@
 # Usage: stack.sh <up|down|restart|status>
 #
 # Required environment: MYSQL_HOST MYSQL_PORT MYSQL_USER MYSQL_PASSWORD LLM_API_KEY
-# Node must satisfy ^20.19.0 || >=22.12.0 for the web dev server (vite 7); checked before start.
+# Node must satisfy ^18.20.0 || ^20.0.0 || >=22.0.0 for the web dev server (vite 6); checked before start.
 # Optional: OPTIMIZER_LIVE_RUNTIME (default /private/tmp/optimizer-live), AGENT_REPO, JAVA_HOME_17,
 #           API_PORT/AUTH_PORT/AGENT_PORT/WEB_PORT, OPTIMIZER_USERS, OPTIMIZER_DENIED_USER,
 #           OPTIMIZER_PASSWORD, OPTIMIZATION_SCHEDULER_ENABLED, MYSQL_DEMO_DATABASE
@@ -38,8 +38,8 @@ LOGS="$RUNTIME/logs"
 die() { echo "error: $*" >&2; exit 1; }
 need() { [ -n "${!1:-}" ] || die "$1 is required"; }
 
-# web/ (vite 7) declares engines ^20.19.0 || >=22.12.0; any other version makes the dev
-# server exit at startup while the rest of the stack still looks healthy.
+# web/ (vite 6) declares engines ^18.20.0 || ^20.0.0 || >=22.0.0; any other version makes the
+# dev server exit at startup while the rest of the stack still looks healthy.
 web_node_ok() {
   local version major minor
   version=$(node -v 2>/dev/null) || return 1
@@ -52,16 +52,16 @@ web_node_ok() {
   minor=${version#*.}
   minor=${minor%%.*}
   case "$major" in
-    20) [ "$minor" -ge 19 ] ;;
+    18) [ "$minor" -ge 20 ] ;;
+    20) return 0 ;;
     21) return 1 ;;
-    22) [ "$minor" -ge 12 ] ;;
-    *) [ "$major" -ge 23 ] ;;
+    *) [ "$major" -ge 22 ] ;;
   esac
 }
 
 web_node_hint() {
   cat >&2 <<EOF
-  web/ needs Node ^20.19.0 || >=22.12.0 (vite 7); this shell resolves node to $(node -v 2>/dev/null || echo 'nothing')
+  web/ needs Node ^18.20.0 || ^20.0.0 || >=22.0.0 (vite 6); this shell resolves node to $(node -v 2>/dev/null || echo 'nothing')
   switch with nvm in the shell that starts the stack:
     nvm install --lts && nvm use --lts    # or: nvm use default
   check with: node -v
@@ -71,7 +71,7 @@ EOF
 
 require_web_node() {
   if web_node_ok; then return 0; fi
-  echo "error: node is too old for the web dev server (vite 7)" >&2
+  echo "error: node does not satisfy web/ engines ^18.20.0 || ^20.0.0 || >=22.0.0 (vite 6)" >&2
   web_node_hint
   exit 1
 }
