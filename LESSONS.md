@@ -9,3 +9,5 @@
 | 优化器并发 | 心跳若改变领取时的 version，可能导致自己的完成 CAS 失败；领取、续租和终态写入必须一起检查，保留迟到结果保护。 | [后端交付记录](docs/archive/2026-10-13-sql-optimizer-delivery.md)、[后端规格](openspec/specs/backend-sql-optimization/spec.md) |
 | Agent 报告 | HTTP 200 或 SUCCEEDED 不代表取证完整；limitations 表示未作结论，不能显示“全部规则通过”。 | [真实联调记录](docs/archive/2026-10-13-sql-optimizer-live-acceptance.md)、[UI 规格](openspec/specs/sql-optimizer-ui/spec.md) |
 | 前端资源树过滤测试 | 表与视图分组默认折叠，断言某个表名“不可见”可能只说明分组未展开，而不是过滤生效。验证过滤时应展开对应分组，或先断言过滤前的可见性基线。 | [资源树测试](web/src/components/resource-tree/ResourceBrowser.test.ts) |
+| 前端构建工具链 | Node 18 没有 `crypto.hash`（20.12+ 才有）；vite 7 与 `@vitejs/plugin-vue` 6 启动即抛 `crypto.hash is not a function`，dev server 和 vitest 全挂。要支持 Node 18 就把 vite 固定 6.x、plugin-vue 固定 5.x（两者有 `createHash` 兜底），改依赖后先跑 `pnpm dev` 再跑 `pnpm test`。 | [前端依赖](web/package.json)、[本地启动说明](web/README.md) |
+| 导出流测试（Node 18） | Node 18 上 msw 会把测试自建的 `ReadableStream` 转接成 Node 流，取消时 `pipeTo` 的 promise 一直不 settle，测试只会超时而不是失败。用字符串响应体覆盖“写一半取消”路径；排查时先确认 `write()` 是否真的被调用，别把环境差异当成业务回归。 | [导出测试](web/src/api/executions.test.ts)、[导出实现](web/src/api/executions.ts) |

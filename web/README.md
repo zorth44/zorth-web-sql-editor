@@ -4,7 +4,7 @@ Vue 3 工作台，包含登录与会话、数据源管理、SQL 编辑器、Copi
 
 ## 本地启动
 
-要求 Node.js 20.19+ 和 pnpm 10。首次运行：
+要求 Node.js `^18.20.0 || ^20.0.0 || >=22.0.0` 和 pnpm 10。构建链固定在 vite 6，因为 vite 7 依赖 Node 20.12+ 才有的 `crypto.hash`。首次运行：
 
 ```bash
 pnpm install
