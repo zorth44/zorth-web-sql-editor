@@ -19,6 +19,8 @@ const resourceBrowserLifecycle = vi.hoisted(() => ({
   emitSuggestions: undefined as ((catalog: CompletionCatalog) => void) | undefined,
 }))
 
+const monacoStub = vi.hoisted(() => ({ copilotSql: '' }))
+
 vi.mock('@/components/editor/SqlMonacoEditor.vue', () => ({
   default: {
     name: 'SqlMonacoEditor',
@@ -26,7 +28,7 @@ vi.mock('@/components/editor/SqlMonacoEditor.vue', () => ({
     template: '<div data-testid="monaco-stub" />',
     methods: {
       getCopilotSql() {
-        return ''
+        return monacoStub.copilotSql
       },
       getRunnableScript() {
         return ''
@@ -159,6 +161,55 @@ describe('sql editor scripts workspace', () => {
     expect(document.body.textContent).toContain('保存脚本')
     expect(document.querySelector('[data-testid="save-script-name"]')).not.toBeNull()
     wrapper.unmount()
+  })
+
+  it('saves the full tab SQL even when the editor reports a partial selection', async () => {
+    const scriptsApi = await import('@/api/scripts')
+    const fullSql = 'select 1 from order_item;\nselect 2 from order_item;\nselect 3 from order_item;'
+    const createScript = vi.spyOn(scriptsApi, 'createScript').mockResolvedValue({
+      id: 'script-1',
+      name: '月报',
+      dataSourceId: 'ds-orders-a',
+      dataSourceName: '订单测试库',
+      database: 'orders',
+      statementSummary: fullSql.slice(0, 20),
+      statement: fullSql,
+      version: 1,
+      createdAt: '2026-11-19T00:00:00Z',
+      updatedAt: '2026-11-19T00:00:00Z',
+      connectionAvailable: true,
+    })
+    try {
+      const wrapper = await renderPage()
+      useEditorStore().createTab('ds-orders-a', 'orders', fullSql)
+      await flushPromises()
+      // 模拟编辑器中选中了第一条语句（例如执行/复制后留下的选区）
+      monacoStub.copilotSql = 'select 1 from order_item'
+      await wrapper.get('[data-testid="save-script"]').trigger('click')
+      await flushPromises()
+      const input = document.querySelector<HTMLInputElement>('[data-testid="save-script-name"]')
+      expect(input).not.toBeNull()
+      input!.value = '月报'
+      input!.dispatchEvent(new Event('input'))
+      const dialog = document.querySelector('[role="dialog"]')
+      expect(dialog).not.toBeNull()
+      const confirm = Array.from(dialog!.querySelectorAll('button')).find(
+        (item) => item.textContent?.trim() === '保存',
+      )
+      expect(confirm).toBeDefined()
+      confirm!.click()
+      await flushPromises()
+      expect(createScript).toHaveBeenCalledTimes(1)
+      expect(createScript.mock.calls[0]?.[0]).toMatchObject({ name: '月报', statement: fullSql })
+      const tab = useEditorStore().tabs.find((item) => item.kind === 'sql')
+      expect(tab?.scriptId).toBe('script-1')
+      expect(tab?.savedVersion).toBe(1)
+      expect(tab?.savedSql).toBe(fullSql)
+      wrapper.unmount()
+    } finally {
+      monacoStub.copilotSql = ''
+      createScript.mockRestore()
+    }
   })
 })
 

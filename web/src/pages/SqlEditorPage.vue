@@ -569,7 +569,7 @@ function handleSaveConflict(e: unknown): boolean {
 function requestSave(asNew = false) {
   const tab = active.value
   if (!tab || tab.kind !== 'sql' || !canScripts.value) return
-  const sql = monacoRef.value?.getCopilotSql() || tab.sql
+  const sql = tab.sql
   if (!sql.trim()) {
     notice('请先编写 SQL 再保存')
     return
@@ -585,7 +585,7 @@ function requestSave(asNew = false) {
 async function persistTab(tabId: string, name: string, asNew: boolean) {
   const tab = editor.tabs.find((item) => item.id === tabId)
   if (!tab || tab.kind !== 'sql') return
-  const statement = monacoRef.value?.getCopilotSql() || tab.sql
+  const statement = tab.sql
   if (!statement.trim()) {
     notice('请先编写 SQL 再保存')
     return
